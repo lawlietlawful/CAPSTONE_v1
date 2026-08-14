@@ -1,0 +1,41 @@
+previous_referrals_count,behavioral_reports_count,concern_type_encoded,days_since_last_referral,referral_reason,risk_level
+0,0,0,999,"General counseling needed",low
+0,0,1,200,"Asked for career advice",low
+1,0,0,200,"Checking in for well-being",low
+0,0,4,150,"Minor family concern discussed",low
+1,0,1,100,"Needs a tutor for one subject",low
+0,0,5,200,"Minor misunderstanding with peer",low
+1,0,6,200,"First time referral observation",low
+0,1,0,200,"Career advice requested",low
+2,0,1,200,"Asking about college",low
+0,0,3,200,"Student seems fine but parent requested check-in",low
+1,1,0,200,"General counseling needed",low
+2,0,4,200,"Minor family concern discussed",low
+0,0,2,200,"Minor misunderstanding with classmate",low
+0,0,1,91,"Needs tutor for chemistry",low
+3,1,0,200,"Frequently late to class",moderate
+1,0,1,5,"Struggling with assignments, referred again",moderate
+0,3,0,200,"Multiple minor behavioral notes this month",moderate
+1,0,5,200,"Occasional peer conflict reported",moderate
+1,0,3,200,"Showing signs of emotional withdrawal",moderate
+0,1,5,200,"Minor peer conflict reported",moderate
+1,0,2,200,"Sometimes disruptive in class",moderate
+3,0,6,30,"Occasional attendance concern noted again",moderate
+0,1,4,10,"Family issues affecting grades",moderate
+2,1,1,5,"Needs help with math, recently referred again",moderate
+0,0,2,5,"Talking back to teacher",moderate
+1,1,0,6,"Lack of focus, repeated concern",moderate
+4,1,0,200,"Repeated minor infractions, third referral",moderate
+5,1,0,5,"Multiple behavioral incidents reported, escalating pattern",high
+6,3,2,3,"Extremely aggressive behavior towards peers, repeated",high
+1,0,3,3,"Depressed and isolated, urgent concern",high
+3,1,5,5,"Repeated peer conflict escalation with aggression",high
+5,1,1,60,"Failing all subjects, chronic pattern of referrals",high
+2,3,2,5,"Very aggressive behavior, multiple incidents this week",high
+3,0,6,3,"Chronic truancy despite warnings, hit critical threshold",high
+8,3,2,2,"Has not attended class in weeks and is failing, severe case",high
+1,1,4,3,"Family problems causing severe distress, urgent referral",high
+5,4,3,5,"Caught cheating multiple times, emotional distress, escalating",high
+3,1,2,7,"Multiple behavioral incidents reported this week",high
+1,0,5,1,"Severe peer conflict escalation, immediate concern",high
+6,2,6,4,"Chronic absence pattern with escalating severity",high

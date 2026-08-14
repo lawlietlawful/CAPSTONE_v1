@@ -1,0 +1,47 @@
+{
+  "seed": 42,
+  "architecture": "stacked: TF-IDF -> LogisticRegression -> RandomForest(numeric + text_probs)",
+  "n_rows": 3000,
+  "test_size": 0.2,
+  "class_balance": {
+    "low": 927,
+    "moderate": 1293,
+    "high": 780
+  },
+  "held_out": {
+    "baseline_majority_class": 0.4317,
+    "numeric_only": 0.5317,
+    "text_only": 0.57,
+    "stacked_accuracy": 0.785,
+    "stacked_macro_f1": 0.7881
+  },
+  "cv_accuracy_mean": 0.7721,
+  "cv_accuracy_std": 0.0091,
+  "confusion_matrix": [
+    [
+      149,
+      33,
+      3
+    ],
+    [
+      30,
+      204,
+      25
+    ],
+    [
+      0,
+      38,
+      118
+    ]
+  ],
+  "class_names": [
+    "low",
+    "moderate",
+    "high"
+  ],
+  "feature_importance_share": {
+    "numeric": 0.4922,
+    "text": 0.5078
+  },
+  "vectorizer_vocab_size": 300
+}
