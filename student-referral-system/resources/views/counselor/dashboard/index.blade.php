@@ -143,9 +143,23 @@
                                 {{ strtoupper(substr($referral->student->first_name, 0, 1)) }}
                             </div>
                             <div>
-                                <h4 class="font-semibold text-gray-900 text-sm">
-                                    {{ $referral->student->first_name }} {{ $referral->student->last_name }}
-                                </h4>
+                                <div class="flex items-center gap-2">
+                                    <a href="{{ route('counselor.referrals.show', $referral->id) }}" class="font-semibold text-gray-900 text-sm hover:text-blue-600 transition">
+                                        {{ $referral->student->first_name }} {{ $referral->student->last_name }}
+                                    </a>
+                                    @if($referral->riskAssessment)
+                                        @php
+                                            $riskBadgeClass = match($referral->riskAssessment->risk_level) {
+                                                'high' => 'bg-red-100 text-red-800',
+                                                'moderate' => 'bg-yellow-100 text-yellow-800',
+                                                default => 'bg-green-100 text-green-800',
+                                            };
+                                        @endphp
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold {{ $riskBadgeClass }}">
+                                            <i class="ti ti-brain text-[10px]"></i> {{ ucfirst($referral->riskAssessment->risk_level) }}
+                                        </span>
+                                    @endif
+                                </div>
                                 <p class="text-xs text-gray-500 mt-0.5">
                                     Referred by <span class="font-medium text-gray-700">{{ $referral->referredBy->name ?? 'System/Analytics' }}</span> 
                                     · {{ $referral->created_at->diffForHumans() }}
@@ -210,8 +224,12 @@
                         </a>
                     </div>
                 @empty
-                    <div class="p-8 text-center text-sm text-gray-500">
-                        No follow-ups scheduled for the upcoming days.
+                    <div class="p-8 text-center">
+                        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-3">
+                            <i class="ti ti-calendar-off text-xl"></i>
+                        </div>
+                        <p class="text-sm font-medium text-gray-900">No sessions scheduled</p>
+                        <p class="text-xs text-gray-500">There are no follow-ups scheduled for the upcoming days.</p>
                     </div>
                 @endforelse
             </div>

@@ -23,7 +23,7 @@ class CounselorDashboardController extends Controller
                 $q->where('counselor_id', $counselorId)->orWhereNull('counselor_id');
             })
             ->count();
-        $recentPendingReferrals = Referral::with(['student', 'referredBy'])
+        $recentPendingReferrals = Referral::with(['student', 'referredBy', 'riskAssessment'])
             ->where('status', 'pending')
             ->where(function ($q) use ($counselorId) {
                 $q->where('counselor_id', $counselorId)->orWhereNull('counselor_id');
@@ -54,8 +54,12 @@ class CounselorDashboardController extends Controller
         // this, a case that was actually followed up on would still show as
         // overdue forever because its original follow_up_date never changes.
         $latestInterventionIdsPerReferral = Intervention::where('counselor_id', $counselorId)
-            ->selectRaw('MAX(id) as id')
-            ->groupBy('referral_id')
+            ->whereIn('id', function ($sub) use ($counselorId) {
+                $sub->selectRaw('(SELECT i2.id FROM interventions i2 WHERE i2.referral_id = interventions.referral_id AND i2.counselor_id = ? ORDER BY i2.created_at DESC, i2.id DESC LIMIT 1)', [$counselorId])
+                    ->from('interventions')
+                    ->where('counselor_id', $counselorId)
+                    ->groupBy('referral_id');
+            })
             ->pluck('id');
 
         $overdueInterventionsCount = Intervention::whereIn('id', $latestInterventionIdsPerReferral)
