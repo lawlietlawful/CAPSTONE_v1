@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\User;
 use App\Models\Course;
+use App\Models\RiskAssessment;
 use App\Http\Requests\StoreStudentRequest;
 use App\Http\Requests\UpdateStudentRequest;
 use Illuminate\Http\Request;
@@ -26,6 +27,10 @@ class StudentController extends Controller
         $grade_level = $request->get('grade_level');
         $educationLevel = $request->get('education_level');
         $status = $request->get('status');
+        // 'at_risk' means the STUDENT'S LATEST assessment is high/moderate —
+        // see $atRiskStudentIds below for why "latest only" matters.
+        $riskFilter = $request->get('risk_level');
+        $hasReferrals = $request->boolean('has_referrals');
 
         // Get distinct values for dropdowns
         $courses = Student::select('course')->distinct()->whereNotNull('course')->pluck('course');
@@ -33,12 +38,31 @@ class StudentController extends Controller
         // Canonical course/section catalog for the Add/Edit student modals
         $courseCombos = Course::picklist();
 
+        // Students whose LATEST risk assessment is high/moderate — not
+        // "has ever had one". A student who was high-risk months ago but
+        // has since improved to 'low' has a low-risk latest assessment and
+        // should not still show up as at-risk everywhere. Mirrors the same
+        // rule already used on the Counselor dashboard's Watchlist and Risk
+        // Distribution. Backs both the At-Risk Students count below and the
+        // ?risk_level=at_risk filter.
+        $latestRiskIds = DB::table('risk_assessments')
+            ->select(DB::raw('MAX(id) as id'))
+            ->groupBy('student_id')
+            ->pluck('id');
+
+        $atRiskStudentIds = RiskAssessment::whereIn('id', $latestRiskIds)
+            ->whereIn('risk_level', ['high', 'moderate'])
+            ->pluck('student_id');
+
         $students = Student::query()
             // Deleting a student cascades to permanently erase every referral,
             // behavioral report, and risk assessment on file for them (see
             // the FKs on those tables). These counts let the delete
             // confirmation say so instead of a generic "are you sure?".
             ->withCount(['referrals', 'behavioralReports', 'riskAssessments'])
+            // So the at-risk filter's results can show WHY each student is
+            // flagged, not just that they matched.
+            ->with('latestRiskAssessment')
             ->when($search, function ($query, $search) {
                 $query->where(function($q) use ($search) {
                     $q->where('student_id_number', 'like', "%{$search}%")
@@ -58,17 +82,21 @@ class StudentController extends Controller
             ->when($status, function ($query, $status) {
                 $query->where('status', $status);
             })
+            ->when($riskFilter === 'at_risk', function ($query) use ($atRiskStudentIds) {
+                $query->whereIn('id', $atRiskStudentIds);
+            })
+            ->when($hasReferrals, function ($query) {
+                $query->has('referrals');
+            })
             ->latest()
             ->paginate(10);
 
         $totalStudents = Student::count();
         $activeStudents = Student::where('status', 'Active')->count();
         $studentsWithReferrals = Student::has('referrals')->count();
-        $atRiskStudents = Student::whereHas('riskAssessments', function($q) {
-            $q->whereIn('risk_level', ['high', 'moderate']);
-        })->count();
+        $atRiskStudents = $atRiskStudentIds->count();
 
-        return view('admin.students.index', compact('students', 'search', 'courses', 'courseCombos', 'course', 'grade_level', 'educationLevel', 'status', 'totalStudents', 'activeStudents', 'studentsWithReferrals', 'atRiskStudents'))
+        return view('admin.students.index', compact('students', 'search', 'courses', 'courseCombos', 'course', 'grade_level', 'educationLevel', 'status', 'riskFilter', 'hasReferrals', 'totalStudents', 'activeStudents', 'studentsWithReferrals', 'atRiskStudents'))
             ->with($this->gradeLevelLists());
     }
 

@@ -43,7 +43,7 @@
             <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Active Students</div>
         </div>
     </a>
-    <a href="{{ route('admin.referrals.index') }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-blue-200 transition block cursor-pointer">
+    <a href="{{ route('admin.students.index', ['has_referrals' => 1]) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-blue-200 transition block cursor-pointer">
         <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
             <i class="ti ti-file-text text-blue-600 text-lg"></i>
         </div>
@@ -52,7 +52,7 @@
             <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">With Referrals</div>
         </div>
     </a>
-    <a href="{{ route('admin.students.index') }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-red-200 transition block cursor-pointer">
+    <a href="{{ route('admin.students.index', ['risk_level' => 'at_risk']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-red-200 transition block cursor-pointer">
         <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
             <i class="ti ti-alert-triangle text-red-600 text-lg"></i>
         </div>
@@ -65,6 +65,12 @@
 
 <div class="mb-6">
     <form action="{{ route('admin.students.index') }}" method="GET" class="w-full" id="filterForm">
+        {{-- Not exposed as visible controls — set only via the summary cards
+             above — but carried forward here so touching any dropdown or the
+             search box (both auto-submit this form) doesn't silently drop
+             the card's filter. --}}
+        <input type="hidden" name="risk_level" value="{{ $riskFilter }}">
+        <input type="hidden" name="has_referrals" value="{{ $hasReferrals ? 1 : '' }}">
         <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-4 flex flex-col lg:flex-row lg:flex-wrap gap-3 items-end">
             <div class="flex-1 w-full min-w-[220px] relative">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Search Student</label>
@@ -162,9 +168,20 @@
                                     {{ substr($student->first_name, 0, 1) }}{{ substr($student->last_name, 0, 1) }}
                                 </div>
                                 <div>
-                                    <a href="{{ route('admin.students.show', $student->id) }}" class="font-medium text-gray-900 hover:text-blue-600 hover:underline transition">
-                                        {{ $student->first_name }} {{ $student->last_name }}
-                                    </a>
+                                    <div class="flex items-center gap-2">
+                                        <a href="{{ route('admin.students.show', $student->id) }}" class="font-medium text-gray-900 hover:text-blue-600 hover:underline transition">
+                                            {{ $student->first_name }} {{ $student->last_name }}
+                                        </a>
+                                        @if($student->latestRiskAssessment && in_array($student->latestRiskAssessment->risk_level, ['high', 'moderate']))
+                                            @php
+                                                $riskBadgeClass = $student->latestRiskAssessment->risk_level === 'high'
+                                                    ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
+                                            @endphp
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold {{ $riskBadgeClass }}">
+                                                <i class="ti ti-brain text-[10px]"></i> {{ ucfirst($student->latestRiskAssessment->risk_level) }}
+                                            </span>
+                                        @endif
+                                    </div>
                                     <p class="text-xs text-gray-500">{{ $student->gender }}</p>
                                 </div>
                             </div>

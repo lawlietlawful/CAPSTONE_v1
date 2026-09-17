@@ -78,4 +78,70 @@ class AdminStudentIndexTest extends TestCase
         $response->assertSee('Are you sure you want to delete Pedro?', false);
         $response->assertDontSee('will also permanently erase', false);
     }
+
+    // ── At-Risk Students: count and filter, both "latest assessment only" ──
+    //
+    // These used to check "has ANY high/moderate assessment ever", so a
+    // student who improved to 'low' after being high-risk months ago would
+    // still count and still show up under the filter forever.
+
+    public function test_at_risk_count_reflects_only_the_latest_assessment(): void
+    {
+        // Improved: old 'high' superseded by a newer 'low' — must not count.
+        $improved = Student::factory()->create();
+        RiskAssessment::create(['student_id' => $improved->id, 'risk_score' => 90, 'risk_level' => 'high', 'assessed_at' => now()->subWeek()]);
+        RiskAssessment::create(['student_id' => $improved->id, 'risk_score' => 10, 'risk_level' => 'low', 'assessed_at' => now()]);
+
+        // Currently at risk — must count.
+        $atRisk = Student::factory()->create();
+        RiskAssessment::create(['student_id' => $atRisk->id, 'risk_score' => 80, 'risk_level' => 'high', 'assessed_at' => now()]);
+
+        $response = $this->actingAs($this->counselor())->get(route('admin.students.index'));
+
+        $response->assertViewHas('atRiskStudents', 1);
+    }
+
+    public function test_risk_level_filter_shows_only_currently_at_risk_students(): void
+    {
+        $improved = Student::factory()->create();
+        RiskAssessment::create(['student_id' => $improved->id, 'risk_score' => 90, 'risk_level' => 'high', 'assessed_at' => now()->subWeek()]);
+        RiskAssessment::create(['student_id' => $improved->id, 'risk_score' => 10, 'risk_level' => 'low', 'assessed_at' => now()]);
+
+        $atRisk = Student::factory()->create();
+        RiskAssessment::create(['student_id' => $atRisk->id, 'risk_score' => 80, 'risk_level' => 'high', 'assessed_at' => now()]);
+
+        $response = $this->actingAs($this->counselor())->get(route('admin.students.index', ['risk_level' => 'at_risk']));
+
+        $response->assertViewHas('students', function ($students) use ($atRisk, $improved) {
+            $ids = $students->pluck('id');
+            return $ids->contains($atRisk->id) && ! $ids->contains($improved->id);
+        });
+    }
+
+    public function test_risk_badge_shows_in_the_table_for_an_at_risk_student(): void
+    {
+        $student = Student::factory()->create(['first_name' => 'Marisol']);
+        RiskAssessment::create(['student_id' => $student->id, 'risk_score' => 85, 'risk_level' => 'high', 'assessed_at' => now()]);
+
+        $response = $this->actingAs($this->counselor())->get(route('admin.students.index'));
+
+        $response->assertSee('Marisol');
+        $response->assertSee('High');
+    }
+
+    // ── With Referrals filter ────────────────────────────────────────────
+
+    public function test_has_referrals_filter_shows_only_students_with_a_referral(): void
+    {
+        $withReferral = Student::factory()->create();
+        Referral::factory()->create(['student_id' => $withReferral->id]);
+        $withoutReferral = Student::factory()->create();
+
+        $response = $this->actingAs($this->counselor())->get(route('admin.students.index', ['has_referrals' => 1]));
+
+        $response->assertViewHas('students', function ($students) use ($withReferral, $withoutReferral) {
+            $ids = $students->pluck('id');
+            return $ids->contains($withReferral->id) && ! $ids->contains($withoutReferral->id);
+        });
+    }
 }
