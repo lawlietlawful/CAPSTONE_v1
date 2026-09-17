@@ -187,9 +187,9 @@
                             </div>
                         </td>
                         <td class="px-6 py-4">
-                            <div class="flex flex-col gap-1 items-start max-w-[220px]">
-                                <span class="inline-block px-2 py-1 rounded-md text-xs font-medium leading-snug bg-indigo-50 text-indigo-700 border border-indigo-100">
-                                    {{ $student->course ?? 'N/A' }}
+                            <div class="flex flex-col gap-1 items-start">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100" title="{{ $student->course ?? 'N/A' }}">
+                                    {{ \App\Models\Course::abbreviate($student->course) }}
                                 </span>
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium
                                     {{ $student->education_level === 'Basic Education' ? 'bg-purple-50 text-purple-700 border border-purple-100' : 'bg-blue-50 text-blue-700 border border-blue-100' }}">

@@ -39,6 +39,43 @@ class Course extends Model
     }
 
     /**
+     * A short acronym for a full program name, e.g. "Bachelor of Science in
+     * Information Technology" -> "BSIT", for compact UI like table badges.
+     * There's no separate abbreviation column — this derives one from the
+     * initials of each significant word, skipping small connector words.
+     * Falls back to the original name for a single-word program (or no
+     * name at all), where a one-letter acronym would lose more than it
+     * saves.
+     */
+    public static function abbreviate(?string $name): string
+    {
+        if (! $name) {
+            return 'N/A';
+        }
+
+        $skipWords = ['of', 'in', 'and', 'for', 'the', '&'];
+        $significantWords = array_values(array_filter(
+            preg_split('/\s+/', trim($name)),
+            fn ($word) => $word !== '' && ! in_array(mb_strtolower($word), $skipWords, true)
+        ));
+
+        if (count($significantWords) < 2) {
+            return $name;
+        }
+
+        return collect($significantWords)
+            ->map(function ($word) {
+                // "Education" conventionally abbreviates to "Ed", not "E" —
+                // BSEd/BEEd/MAEd are the standard forms for these degrees,
+                // not BSE/BEE/MAE.
+                return mb_strtolower($word) === 'education'
+                    ? 'Ed'
+                    : mb_strtoupper(mb_substr($word, 0, 1));
+            })
+            ->implode('');
+    }
+
+    /**
      * Flat (course, education_level, grade_level, strand, section) tuples
      * for populating the cascading course/grade/section pickers used on the
      * Student and Teacher assignment forms.
