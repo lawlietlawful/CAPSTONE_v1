@@ -7,6 +7,8 @@ use App\Models\Referral;
 use App\Models\Intervention;
 use App\Models\RiskAssessment;
 use App\Models\Seminar;
+use App\Models\Student;
+use App\Models\BehavioralReport;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -39,10 +41,15 @@ class CounselorDashboardController extends Controller
             ->whereDate('follow_up_date', '>=', Carbon::today())
             ->count();
 
+        // Strictly AFTER today — today's own follow-ups are covered by the
+        // "Today's Itinerary" section further down, so this list would
+        // otherwise duplicate them. This collection used to be fetched and
+        // never rendered anywhere; it now backs the "Upcoming Follow-ups"
+        // section below.
         $upcomingInterventions = Intervention::with('referral.student')
             ->where('counselor_id', $counselorId)
             ->whereNotNull('follow_up_date')
-            ->whereDate('follow_up_date', '>=', Carbon::today())
+            ->whereDate('follow_up_date', '>', Carbon::today())
             ->orderBy('follow_up_date')
             ->take(5)
             ->get();
@@ -54,12 +61,8 @@ class CounselorDashboardController extends Controller
         // this, a case that was actually followed up on would still show as
         // overdue forever because its original follow_up_date never changes.
         $latestInterventionIdsPerReferral = Intervention::where('counselor_id', $counselorId)
-            ->whereIn('id', function ($sub) use ($counselorId) {
-                $sub->selectRaw('(SELECT i2.id FROM interventions i2 WHERE i2.referral_id = interventions.referral_id AND i2.counselor_id = ? ORDER BY i2.created_at DESC, i2.id DESC LIMIT 1)', [$counselorId])
-                    ->from('interventions')
-                    ->where('counselor_id', $counselorId)
-                    ->groupBy('referral_id');
-            })
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('referral_id')
             ->pluck('id');
 
         $overdueInterventionsCount = Intervention::whereIn('id', $latestInterventionIdsPerReferral)
@@ -75,24 +78,13 @@ class CounselorDashboardController extends Controller
             ->take(5)
             ->get();
 
-        // 3. Active Seminars — school-wide events, not owned by a specific
-        // counselor, so this intentionally stays unscoped.
-        $activeSeminarsCount = Seminar::where('status', 'upcoming')
-            ->orWhere('status', 'ongoing')
-            ->count();
-        $upcomingSeminars = Seminar::where('status', 'upcoming')
-            ->orWhere('status', 'ongoing')
-            ->orderBy('date')
-            ->take(3)
-            ->get();
-        $ongoingSeminarsCount = Seminar::where('status', 'ongoing')->count();
+        // 3. Total Students this counselor oversees
+        $totalStudents = Student::count();
+        $newStudentsThisWeek = Student::whereDate('created_at', '>=', Carbon::today()->startOfWeek())->count();
 
-        // 4. Quick stat: this counselor's own completed interventions this month.
-        $completedInterventionsThisMonth = Intervention::where('counselor_id', $counselorId)
-            ->whereNotNull('outcome')
-            ->whereMonth('intervention_date', Carbon::now()->month)
-            ->whereYear('intervention_date', Carbon::now()->year)
-            ->count();
+        // 4. Behavioral Reports Today
+        $behavioralReportsToday = BehavioralReport::whereDate('created_at', Carbon::today())->count();
+        $behavioralReportsThisWeek = BehavioralReport::whereDate('created_at', '>=', Carbon::today()->startOfWeek())->count();
 
         // ── Stat-card context chips (mirrors the Admin dashboard's pattern
         // of a small delta/context pill under each number) ────────────────
@@ -146,14 +138,73 @@ class CounselorDashboardController extends Controller
             'high_pct'     => round((($riskCounts['high']     ?? 0) / $totalAssessed) * 100),
         ];
 
+        // ── NEW: Today's Itinerary ───────────────────────────────────────
+        $todaysInterventions = Intervention::with('referral.student')
+            ->where('counselor_id', $counselorId)
+            ->whereNotNull('follow_up_date')
+            ->whereDate('follow_up_date', Carbon::today())
+            ->orderBy('follow_up_date')
+            ->get();
+
+        // ── NEW: High-Risk Watchlist ─────────────────────────────────────
+        // Students in this counselor's purview whose LATEST assessment is
+        // 'high' ($latestRiskIds, computed above for Risk Distribution, is
+        // already exactly this scope — no need to recompute it). Keeps the
+        // full assessment (not just the student) so the widget can show the
+        // score, when it was flagged, and why — not just a bare name.
+        $watchlistAssessments = RiskAssessment::with('student')
+            ->whereIn('id', $latestRiskIds)
+            ->where('risk_level', 'high')
+            ->orderByDesc('assessed_at')
+            ->take(5)
+            ->get();
+
+        // ── NEW: Recent Activity Stream ──────────────────────────────────
+        // Combine the most recent referrals and behavioral reports
+        $recentReferralActivity = Referral::with(['student', 'referredBy'])
+            ->where(function ($q) use ($counselorId) {
+                $q->where('counselor_id', $counselorId)->orWhereNull('counselor_id');
+            })
+            ->latest()
+            ->take(5)
+            ->get()
+            ->map(function($r) {
+                return (object)[
+                    'type' => 'referral',
+                    'date' => $r->created_at,
+                    'title' => 'New Referral Filed',
+                    'description' => ($r->referredBy->name ?? 'System') . ' referred ' . $r->student->first_name . ' ' . $r->student->last_name,
+                    'url' => route('counselor.referrals.show', $r->id)
+                ];
+            });
+
+        $recentBehavioralActivity = BehavioralReport::with(['student', 'reportedBy'])
+            ->latest()
+            ->take(5)
+            ->get()
+            ->map(function($b) {
+                return (object)[
+                    'type' => 'behavioral_report',
+                    'date' => $b->created_at,
+                    'title' => 'Behavioral Report Submitted',
+                    'description' => ($b->reportedBy->name ?? 'A teacher') . ' reported ' . $b->student->first_name . ' ' . $b->student->last_name,
+                    'url' => route('counselor.behavioral-reports.show', $b->id)
+                ];
+            });
+
+        $recentActivity = $recentReferralActivity->concat($recentBehavioralActivity)
+            ->sortByDesc('date')
+            ->take(5)
+            ->values();
+
         return view('counselor.dashboard.index', compact(
             'pendingReferralsCount', 'recentPendingReferrals',
             'upcomingInterventionsCount', 'upcomingInterventions',
             'overdueInterventionsCount', 'overdueInterventions',
-            'activeSeminarsCount', 'upcomingSeminars', 'ongoingSeminarsCount',
-            'completedInterventionsThisMonth',
-            'newPendingToday', 'interventionsDueThisWeek', 'completedLastMonth',
-            'riskDistribution'
+            'totalStudents', 'newStudentsThisWeek',
+            'behavioralReportsToday', 'behavioralReportsThisWeek',
+            'newPendingToday', 'interventionsDueThisWeek',
+            'riskDistribution', 'todaysInterventions', 'watchlistAssessments', 'recentActivity'
         ));
     }
 }

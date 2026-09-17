@@ -217,6 +217,50 @@
             </div>
         </div>
 
+        <!-- Upcoming Follow-ups (after today) -->
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-100/60 bg-gray-50/50 flex justify-between items-center">
+                <h3 class="text-[15px] font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="ti ti-calendar-time text-gray-400"></i> Upcoming Follow-ups
+                </h3>
+                <a href="{{ route('counselor.interventions.index') }}" class="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">View All</a>
+            </div>
+            <div class="divide-y divide-gray-100">
+                @forelse($upcomingInterventions as $intervention)
+                    <div class="p-4 hover:bg-gray-50 transition flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-blue-50 border border-blue-100 rounded-lg p-2 text-center min-w-[3.5rem]">
+                                <span class="block text-[10px] uppercase font-bold text-blue-600 tracking-wider">
+                                    {{ \Carbon\Carbon::parse($intervention->follow_up_date)->format('M') }}
+                                </span>
+                                <span class="block text-lg font-black text-blue-900 leading-none">
+                                    {{ \Carbon\Carbon::parse($intervention->follow_up_date)->format('d') }}
+                                </span>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-900 text-sm">
+                                    {{ $intervention->referral->student->first_name ?? 'Unknown' }} {{ $intervention->referral->student->last_name ?? 'Student' }}
+                                </h4>
+                                <p class="text-xs text-gray-500 mt-0.5">{{ $intervention->intervention_type }}</p>
+                            </div>
+                        </div>
+                        <a href="{{ route('counselor.interventions.show', $intervention->id) }}"
+                           class="text-xs font-medium text-gray-500 hover:text-blue-600 transition">
+                            Details <i class="ti ti-chevron-right align-[-2px]"></i>
+                        </a>
+                    </div>
+                @empty
+                    <div class="p-8 text-center">
+                        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-3">
+                            <i class="ti ti-calendar-off text-xl"></i>
+                        </div>
+                        <p class="text-sm font-medium text-gray-900">Nothing else scheduled</p>
+                        <p class="text-xs text-gray-500">No upcoming follow-ups beyond today.</p>
+                    </div>
+                @endforelse
+            </div>
+        </div>
+
     </div>
 
     {{-- ── Right Column (1/3): Widgets ────────────────────────── --}}
@@ -231,13 +275,25 @@
                 <a href="{{ route('admin.risk.index') }}" class="text-xs font-medium text-red-600 hover:text-red-700">View All</a>
             </div>
             <div class="divide-y divide-gray-100">
-                @forelse($watchlistStudents as $student)
-                    <div class="p-4 hover:bg-gray-50 transition flex items-center justify-between">
+                @forelse($watchlistAssessments as $assessment)
+                    @continue(!$assessment->student)
+                    <div class="p-4 hover:bg-gray-50 transition flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                            <h4 class="font-semibold text-gray-900 text-sm truncate">{{ $student->first_name }} {{ $student->last_name }}</h4>
-                            <p class="text-xs text-gray-500 mt-0.5 truncate">{{ $student->course }} - {{ $student->grade_level }}</p>
+                            <div class="flex items-center gap-2">
+                                <h4 class="font-semibold text-gray-900 text-sm truncate">{{ $assessment->student->first_name }} {{ $assessment->student->last_name }}</h4>
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 flex-shrink-0">
+                                    <i class="ti ti-brain text-[10px]"></i> {{ $assessment->risk_score }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-0.5 truncate">{{ $assessment->student->course }} - {{ $assessment->student->grade_level }}</p>
+                            @if(!empty($assessment->risk_factors['reason']))
+                                <p class="text-[11px] text-gray-600 mt-1 truncate" title="{{ $assessment->risk_factors['reason'] }}">
+                                    {{ $assessment->risk_factors['reason'] }}
+                                </p>
+                            @endif
+                            <p class="text-[10px] text-gray-400 mt-1">Flagged {{ $assessment->assessed_at->diffForHumans() }}</p>
                         </div>
-                        <a href="{{ route('admin.students.show', $student->id) }}" class="text-gray-400 hover:text-red-600 transition p-1" title="View Profile">
+                        <a href="{{ route('admin.students.show', $assessment->student->id) }}" class="text-gray-400 hover:text-red-600 transition p-1 flex-shrink-0" title="View Profile">
                             <i class="ti ti-eye"></i>
                         </a>
                     </div>
