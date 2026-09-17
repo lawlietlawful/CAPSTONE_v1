@@ -18,10 +18,11 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::where('role', '!=', 'student')
-                    ->with('teacherAssignments')
-                    ->latest()
-                    ->paginate(10);
+        $query = User::where('role', '!=', 'student')->with('teacherAssignments')->latest();
+        if (auth()->user()->role !== 'super_admin') {
+            $query->where('role', 'teacher');
+        }
+        $users = $query->paginate(10);
         $courseCombos = $this->courseCombos();
         return view('admin.users.index', compact('users', 'courseCombos'));
     }
@@ -125,7 +126,9 @@ class UserController extends Controller
     public function show(string $id)
     {
         $user = User::with('teacherAssignments')->findOrFail($id);
-        // We will just redirect to edit for now, or display a show view if needed.
+        if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
+            abort(403, 'Unauthorized action.');
+        }
         return view('admin.users.show', compact('user'));
     }
 
@@ -135,6 +138,9 @@ class UserController extends Controller
     public function edit(string $id)
     {
         $user = User::findOrFail($id);
+        if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
+            abort(403, 'Unauthorized action.');
+        }
         $courseCombos = $this->courseCombos();
         $existingAssignments = $user->teacherAssignments()
             ->get(['course', 'grade_level', 'section']);
@@ -148,6 +154,9 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, string $id)
     {
         $user = User::findOrFail($id);
+        if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
+            abort(403, 'Unauthorized action.');
+        }
 
         $data = [
             'name' => $request->name,
@@ -178,6 +187,9 @@ class UserController extends Controller
     public function resetPassword(string $id)
     {
         $user = User::findOrFail($id);
+        if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
+            abort(403, 'Unauthorized action.');
+        }
 
         // Teachers don't have admin-set passwords — resetting one means putting
         // the account back to "needs activation" with a fresh code, so the
@@ -212,6 +224,9 @@ class UserController extends Controller
     public function destroy(string $id)
     {
         $user = User::findOrFail($id);
+        if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
+            abort(403, 'Unauthorized action.');
+        }
         
         if ($user->id === auth()->id()) {
             return redirect()->route('admin.users.index')->with('error', 'You cannot delete yourself.');

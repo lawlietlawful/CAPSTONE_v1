@@ -25,7 +25,7 @@
 
     <style>
         body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
-        .sidebar { width: 220px; min-width: 220px; transition: all 0.3s ease; }
+        .sidebar { width: 250px; min-width: 250px; transition: all 0.3s ease; }
         .main-content { flex: 1; min-width: 0; }
         .nav-item { transition: all 0.2s ease; }
         .nav-item:hover { background: rgba(255,255,255,0.05); transform: translateX(4px); color: #ffffff; }
@@ -42,7 +42,7 @@
 
     @stack('styles')
 </head>
-<body class="bg-gray-50/50 text-gray-900 selection:bg-blue-100 selection:text-blue-900">
+<body class="bg-gray-50/50 text-gray-900 antialiased selection:bg-blue-100 selection:text-blue-900">
 
 <div class="flex min-h-screen">
 
@@ -63,14 +63,20 @@
             <a href="{{ route('counselor.dashboard') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
                       {{ request()->routeIs('counselor.dashboard') ? 'active text-white' : 'text-white/60' }}">
-                <i class="ti ti-layout-dashboard text-base w-5"></i> Dashboard
+                <i class="ti ti-layout-dashboard text-base w-5"></i> Overview
+            </a>
+
+            <a href="{{ route('admin.students.index') }}"
+               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
+                      {{ request()->routeIs('admin.students.*') ? 'active text-white' : 'text-white/60' }}">
+                <i class="ti ti-users text-base w-5"></i> Students
             </a>
 
             <p class="px-5 pt-4 pb-1 text-white/30 text-[10px] uppercase tracking-widest">Counseling Services</p>
 
             <a href="{{ route('counselor.referrals.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
-                      {{ request()->routeIs('counselor.referrals.*') ? 'active text-white' : 'text-white/60' }}">
+                      {{ request()->routeIs('admin.referrals.*') || request()->routeIs('counselor.referrals.*') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-file-text text-base w-5"></i> Referrals
             </a>
 
@@ -80,17 +86,41 @@
                 <i class="ti ti-heart-handshake text-base w-5"></i> Interventions
             </a>
 
-            <a href="{{ route('counselor.behavioral-reports.index') }}"
+            <a href="{{ route('admin.behavioral-reports.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
-                      {{ request()->routeIs('counselor.behavioral-reports.*') ? 'active text-white' : 'text-white/60' }}">
+                      {{ request()->routeIs('admin.behavioral-reports.*') || request()->routeIs('counselor.behavioral-reports.*') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-message-report text-base w-5"></i> Behavioral Reports
+            </a>
+
+            <a href="{{ route('admin.risk.index') }}"
+               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
+                      {{ request()->routeIs('admin.risk.*') ? 'active text-white' : 'text-white/60' }}">
+                <i class="ti ti-alert-triangle text-base w-5"></i> At-Risk Students
             </a>
 
             <p class="px-5 pt-4 pb-1 text-white/30 text-[10px] uppercase tracking-widest">Management</p>
 
+            <a href="{{ route('admin.teachers.index') }}"
+               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
+                      {{ request()->routeIs('admin.teachers.*') ? 'active text-white' : 'text-white/60' }}">
+                <i class="ti ti-user-check text-base w-5"></i> Teachers
+            </a>
+
+            <a href="{{ route('admin.users.index') }}"
+               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
+                      {{ request()->routeIs('admin.users.*') ? 'active text-white' : 'text-white/60' }}">
+                <i class="ti ti-user-cog text-base w-5"></i> User Management
+            </a>
+
+            <a href="{{ route('admin.courses.index') }}"
+               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
+                      {{ request()->routeIs('admin.courses.*') ? 'active text-white' : 'text-white/60' }}">
+                <i class="ti ti-books text-base w-5"></i> Courses &amp; Sections
+            </a>
+
             <a href="{{ route('counselor.seminars.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
-                      {{ request()->routeIs('counselor.seminars.*') ? 'active text-white' : 'text-white/60' }}">
+                      {{ request()->routeIs('counselor.seminars.*') || request()->routeIs('admin.seminars.*') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-school text-base w-5"></i> Seminars
             </a>
 
@@ -105,7 +135,7 @@
                 </div>
                 <div class="min-w-0">
                     <p class="text-white text-xs font-medium truncate">{{ auth()->user()->name }}</p>
-                    <p class="text-white/40 text-[11px]">Guidance Counselor</p>
+                    <p class="text-white/40 text-[11px]">Administrator</p>
                 </div>
                 <form method="POST" action="{{ route('logout') }}" class="ml-auto">
                     @csrf
@@ -119,7 +149,7 @@
     </aside>
 
     {{-- ── Main content (offset by sidebar width) ─────────── --}}
-    <div class="main-content flex flex-col ml-[220px]">
+    <div class="main-content flex flex-col ml-[250px]">
 
         {{-- Top bar --}}
         <header class="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between sticky top-0 z-20">
@@ -199,6 +229,92 @@
             @yield('content')
         </main>
 
+    </div>
+</div>
+
+{{-- Global Quick Actions FAB --}}
+<div x-data="{ open: false }" class="fixed bottom-8 right-8 z-50 print:hidden">
+    {{-- Menu Items --}}
+    <div x-show="open" 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+         x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+         x-transition:leave-end="opacity-0 scale-95 translate-y-4"
+         @click.away="open = false"
+         class="absolute bottom-16 right-0 mb-3 w-48 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 overflow-hidden flex flex-col"
+         x-cloak>
+        <div class="px-4 py-2 bg-gray-50/50 border-b border-gray-100">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Quick Actions</span>
+        </div>
+        <a href="{{ route('counselor.referrals.create') }}" class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition border-b border-gray-50 group">
+            <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
+                <i class="ti ti-plus text-base"></i>
+            </div>
+            Log Walk-in
+        </a>
+        <a href="{{ route('counselor.interventions.create') }}" class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition border-b border-gray-50 group">
+            <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors">
+                <i class="ti ti-heart-handshake text-base"></i>
+            </div>
+            Log Intervention
+        </a>
+        <button type="button" @click="$dispatch('open-messages'); open = false" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition group">
+            <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-100 transition-colors">
+                <i class="ti ti-messages text-base"></i>
+            </div>
+            Messages
+        </button>
+    </div>
+
+    {{-- FAB Trigger Button --}}
+    <button @click="open = !open" 
+            class="flex items-center justify-center w-14 h-14 bg-blue-600 text-white rounded-full shadow-[0_8px_30px_rgb(37,99,235,0.3)] hover:bg-blue-700 hover:shadow-[0_8px_30px_rgb(37,99,235,0.4)] hover:-translate-y-1 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-blue-600/30">
+        <i class="ti text-2xl transition-transform duration-300" :class="open ? 'ti-x rotate-90' : 'ti-bolt'"></i>
+    </button>
+</div>
+
+{{-- Global Messages Modal --}}
+<div x-data="{ showMessages: false }" 
+     @open-messages.window="showMessages = true"
+     @keydown.escape.window="showMessages = false"
+     @message.window="if ($event.data === 'close-messages') showMessages = false"
+     x-cloak
+     class="relative z-[100]" 
+     aria-labelledby="modal-title" 
+     role="dialog" 
+     aria-modal="true">
+    
+    <div x-show="showMessages" 
+         x-transition:enter="ease-out duration-300" 
+         x-transition:enter-start="opacity-0" 
+         x-transition:enter-end="opacity-100" 
+         x-transition:leave="ease-in duration-200" 
+         x-transition:leave-start="opacity-100" 
+         x-transition:leave-end="opacity-0" 
+         class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity"></div>
+
+    <div x-show="showMessages" class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div x-show="showMessages" 
+                 @click.away="showMessages = false"
+                 x-transition:enter="ease-out duration-300" 
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" 
+                 x-transition:leave="ease-in duration-200" 
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" 
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+                 class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-5xl h-[85vh] flex flex-col">
+                
+                {{-- Modal Body (Iframe) --}}
+                <div class="flex-1 relative w-full h-full rounded-2xl overflow-hidden bg-white">
+                    <template x-if="showMessages">
+                        <iframe src="{{ route('counselor.messages.index', ['modal' => 1]) }}" class="absolute inset-0 w-full h-full border-0"></iframe>
+                    </template>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
