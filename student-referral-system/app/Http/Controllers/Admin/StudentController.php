@@ -34,6 +34,11 @@ class StudentController extends Controller
         $courseCombos = Course::picklist();
 
         $students = Student::query()
+            // Deleting a student cascades to permanently erase every referral,
+            // behavioral report, and risk assessment on file for them (see
+            // the FKs on those tables). These counts let the delete
+            // confirmation say so instead of a generic "are you sure?".
+            ->withCount(['referrals', 'behavioralReports', 'riskAssessments'])
             ->when($search, function ($query, $search) {
                 $query->where(function($q) use ($search) {
                     $q->where('student_id_number', 'like', "%{$search}%")

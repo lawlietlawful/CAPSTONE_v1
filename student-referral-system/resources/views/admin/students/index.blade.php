@@ -65,8 +65,8 @@
 
 <div class="mb-6">
     <form action="{{ route('admin.students.index') }}" method="GET" class="w-full" id="filterForm">
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-4 flex flex-col lg:flex-row gap-3 items-end">
-            <div class="flex-1 w-full relative">
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-4 flex flex-col lg:flex-row lg:flex-wrap gap-3 items-end">
+            <div class="flex-1 w-full min-w-[220px] relative">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Search Student</label>
                 <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -206,10 +206,28 @@
                                 <form id="delete-student-{{ $student->id }}" action="{{ route('admin.students.destroy', $student->id) }}" method="POST" class="inline-block">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="button" @click="$dispatch('open-confirm-modal', { 
-                                            formId: 'delete-student-{{ $student->id }}', 
-                                            title: 'Delete Student', 
-                                            message: 'Are you sure you want to delete {{ addslashes($student->first_name) }}? This action cannot be undone.',
+                                    @php
+                                        // Deleting a student cascades to permanently erase all of
+                                        // this — the confirmation needs to say so, not just "are
+                                        // you sure?", since there's no undo once it's gone.
+                                        $recordParts = [];
+                                        if ($student->referrals_count > 0) {
+                                            $recordParts[] = $student->referrals_count . ' referral' . ($student->referrals_count === 1 ? '' : 's');
+                                        }
+                                        if ($student->behavioral_reports_count > 0) {
+                                            $recordParts[] = $student->behavioral_reports_count . ' behavioral report' . ($student->behavioral_reports_count === 1 ? '' : 's');
+                                        }
+                                        if ($student->risk_assessments_count > 0) {
+                                            $recordParts[] = $student->risk_assessments_count . ' risk assessment' . ($student->risk_assessments_count === 1 ? '' : 's');
+                                        }
+                                        $deleteMessage = count($recordParts) > 0
+                                            ? 'Deleting ' . $student->first_name . ' will also permanently erase ' . implode(', ', $recordParts) . ' on file for them — this cannot be undone. If you just need to remove them from active rosters, consider changing their status to Inactive/Transferred/Graduated instead.'
+                                            : 'Are you sure you want to delete ' . $student->first_name . '? This action cannot be undone.';
+                                    @endphp
+                                    <button type="button" @click="$dispatch('open-confirm-modal', {
+                                            formId: 'delete-student-{{ $student->id }}',
+                                            title: 'Delete Student',
+                                            message: '{{ addslashes($deleteMessage) }}',
                                             confirmText: 'Yes, Delete Student'
                                         })" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete Student">
                                         <i class="ti ti-trash"></i>
