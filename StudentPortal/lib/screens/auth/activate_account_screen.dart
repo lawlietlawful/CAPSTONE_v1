@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 
 /// First-time account setup: the Admin has already created the student's
-/// profile with a locked placeholder password. Here the student proves
-/// identity with their Student ID + birthdate (already on file) and picks
-/// their own password.
+/// profile with a locked password and issued a one-time activation code.
+/// Here the student proves identity with their Student ID + that code, and
+/// picks their own password. Mirrors the teacher activation flow.
 class ActivateAccountScreen extends StatefulWidget {
   const ActivateAccountScreen({super.key});
 
@@ -20,39 +19,27 @@ class ActivateAccountScreen extends StatefulWidget {
 
 class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
   final _idController = TextEditingController();
+  final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
-  DateTime? _birthdate;
 
   @override
   void dispose() {
     _idController.dispose();
+    _codeController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickBirthdate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime(now.year - 18, now.month, now.day),
-      firstDate: DateTime(now.year - 100),
-      lastDate: now,
-      helpText: 'Select your birthdate',
-    );
-    if (picked != null) {
-      setState(() => _birthdate = picked);
-    }
-  }
-
   Future<void> _handleActivate() async {
     final id = _idController.text.trim();
+    final code = _codeController.text.trim();
     final password = _passwordController.text;
     final confirm = _confirmController.text;
     final auth = context.read<AuthProvider>();
 
-    if (id.isEmpty || _birthdate == null || password.isEmpty || confirm.isEmpty) {
+    if (id.isEmpty || code.isEmpty || password.isEmpty || confirm.isEmpty) {
       _showError('Please fill in all fields.');
       return;
     }
@@ -67,7 +54,7 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
 
     final success = await auth.activate(
       studentIdNumber: id,
-      birthdate: _birthdate!,
+      activationCode: code,
       newPassword: password,
     );
     if (success && mounted) {
@@ -115,11 +102,12 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Verify your identity to set up your password',
+                  'Enter the one-time code from your school to set your password',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     color: AppColors.text3,
+                    height: 1.4,
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -162,9 +150,14 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
         ),
         const SizedBox(height: 16),
 
-        const _FieldLabel('Birthdate'),
+        const _FieldLabel('Activation Code'),
         const SizedBox(height: 6),
-        _BirthdateField(value: _birthdate, onTap: _pickBirthdate),
+        _NavyTextField(
+          controller: _codeController,
+          icon: Icons.vpn_key_outlined,
+          textCapitalization: TextCapitalization.characters,
+          textInputAction: TextInputAction.next,
+        ),
         const SizedBox(height: 16),
 
         const _FieldLabel('New Password'),
@@ -253,6 +246,7 @@ class _NavyTextField extends StatelessWidget {
   final IconData icon;
   final bool obscureText;
   final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
   final ValueChanged<String>? onSubmitted;
 
   const _NavyTextField({
@@ -260,6 +254,7 @@ class _NavyTextField extends StatelessWidget {
     required this.icon,
     this.obscureText = false,
     this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
     this.onSubmitted,
   });
 
@@ -279,6 +274,7 @@ class _NavyTextField extends StatelessWidget {
       controller: controller,
       obscureText: obscureText,
       textInputAction: textInputAction,
+      textCapitalization: textCapitalization,
       onSubmitted: onSubmitted,
       cursorColor: AppColors.accent,
       autocorrect: false,
@@ -297,46 +293,6 @@ class _NavyTextField extends StatelessWidget {
         focusedBorder: focusedBorder,
         errorBorder: defaultBorder,
         focusedErrorBorder: focusedBorder,
-      ),
-    );
-  }
-}
-
-class _BirthdateField extends StatelessWidget {
-  final DateTime? value;
-  final VoidCallback onTap;
-
-  const _BirthdateField({required this.value, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    const defaultBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(10)),
-      borderSide: BorderSide(color: AppColors.border),
-    );
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: InputDecorator(
-        decoration: const InputDecoration(
-          filled: true,
-          fillColor: AppColors.background,
-          contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          prefixIcon: Icon(Icons.cake_outlined,
-              color: AppColors.text3, size: 18),
-          prefixIconConstraints: BoxConstraints(minWidth: 44, minHeight: 44),
-          border: defaultBorder,
-          enabledBorder: defaultBorder,
-          focusedBorder: defaultBorder,
-        ),
-        child: Text(
-          value == null ? 'Select your birthdate' : DateFormat.yMMMd().format(value!),
-          style: GoogleFonts.inter(
-            fontSize: 13.5,
-            color: value == null ? AppColors.text3 : AppColors.text1,
-          ),
-        ),
       ),
     );
   }

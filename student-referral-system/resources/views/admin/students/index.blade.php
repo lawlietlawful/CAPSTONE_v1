@@ -431,136 +431,259 @@
 </div>
 
 <!-- Import Students Modal -->
-<div x-show="showImportModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" x-cloak>
+<div x-data="{ 
+        step: 1, 
+        importId: null,
+        summary: { valid: 0, invalid: 0, duplicate: 0, total: 0 },
+        previewErrors: [],
+        duplicateStrategy: 'skip',
+        isUploading: false,
+        progress: 0,
+        codesGenerated: 0,
+
+        reset() {
+            this.step = 1;
+            this.importId = null;
+            this.summary = { valid: 0, invalid: 0, duplicate: 0, total: 0 };
+            this.previewErrors = [];
+            this.duplicateStrategy = 'skip';
+            this.progress = 0;
+            this.codesGenerated = 0;
+            if (this.$refs.csvInput) this.$refs.csvInput.value = '';
+        },
+
+        uploadFile(e) {
+            if(!this.$refs.csvInput.files[0]) return;
+            this.isUploading = true;
+            let formData = new FormData();
+            formData.append('csv_file', this.$refs.csvInput.files[0]);
+            formData.append('_token', '{{ csrf_token() }}');
+            
+            fetch('{{ route('admin.students.import.preview') }}', {
+                method: 'POST',
+                body: formData,
+                headers: { 'Accept': 'application/json' }
+            }).then(async res => {
+                let data = await res.json();
+                this.isUploading = false;
+                if(!res.ok || data.error) {
+                    alert(data.error || data.message || 'Upload failed.');
+                    return;
+                }
+                this.importId = data.import_id;
+                this.summary = data.summary;
+                this.previewErrors = data.invalid_preview;
+                this.step = 2;
+            }).catch(err => {
+                this.isUploading = false;
+                alert('Upload failed due to network error.');
+            });
+        },
+
+        commitImport() {
+            if(this.summary.valid === 0 && (this.duplicateStrategy === 'skip' || this.summary.duplicate === 0)) {
+                alert('No valid rows to import.');
+                return;
+            }
+            this.step = 3;
+            this.progress = 0;
+            this.processChunk(1);
+        },
+
+        processChunk(page) {
+            let formData = new FormData();
+            formData.append('import_id', this.importId);
+            formData.append('duplicate_strategy', this.duplicateStrategy);
+            formData.append('page', page);
+            formData.append('_token', '{{ csrf_token() }}');
+
+            fetch('{{ route('admin.students.import.commit') }}', {
+                method: 'POST',
+                body: formData,
+                headers: { 'Accept': 'application/json' }
+            }).then(async res => {
+                let data = await res.json();
+                if(!res.ok || data.error) {
+                    alert(data.error || 'Import failed.');
+                    return;
+                }
+                this.progress = data.progress;
+                this.codesGenerated = data.codes_generated ?? this.codesGenerated;
+                if(data.current_page < data.total_pages) {
+                    this.processChunk(data.current_page + 1);
+                } else if (this.codesGenerated === 0) {
+                    // Nothing to download — safe to close this out automatically.
+                    setTimeout(() => window.location.reload(), 1000);
+                }
+                // else: stay on this screen so the admin can download the
+                // one-time activation codes before the modal closes.
+            }).catch(err => {
+                alert('Import interrupted due to network error.');
+            });
+        }
+    }" 
+    @open-import-modal.window="showImportModal = true; reset()"
+    x-show="showImportModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" x-cloak>
     <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <div x-show="showImportModal" x-transition.opacity class="fixed inset-0 transition-opacity bg-gray-900/60 backdrop-blur-sm" aria-hidden="true" @click="showImportModal = false"></div>
+        <div x-show="showImportModal" x-transition.opacity class="fixed inset-0 transition-opacity bg-gray-900/60 backdrop-blur-sm" aria-hidden="true" @click="if(step !== 3) showImportModal = false"></div>
 
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
         <div x-show="showImportModal" x-transition.scale.origin.bottom class="inline-block w-full max-w-2xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-premium rounded-2xl sm:p-8">
-            <div class="flex items-center justify-between mb-5">
+            
+            <div class="flex items-center justify-between mb-5 border-b border-gray-100 pb-4">
                 <div>
                     <h3 class="text-xl font-bold text-gray-900">Import Students</h3>
-                    <p class="text-sm text-gray-500 mt-1">Bulk-register students from a CSV file.</p>
+                    <p class="text-sm text-gray-500 mt-1" x-text="step === 1 ? 'Step 1: Upload CSV File' : (step === 2 ? 'Step 2: Preview & Confirm' : 'Step 3: Importing...')"></p>
                 </div>
-                <button type="button" @click="showImportModal = false" class="text-gray-400 hover:text-gray-600 transition bg-gray-50 hover:bg-gray-100 rounded-full p-2">
+                <button type="button" x-show="step !== 3" @click="showImportModal = false" class="text-gray-400 hover:text-gray-600 transition bg-gray-50 hover:bg-gray-100 rounded-full p-2">
                     <i class="ti ti-x text-xl"></i>
                 </button>
             </div>
 
-            <div class="space-y-4 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
-
-                <!-- Step 1: Template -->
+            <!-- STEP 1: UPLOAD -->
+            <div x-show="step === 1" class="space-y-4 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-x-4" x-transition:enter-end="opacity-100 transform translate-x-0">
                 <div class="flex items-start gap-3 bg-blue-50/50 border border-blue-100 rounded-xl p-4">
                     <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">1</div>
                     <div class="flex-1">
                         <h4 class="font-medium text-gray-900 text-sm mb-1">Download the CSV template</h4>
-                        <p class="text-xs text-gray-600 mb-2.5">
-                            Fill it in Excel or Google Sheets. Each row becomes one student, with a Student Portal account created automatically.
-                        </p>
+                        <p class="text-xs text-gray-600 mb-2.5">Fill it in Excel or Google Sheets. Each row becomes one student, with a Student Portal account created automatically.</p>
                         <a href="{{ route('admin.students.import.template') }}" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition shadow-sm">
                             <i class="ti ti-download"></i> Download Template
                         </a>
                     </div>
                 </div>
 
-                <!-- Step 2: Course/Section reference -->
-                <div class="flex items-start gap-3 bg-amber-50/50 border border-amber-100 rounded-xl p-4">
-                    <div class="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0">2</div>
-                    <div class="flex-1 min-w-0">
-                        <h4 class="font-medium text-gray-900 text-sm mb-1">Use exact Course / Year / Section values</h4>
-                        <p class="text-xs text-gray-600 mb-2.5">
-                            Each row must match a combination that already exists in your
-                            <a href="{{ route('admin.courses.index') }}" class="text-blue-600 hover:underline font-medium">Courses &amp; Sections</a> catalog, or it will be skipped and reported.
-                        </p>
-                        @if($courseCombos->isEmpty())
-                            <p class="text-xs text-amber-700 flex items-center gap-1.5">
-                                <i class="ti ti-alert-triangle"></i> No courses/sections defined yet — add at least one before importing.
-                            </p>
-                        @else
-                            <div class="overflow-auto max-h-40 rounded-lg border border-amber-200 bg-white">
-                                <table class="w-full text-left text-xs">
-                                    <thead class="bg-amber-100/50 text-amber-800 uppercase tracking-wider sticky top-0">
-                                        <tr>
-                                            <th class="px-3 py-1.5">Course</th>
-                                            <th class="px-3 py-1.5">Year</th>
-                                            <th class="px-3 py-1.5">Section</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-amber-100">
-                                        @foreach($courseCombos as $combo)
-                                            <tr>
-                                                <td class="px-3 py-1.5 text-gray-700">{{ $combo['course'] }}</td>
-                                                <td class="px-3 py-1.5 text-gray-700">{{ $combo['grade_level'] }}</td>
-                                                <td class="px-3 py-1.5 text-gray-700">{{ $combo['section'] }}</td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-
-                <!-- Step 3: Upload -->
                 <div class="flex items-start gap-3 bg-emerald-50/50 border border-emerald-100 rounded-xl p-4">
-                    <div class="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">3</div>
+                    <div class="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">2</div>
                     <div class="flex-1">
                         <h4 class="font-medium text-gray-900 text-sm mb-1">Upload the completed CSV</h4>
-                        <p class="text-xs text-gray-600 mb-2.5">Valid rows are imported immediately. Invalid rows are skipped and listed below with the reason.</p>
+                        <p class="text-xs text-gray-600 mb-2.5">We will validate the file first. Nothing will be imported until you confirm.</p>
 
-                        <form action="{{ route('admin.students.import') }}" method="POST" enctype="multipart/form-data" class="flex flex-col sm:flex-row sm:items-center gap-2.5">
-                            @csrf
-                            <input type="file" name="csv_file" accept=".csv,text/csv" required
-                                class="block w-full text-xs text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 @error('csv_file') border border-red-500 rounded-lg @enderror">
-                            <button type="submit" class="px-4 py-2 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0">
-                                <i class="ti ti-upload"></i> Import
+                        <form @submit.prevent="uploadFile" class="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                            <input type="file" x-ref="csvInput" accept=".csv,text/csv" required
+                                class="block w-full text-xs text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                            <button type="submit" :disabled="isUploading" class="px-4 py-2 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 disabled:opacity-50">
+                                <i class="ti ti-upload" x-show="!isUploading"></i>
+                                <i class="ti ti-loader animate-spin" x-show="isUploading" x-cloak></i>
+                                <span x-text="isUploading ? 'Validating...' : 'Next Step'"></span>
                             </button>
                         </form>
-                        @error('csv_file')
-                            <p class="mt-2 text-xs text-red-500">{{ $message }}</p>
-                        @enderror
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 2: PREVIEW -->
+            <div x-show="step === 2" x-cloak class="space-y-4 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar" x-transition:enter="transition ease-out duration-300 delay-150" x-transition:enter-start="opacity-0 transform translate-x-4" x-transition:enter-end="opacity-100 transform translate-x-0">
+                
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div class="bg-emerald-50 rounded-xl border border-emerald-100 p-4 text-center">
+                        <div class="text-2xl font-bold text-emerald-600 mb-1" x-text="summary.valid"></div>
+                        <div class="text-xs font-medium text-emerald-800 uppercase tracking-wide">Valid Rows</div>
+                    </div>
+                    <div class="bg-blue-50 rounded-xl border border-blue-100 p-4 text-center">
+                        <div class="text-2xl font-bold text-blue-600 mb-1" x-text="summary.duplicate"></div>
+                        <div class="text-xs font-medium text-blue-800 uppercase tracking-wide">Duplicates</div>
+                    </div>
+                    <div class="bg-red-50 rounded-xl border border-red-100 p-4 text-center">
+                        <div class="text-2xl font-bold text-red-600 mb-1" x-text="summary.invalid"></div>
+                        <div class="text-xs font-medium text-red-800 uppercase tracking-wide">Invalid Rows</div>
                     </div>
                 </div>
 
-                <!-- Results -->
-                @if(session('import_results'))
-                    @php $results = session('import_results'); @endphp
-                    <div class="pt-3 border-t border-gray-100 space-y-2.5">
-                        <h4 class="font-medium text-gray-900 text-sm">Import Results</h4>
-                        <div class="flex items-center gap-2 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3.5 py-2.5">
-                            <i class="ti ti-circle-check text-base"></i>
-                            {{ $results['success_count'] }} student{{ $results['success_count'] === 1 ? '' : 's' }} imported successfully.
-                        </div>
-
-                        @if(!empty($results['errors']))
-                            <div>
-                                <p class="text-xs font-medium text-amber-700 mb-1.5 flex items-center gap-1.5">
-                                    <i class="ti ti-alert-triangle"></i> {{ count($results['errors']) }} row{{ count($results['errors']) === 1 ? '' : 's' }} skipped:
-                                </p>
-                                <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                                    @foreach($results['errors'] as $error)
-                                        <div class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3.5 py-2">
-                                            <span class="font-semibold">Row {{ $error['row'] }}:</span>
-                                            {{ implode(' ', $error['messages']) }}
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
+                <div x-show="summary.duplicate > 0" class="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+                    <h4 class="font-medium text-blue-900 text-sm mb-2 flex items-center gap-2">
+                        <i class="ti ti-copy text-blue-600 text-lg"></i> Duplicate Handling
+                    </h4>
+                    <p class="text-xs text-blue-800 mb-3">We found <span class="font-bold" x-text="summary.duplicate"></span> rows with Student IDs that already exist. How do you want to handle them?</p>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                            <input type="radio" x-model="duplicateStrategy" value="skip" class="text-blue-600 focus:ring-blue-500 w-4 h-4">
+                            <span><strong class="text-gray-900">Skip Existing</strong> (Ignore duplicates, keep old data)</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                            <input type="radio" x-model="duplicateStrategy" value="update" class="text-blue-600 focus:ring-blue-500 w-4 h-4">
+                            <span><strong class="text-gray-900">Update Existing</strong> (Overwrite their course/section/details)</span>
+                        </label>
                     </div>
-                @endif
+                </div>
 
+                <div x-show="summary.invalid > 0" class="bg-red-50/50 border border-red-100 rounded-xl p-4">
+                    <div class="flex items-start justify-between mb-2">
+                        <h4 class="font-medium text-red-900 text-sm flex items-center gap-2">
+                            <i class="ti ti-alert-triangle text-red-600 text-lg"></i> Invalid Rows Detected
+                        </h4>
+                        <a :href="`/admin/students/import/errors/${importId}`" class="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-red-200 text-red-700 text-xs font-medium rounded-lg hover:bg-red-50 transition shadow-sm">
+                            <i class="ti ti-download"></i> Download Error Report
+                        </a>
+                    </div>
+                    <p class="text-xs text-red-800 mb-3"><span class="font-bold" x-text="summary.invalid"></span> rows will be skipped due to errors. Download the report to see all errors and fix them.</p>
+                    
+                    <div class="space-y-1.5 max-h-32 overflow-y-auto pr-1 text-xs">
+                        <template x-for="error in previewErrors" :key="error._row">
+                            <div class="text-red-800 bg-white border border-red-100 rounded-lg px-3 py-2 flex items-start gap-2">
+                                <span class="font-bold shrink-0 mt-0.5">Row <span x-text="error._row"></span>:</span>
+                                <ul class="list-disc list-inside">
+                                    <template x-for="msg in error._errors" :key="msg">
+                                        <li x-text="msg"></li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <button type="button" @click="step = 1" class="px-5 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+                        Back
+                    </button>
+                    <button type="button" @click="commitImport" class="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition shadow-sm shadow-blue-200 flex items-center gap-2">
+                        <i class="ti ti-check"></i> Confirm Import
+                    </button>
+                </div>
             </div>
 
-            <div class="mt-5 pt-4 border-t border-gray-100 flex items-center justify-end">
-                <button type="button" @click="showImportModal = false" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                    Close
-                </button>
+            <!-- STEP 3: PROGRESS -->
+            <div x-show="step === 3" x-cloak class="py-8 text-center" x-transition:enter="transition ease-out duration-300 delay-150" x-transition:enter-start="opacity-0 transform translate-y-4" x-transition:enter-end="opacity-100 transform translate-y-0">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 text-blue-600 mb-4">
+                    <i class="ti text-3xl" :class="progress === 100 ? 'ti-circle-check text-emerald-500' : 'ti-loader animate-spin'"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2" x-text="progress === 100 ? 'Import Complete!' : 'Importing Students...'"></h3>
+                <p class="text-sm text-gray-500 mb-6" x-text="progress < 100 ? 'Please do not close this window.' : (codesGenerated > 0 ? 'Download the activation codes below.' : 'Refreshing page...')"></p>
+
+                <div class="w-full bg-gray-100 rounded-full h-3 mb-2 overflow-hidden border border-gray-200">
+                    <div class="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out relative overflow-hidden" :style="'width: ' + progress + '%'">
+                        <div class="absolute inset-0 bg-white/20 w-full h-full" style="background-image: linear-gradient(45deg, rgba(255,255,255,.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.15) 75%, transparent 75%, transparent); background-size: 1rem 1rem; animation: progress-stripes 1s linear infinite;"></div>
+                    </div>
+                </div>
+                <div class="text-xs font-semibold text-gray-600" x-text="progress + '%'"></div>
+
+                <div x-show="progress === 100 && codesGenerated > 0" class="mt-6 pt-5 border-t border-gray-100 text-left bg-indigo-50/50 border border-indigo-100 rounded-xl p-4">
+                    <h4 class="font-medium text-indigo-900 text-sm flex items-center gap-2">
+                        <i class="ti ti-key text-indigo-600 text-lg"></i> Activation Codes Generated
+                    </h4>
+                    <p class="text-xs text-indigo-800 mt-1">
+                        <span class="font-bold" x-text="codesGenerated"></span> new student account(s) need their one-time activation code to sign in. Download it now — it won't be shown again.
+                    </p>
+                    <div class="mt-3 flex items-center gap-2">
+                        <a :href="`/admin/students/import/codes/${importId}`" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-indigo-200 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-50 transition shadow-sm">
+                            <i class="ti ti-download"></i> Download Activation Codes
+                        </a>
+                        <button type="button" @click="window.location.reload()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition">
+                            Done
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+<style>
+@keyframes progress-stripes {
+    0% { background-position: 1rem 0; }
+    100% { background-position: 0 0; }
+}
+</style>
 
 <!-- Edit Student Modals -->
 @foreach($students as $student)

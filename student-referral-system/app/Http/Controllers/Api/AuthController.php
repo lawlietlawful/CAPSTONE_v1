@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -66,29 +65,30 @@ class AuthController extends Controller
     }
 
     /**
-     * First-time account activation. Admin creates the student profile with
-     * a locked (unusable) password; the student proves identity with their
-     * Student ID + birthdate (already on file) and chooses their own
-     * password here, then is signed in immediately.
+     * First-time account activation, mirroring the teacher flow. The admin
+     * creates the student with a locked password and a one-time code (stored
+     * hashed); the student proves identity with their Student ID + that
+     * code, chooses their own password here, and is signed in immediately.
+     *
+     * This used to check Student ID + birthdate instead of a code. Birthdates
+     * are not a real secret in a school context (known/guessable alongside a
+     * near-sequential Student ID), so an attacker could have raced a student
+     * to activate their own account first. See User::generateActivationCode().
      */
     public function activate(Request $request)
     {
         $request->validate([
             'student_id_number' => ['required', 'string'],
-            'birthdate' => ['required', 'date'],
+            'activation_code' => ['required', 'string'],
             'new_password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
         $mismatch = response()->json([
-            'message' => "The Student ID or birthdate you entered doesn't match our records.",
+            'message' => "The Student ID or activation code you entered doesn't match our records.",
         ], 422);
 
         $student = Student::where('student_id_number', trim($request->input('student_id_number')))->first();
-        if (!$student || !$student->birthdate) {
-            return $mismatch;
-        }
-
-        if (!Carbon::parse($student->birthdate)->isSameDay(Carbon::parse($request->input('birthdate')))) {
+        if (!$student) {
             return $mismatch;
         }
 
@@ -103,9 +103,15 @@ class AuthController extends Controller
             ], 422);
         }
 
+        $code = User::canonicalActivationCode($request->input('activation_code'));
+        if (!$user->activation_code || !Hash::check($code, $user->activation_code)) {
+            return $mismatch;
+        }
+
         $user->update([
             'password' => Hash::make($request->input('new_password')),
             'account_activated_at' => now(),
+            'activation_code' => null, // one-time — consumed on activation
         ]);
 
         $token = $user->createToken('student-portal')->plainTextToken;

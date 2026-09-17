@@ -64,9 +64,9 @@
 
             <p class="px-5 pt-4 pb-1 text-white/30 text-[10px] uppercase tracking-widest">Main</p>
 
-            <a href="{{ route('admin.dashboard') }}"
+            <a href="{{ auth()->user()->role === 'super_admin' ? route('admin.dashboard') : route('counselor.dashboard') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
-                      {{ request()->routeIs('admin.dashboard') ? 'active text-white' : 'text-white/60' }}">
+                      {{ request()->routeIs('admin.dashboard') || request()->routeIs('counselor.dashboard') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-layout-dashboard text-base w-5"></i> Overview
             </a>
 
@@ -76,10 +76,24 @@
                 <i class="ti ti-users text-base w-5"></i> Students
             </a>
 
+            <p class="px-5 pt-4 pb-1 text-white/30 text-[10px] uppercase tracking-widest">Counseling Services</p>
+
             <a href="{{ route('admin.referrals.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
                       {{ request()->routeIs('admin.referrals.*') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-file-text text-base w-5"></i> Referrals
+            </a>
+
+            <a href="{{ route('counselor.interventions.index') }}"
+               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
+                      {{ request()->routeIs('counselor.interventions.*') ? 'active text-white' : 'text-white/60' }}">
+                <i class="ti ti-heart-handshake text-base w-5"></i> Interventions
+            </a>
+
+            <a href="{{ route('admin.behavioral-reports.index') }}"
+               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
+                      {{ request()->routeIs('admin.behavioral-reports.*') ? 'active text-white' : 'text-white/60' }}">
+                <i class="ti ti-message-report text-base w-5"></i> Behavioral Reports
             </a>
 
             <a href="{{ route('admin.risk.index') }}"
@@ -96,6 +110,12 @@
                 <i class="ti ti-user-check text-base w-5"></i> Teachers
             </a>
 
+            <a href="{{ route('admin.users.index') }}"
+               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
+                      {{ request()->routeIs('admin.users.*') ? 'active text-white' : 'text-white/60' }}">
+                <i class="ti ti-user-cog text-base w-5"></i> User Management
+            </a>
+
             <a href="{{ route('admin.courses.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
                       {{ request()->routeIs('admin.courses.*') ? 'active text-white' : 'text-white/60' }}">
@@ -108,13 +128,7 @@
                 <i class="ti ti-school text-base w-5"></i> Seminars
             </a>
 
-
-            <a href="{{ route('admin.behavioral-reports.index') }}"
-               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
-                      {{ request()->routeIs('admin.behavioral-reports.*') ? 'active text-white' : 'text-white/60' }}">
-                <i class="ti ti-message-report text-base w-5"></i> Behavioral Reports
-            </a>
-
+            @if(auth()->user()->role === 'super_admin')
             <p class="px-5 pt-4 pb-1 text-white/30 text-[10px] uppercase tracking-widest">System</p>
 
             <a href="{{ route('admin.analytics.index') }}"
@@ -129,17 +143,13 @@
                 <i class="ti ti-message text-base w-5"></i> SMS Logs
             </a>
 
-            <a href="{{ route('admin.users.index') }}"
-               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
-                      {{ request()->routeIs('admin.users.*') ? 'active text-white' : 'text-white/60' }}">
-                <i class="ti ti-user-cog text-base w-5"></i> User Management
-            </a>
 
             <a href="{{ route('admin.settings.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
                       {{ request()->routeIs('admin.settings.*') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-settings text-base w-5"></i> Settings
             </a>
+            @endif
 
         </nav>
 
@@ -265,7 +275,7 @@
                         </div>
                         <div class="p-6 space-y-4">
                             <div>
-                                <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1">Employee ID</p>
+                                <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1">{{ $act['id_label'] ?? 'Employee ID' }}</p>
                                 <p class="font-mono text-lg text-gray-900">{{ $act['school_id'] }}</p>
                             </div>
                             <div>
@@ -279,7 +289,7 @@
                                     </button>
                                 </div>
                                 <p class="text-xs text-gray-500 mt-2 leading-relaxed">
-                                    The teacher enters their Employee ID + this code in the mobile app to set their own password. It won't be shown again — regenerate from the Teachers page if lost.
+                                    They enter their {{ $act['id_label'] ?? 'Employee ID' }} + this code in {{ $act['portal'] ?? 'the mobile app' }} to set their own password. It won't be shown again — regenerate it if lost.
                                 </p>
                             </div>
                         </div>

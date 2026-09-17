@@ -25,11 +25,11 @@ require __DIR__.'/auth.php';
 // ─── Post-login Role Redirect ────────────────────────────────
 Route::get('/dashboard', function () {
     return match(auth()->user()->role) {
-        'admin'              => redirect()->route('admin.dashboard'),
-        'guidance_counselor' => redirect()->route('counselor.dashboard'),
-        'teacher'            => redirect()->route('teacher.dashboard'),
-        'student'            => redirect()->route('student.dashboard'),
-        default              => redirect('/login'),
+        'super_admin' => redirect()->route('admin.dashboard'),
+        'admin'       => redirect()->route('counselor.dashboard'),
+        'teacher'     => redirect()->route('teacher.dashboard'),
+        'student'     => redirect()->route('student.dashboard'),
+        default       => redirect('/login'),
     };
 })->middleware('auth')->name('dashboard');
 
@@ -46,9 +46,17 @@ Route::prefix('admin')
     // Students
     Route::get('/students/import/template', [StudentController::class, 'downloadImportTemplate'])
          ->name('students.import.template');
-    Route::post('/students/import', [StudentController::class, 'import'])
-         ->name('students.import');
+    Route::post('/students/import/preview', [StudentController::class, 'previewImport'])
+         ->name('students.import.preview');
+    Route::post('/students/import/commit', [StudentController::class, 'commitImport'])
+         ->name('students.import.commit');
+    Route::get('/students/import/errors/{importId}', [StudentController::class, 'downloadImportErrors'])
+         ->name('students.import.errors');
+    Route::get('/students/import/codes/{importId}', [StudentController::class, 'downloadImportCodes'])
+         ->name('students.import.codes');
     Route::resource('students', StudentController::class);
+    Route::post('/students/{student}/activation-code', [StudentController::class, 'regenerateActivationCode'])
+         ->name('students.activation-code');
 
     // Referrals (admin management)
     Route::get('/referrals/export', [AdminReferralController::class, 'export'])
@@ -82,12 +90,7 @@ Route::prefix('admin')
     Route::get('/risk/{student}', [\App\Http\Controllers\Admin\RiskController::class, 'show'])
          ->name('risk.show');
 
-    // User Management
-    Route::resource('users', UserController::class);
-    Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])
-         ->name('users.reset-password');
-    Route::post('/users/{user}/activation-code', [UserController::class, 'regenerateActivationCode'])
-         ->name('users.activation-code');
+
 
     // Analytics
     Route::get('/analytics', [\App\Http\Controllers\Admin\AnalyticsController::class, 'index'])
@@ -156,17 +159,28 @@ Route::prefix('admin')
     Route::delete('/course-sections/{courseSection}', [\App\Http\Controllers\Admin\CourseController::class, 'destroySection'])
          ->name('courses.sections.destroy');
 
-    // Settings
-    Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index'])
-         ->name('settings.index');
-    Route::post('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'update'])
-         ->name('settings.update');
+    // User Management
+    Route::resource('users', UserController::class);
+    Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])
+         ->name('users.reset-password');
+    Route::post('/users/{user}/activation-code', [UserController::class, 'regenerateActivationCode'])
+         ->name('users.activation-code');
 
-    // ML Engine Retrain
-    Route::post('/ml/retrain', [\App\Http\Controllers\Admin\MLController::class, 'retrain'])
-         ->name('ml.retrain');
-    Route::post('/ml/upload-csv', [\App\Http\Controllers\Admin\MLController::class, 'uploadCsv'])
-         ->name('ml.upload-csv');
+    // ─── Super Admin Only ───────────────────────────────────────
+    Route::middleware(['super_admin'])->group(function () {
+
+        // Settings
+        Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index'])
+             ->name('settings.index');
+        Route::post('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'update'])
+             ->name('settings.update');
+
+        // ML Engine Retrain
+        Route::post('/ml/retrain', [\App\Http\Controllers\Admin\MLController::class, 'retrain'])
+             ->name('ml.retrain');
+        Route::post('/ml/upload-csv', [\App\Http\Controllers\Admin\MLController::class, 'uploadCsv'])
+             ->name('ml.upload-csv');
+    });
 });
 
 // ─── Guidance Counselor Routes ────────────────────────────────
@@ -211,6 +225,12 @@ Route::prefix('counselor')
          ->name('seminars.print');
     Route::get('seminars/{seminar}/export-roster', [\App\Http\Controllers\Counselor\SeminarController::class, 'exportRoster'])
          ->name('seminars.export');
+
+    // Messages
+    Route::get('/messages', [\App\Http\Controllers\Counselor\MessageController::class, 'index'])->name('messages.index');
+    Route::get('/messages/{message}', [\App\Http\Controllers\Counselor\MessageController::class, 'show'])->name('messages.show');
+    Route::post('/messages', [\App\Http\Controllers\Counselor\MessageController::class, 'store'])->name('messages.store');
+    Route::delete('/messages/{message}', [\App\Http\Controllers\Counselor\MessageController::class, 'destroy'])->name('messages.destroy');
 });
 
 // ─── Teacher Routes ───────────────────────────────────────────

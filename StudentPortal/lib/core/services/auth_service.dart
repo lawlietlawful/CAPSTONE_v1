@@ -20,24 +20,20 @@ class AuthService {
     return data;
   }
 
-  /// First-time account activation: Student ID + birthdate (already on file
-  /// from when Admin created the profile) proves identity, then the student
+  /// First-time account activation: the Admin has already created the
+  /// account with a locked password and a one-time activation code. The
+  /// student proves identity with their Student ID + that code, then
   /// chooses their own password. Signs them in immediately on success.
   static Future<Map<String, dynamic>> activate({
     required String studentIdNumber,
-    required DateTime birthdate,
+    required String activationCode,
     required String newPassword,
   }) async {
-    final birthdateStr =
-        '${birthdate.year.toString().padLeft(4, '0')}-'
-        '${birthdate.month.toString().padLeft(2, '0')}-'
-        '${birthdate.day.toString().padLeft(2, '0')}';
-
     final data = await ApiService.post(
       ApiConstants.activate,
       body: {
         'student_id_number': studentIdNumber.trim(),
-        'birthdate': birthdateStr,
+        'activation_code': activationCode.trim(),
         'new_password': newPassword,
         'new_password_confirmation': newPassword,
       },

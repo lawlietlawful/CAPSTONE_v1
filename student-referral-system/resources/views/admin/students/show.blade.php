@@ -23,6 +23,9 @@
                 <a href="{{ route('admin.referrals.create', ['student_id' => $student->id]) }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
                     <i class="ti ti-file-description text-blue-500 text-lg"></i> Create Referral
                 </a>
+                <a href="{{ route('counselor.messages.index') }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
+                    <i class="ti ti-send text-indigo-500 text-lg"></i> Send Notice
+                </a>
                 <div class="border-t border-gray-100"></div>
                 <a href="{{ route('admin.seminars.index', ['student' => $student->id]) }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
                     <i class="ti ti-users text-amber-500 text-lg"></i> Assign Seminar
@@ -72,11 +75,22 @@
 
             <div class="mt-5 pt-5 border-t border-gray-50 w-full text-left print:hidden">
                 <span class="block text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-2">Portal Account</span>
-                @if($student->user)
+                @if($student->user && $student->user->isActivated())
                     <div class="flex items-center gap-2 text-sm text-emerald-600 font-medium">
                         <i class="ti ti-check bg-emerald-50 rounded-full p-1 text-xs"></i> Active Account
                     </div>
                     <p class="text-xs text-gray-400 mt-1 ml-6">Username: {{ $student->user->username }}</p>
+                @elseif($student->user)
+                    <div class="flex items-center gap-2 text-sm text-amber-600 font-medium">
+                        <i class="ti ti-clock bg-amber-50 rounded-full p-1 text-xs"></i> Pending Activation
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1 ml-6 mb-2">Student ID: {{ $student->user->username }}</p>
+                    <form method="POST" action="{{ route('admin.students.activation-code', $student) }}" class="ml-6">
+                        @csrf
+                        <button type="submit" class="text-xs font-medium text-blue-600 hover:text-blue-800 inline-flex items-center gap-1">
+                            <i class="ti ti-key"></i> Generate activation code
+                        </button>
+                    </form>
                 @else
                     <div class="flex items-center gap-2 text-sm text-red-500 font-medium">
                         <i class="ti ti-x bg-red-50 rounded-full p-1 text-xs"></i> No Account

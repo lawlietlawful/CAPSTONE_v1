@@ -103,9 +103,12 @@ class StudentController extends Controller
             $user = null;
 
             // Create the login account, but locked: password is an unusable
-            // random placeholder until the student activates their own
-            // account (Student ID + birthdate) and sets their own password
-            // via the Student Portal app. See AuthController::activate().
+            // random placeholder and a one-time activation code (stored
+            // hashed) until the student activates their own account (Student
+            // ID + code) and sets their own password via the Student Portal
+            // app. See AuthController::activate().
+            $plainCode = User::generateActivationCode();
+
             $user = User::create([
                 'name' => $request->first_name . ' ' . $request->last_name,
                 'username' => $request->student_id_number,
@@ -113,6 +116,7 @@ class StudentController extends Controller
                 'password' => Hash::make(Str::random(40)),
                 'role' => 'student',
                 'account_activated_at' => null,
+                'activation_code' => Hash::make(User::canonicalActivationCode($plainCode)),
             ]);
 
             $student = Student::create([
@@ -139,7 +143,14 @@ class StudentController extends Controller
             DB::commit();
 
             return redirect()->route('admin.students.index')
-                ->with('success', "Student created. They can activate their Student Portal account using Student ID \"{$student->student_id_number}\" and their birthdate.");
+                ->with('success', 'Student created. Share the activation code below so they can set up their Student Portal account.')
+                ->with('activation_code', [
+                    'name' => $user->name,
+                    'school_id' => $student->student_id_number,
+                    'code' => $plainCode,
+                    'id_label' => 'Student ID',
+                    'portal' => 'the Student Portal app',
+                ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -185,12 +196,11 @@ class StudentController extends Controller
     }
 
     /**
-     * Bulk-import students from an uploaded CSV. Each row is validated and
-     * created independently: valid rows are saved immediately, invalid rows
-     * are skipped and reported back with their row number and reason, so a
-     * typo in one row never blocks the rest of the batch.
+     * Phase 1: Preview Import
+     * Parses the CSV, validates it, and caches the result.
+     * Returns a summary to the frontend.
      */
-    public function import(Request $request)
+    public function previewImport(Request $request)
     {
         $request->validate([
             'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
@@ -201,151 +211,353 @@ class StudentController extends Controller
 
         if (! $header) {
             fclose($handle);
-            return back()->with('error', 'The uploaded file appears to be empty.');
+            return response()->json(['error' => 'The uploaded file appears to be empty.'], 400);
         }
 
-        // Normalize header names so minor edits (extra spaces, casing) still map correctly.
         $header = array_map(fn ($h) => strtolower(trim((string) $h)), $header);
+        
+        // Ensure all required columns are present in the header
+        $missing = array_diff(self::IMPORT_COLUMNS, $header);
+        if (!empty($missing)) {
+            fclose($handle);
+            return response()->json(['error' => 'Missing required columns: ' . implode(', ', $missing)], 400);
+        }
 
-        // Catalog combos, for validating course/grade_level/section against
-        // the same canonical list the single Add Student dropdown enforces.
         $catalogCombos = Course::picklist()
             ->map(fn ($c) => strtolower($c['course'] . '|' . $c['grade_level'] . '|' . $c['section']))
             ->all();
 
+        $existingIds = Student::pluck('student_id_number')->map(fn($id) => strtolower($id))->toArray();
+
+        $validRows = [];
+        $invalidRows = [];
+        $duplicateRows = [];
         $seenIds = [];
-        $errors = [];
-        $successCount = 0;
-        $rowNumber = 1; // header is row 1
+        
+        $rowNumber = 1;
 
         while (($row = fgetcsv($handle, escape: '\\')) !== false) {
             $rowNumber++;
-
-            // Skip fully blank lines (e.g. trailing newline in the file).
-            if (count(array_filter($row, fn ($v) => trim((string) $v) !== '')) === 0) {
-                continue;
-            }
+            if (count(array_filter($row, fn ($v) => trim((string) $v) !== '')) === 0) continue;
 
             $data = array_combine(
                 $header,
                 array_pad(array_map(fn ($v) => trim((string) $v), $row), count($header), '')
             );
 
-            // Sensible defaults matching what the single Add Student modal hardcodes.
             $data['school_year'] = $data['school_year'] ?: '2025-2026';
             $data['status'] = $data['status'] ?: 'active';
             $data['education_level'] = $data['education_level'] ?: 'College';
-
-            $rowErrors = $this->validateImportRow($data, $catalogCombos, $seenIds);
-
-            if (! empty($rowErrors)) {
-                $errors[] = ['row' => $rowNumber, 'messages' => $rowErrors];
-                continue;
+            
+            $isDuplicateInDb = !empty($data['student_id_number']) && in_array(strtolower($data['student_id_number']), $existingIds, true);
+            $isDuplicateInFile = !empty($data['student_id_number']) && in_array(strtolower($data['student_id_number']), $seenIds, true);
+            
+            $validator = Validator::make($data, [
+                'student_id_number' => ['required', 'string', 'max:50'],
+                'course' => ['required', 'string', 'max:100'],
+                'education_level' => ['required', 'string', 'in:Basic Education,College'],
+                'first_name' => ['required', 'string', 'max:100'],
+                'last_name' => ['required', 'string', 'max:100'],
+                'middle_name' => ['nullable', 'string', 'max:100'],
+                'gender' => ['required', 'string', 'in:Male,Female'],
+                'birthdate' => ['required', 'date'],
+                'grade_level' => ['required', 'string', 'max:50'],
+                'strand' => ['nullable', 'string', 'max:50'],
+                'section' => ['required', 'string', 'max:50'],
+                'school_year' => ['required', 'string', 'max:50'],
+                'parent_name' => ['required', 'string', 'max:150'],
+                'parent_contact' => ['required', 'string', 'max:50'],
+                'parent_email' => ['nullable', 'email', 'max:150'],
+                'student_contact' => ['nullable', 'string', 'max:50'],
+                'address' => ['required', 'string'],
+                'status' => ['required', 'in:active,inactive,transferred,graduated'],
+            ]);
+            
+            $errors = $validator->fails() ? $validator->errors()->all() : [];
+            
+            if ($isDuplicateInFile) {
+                $errors[] = "Student ID \"{$data['student_id_number']}\" is duplicated earlier in this file.";
             }
-
-            $seenIds[] = strtolower($data['student_id_number']);
-
-            try {
-                DB::transaction(function () use ($data) {
-                    $user = User::create([
-                        'name' => $data['first_name'] . ' ' . $data['last_name'],
-                        'username' => $data['student_id_number'],
-                        'email' => null,
-                        'password' => Hash::make(Str::random(40)),
-                        'role' => 'student',
-                        'account_activated_at' => null,
-                    ]);
-
-                    Student::create([
-                        'user_id' => $user->id,
-                        'student_id_number' => $data['student_id_number'],
-                        'course' => $data['course'],
-                        'education_level' => $data['education_level'],
-                        'first_name' => $data['first_name'],
-                        'last_name' => $data['last_name'],
-                        'middle_name' => $data['middle_name'] ?: null,
-                        'gender' => $data['gender'],
-                        'birthdate' => $data['birthdate'],
-                        'grade_level' => $data['grade_level'],
-                        'strand' => $data['strand'] ?: null,
-                        'section' => $data['section'],
-                        'school_year' => $data['school_year'],
-                        'parent_name' => $data['parent_name'],
-                        'parent_contact' => $data['parent_contact'],
-                        'parent_email' => $data['parent_email'] ?: null,
-                        'student_contact' => $data['student_contact'] ?: null,
-                        'address' => $data['address'],
-                        'status' => $data['status'],
-                    ]);
-                });
-
-                $successCount++;
-            } catch (\Exception $e) {
-                $errors[] = ['row' => $rowNumber, 'messages' => ['Unexpected error: ' . $e->getMessage()]];
+            
+            if (! empty($data['course']) && ! empty($data['grade_level']) && ! empty($data['section'])) {
+                $combo = strtolower($data['course'] . '|' . $data['grade_level'] . '|' . $data['section']);
+                if (! in_array($combo, $catalogCombos, true)) {
+                    $errors[] = "Course/Year/Section \"{$data['course']} / {$data['grade_level']} / {$data['section']}\" was not found in the catalog.";
+                }
+            }
+            
+            $data['_row'] = $rowNumber;
+            
+            if (!empty($errors)) {
+                $data['_errors'] = $errors;
+                $invalidRows[] = $data;
+            } else if ($isDuplicateInDb) {
+                $duplicateRows[] = $data;
+            } else {
+                $validRows[] = $data;
+            }
+            
+            if (!empty($data['student_id_number'])) {
+                $seenIds[] = strtolower($data['student_id_number']);
             }
         }
-
+        
         fclose($handle);
-
-        return redirect()->route('admin.students.index')->with('import_results', [
-            'success_count' => $successCount,
-            'errors' => $errors,
+        
+        $importId = (string) Str::uuid();
+        \Illuminate\Support\Facades\Cache::put("import_{$importId}", [
+            'valid' => $validRows,
+            'duplicate' => $duplicateRows,
+            'invalid' => $invalidRows,
+            'header' => $header
+        ], now()->addHours(2));
+        
+        return response()->json([
+            'import_id' => $importId,
+            'summary' => [
+                'valid' => count($validRows),
+                'duplicate' => count($duplicateRows),
+                'invalid' => count($invalidRows),
+                'total' => count($validRows) + count($duplicateRows) + count($invalidRows)
+            ],
+            'invalid_preview' => array_slice($invalidRows, 0, 3)
         ]);
     }
 
     /**
-     * Validate a single import row. Returns a list of human-readable error
-     * messages, empty if the row is valid.
+     * Phase 2 & 4: Commit Import (Chunked)
      */
-    private function validateImportRow(array $data, array $catalogCombos, array $seenIds): array
+    public function commitImport(Request $request)
     {
-        // If the Student ID is already duplicated within this same file, skip
-        // the DB "unique" check for it — the in-file duplicate message below
-        // is clearer and avoids reporting the same problem twice.
-        $isDuplicateInFile = ! empty($data['student_id_number'])
-            && in_array(strtolower($data['student_id_number']), $seenIds, true);
-
-        $validator = Validator::make($data, [
-            'student_id_number' => $isDuplicateInFile
-                ? ['required', 'string', 'max:50']
-                : ['required', 'string', 'max:50', 'unique:students,student_id_number'],
-            'course' => ['required', 'string', 'max:100'],
-            'education_level' => ['required', 'string', 'in:Basic Education,College'],
-            'first_name' => ['required', 'string', 'max:100'],
-            'last_name' => ['required', 'string', 'max:100'],
-            'middle_name' => ['nullable', 'string', 'max:100'],
-            'gender' => ['required', 'string', 'in:Male,Female'],
-            'birthdate' => ['required', 'date'],
-            'grade_level' => ['required', 'string', 'max:50'],
-            'strand' => ['nullable', 'string', 'max:50'],
-            'section' => ['required', 'string', 'max:50'],
-            'school_year' => ['required', 'string', 'max:50'],
-            'parent_name' => ['required', 'string', 'max:150'],
-            'parent_contact' => ['required', 'string', 'max:50'],
-            'parent_email' => ['nullable', 'email', 'max:150'],
-            'student_contact' => ['nullable', 'string', 'max:50'],
-            'address' => ['required', 'string'],
-            'status' => ['required', 'in:active,inactive,transferred,graduated'],
+        $request->validate([
+            'import_id' => 'required|string',
+            'duplicate_strategy' => 'required|in:skip,update',
+            'page' => 'required|integer|min:1'
         ]);
 
-        $errors = $validator->fails() ? $validator->errors()->all() : [];
+        $cacheKey = "import_{$request->import_id}";
+        $cachedData = \Illuminate\Support\Facades\Cache::get($cacheKey);
 
-        // Duplicate Student ID within this same uploaded file.
-        if (! empty($data['student_id_number']) && in_array(strtolower($data['student_id_number']), $seenIds, true)) {
-            $errors[] = "Student ID \"{$data['student_id_number']}\" is duplicated earlier in this file.";
+        if (!$cachedData) {
+            return response()->json(['error' => 'Import session expired or invalid.'], 400);
         }
 
-        // The course/grade_level/section combo must exist in the Courses &
-        // Sections catalog — the same restriction the dropdown enforces for
-        // students added one at a time.
-        if (! empty($data['course']) && ! empty($data['grade_level']) && ! empty($data['section'])) {
-            $combo = strtolower($data['course'] . '|' . $data['grade_level'] . '|' . $data['section']);
-            if (! in_array($combo, $catalogCombos, true)) {
-                $errors[] = "Course/Year/Section \"{$data['course']} / {$data['grade_level']} / {$data['section']}\" was not found in the Courses & Sections catalog. Add it there first.";
+        $validRows = $cachedData['valid'];
+        $duplicateRows = $request->duplicate_strategy === 'update' ? $cachedData['duplicate'] : [];
+        
+        // Combine all rows to process
+        $allToProcess = array_merge($validRows, $duplicateRows);
+        
+        $perPage = 50; // Process 50 rows per chunk
+        $totalRows = count($allToProcess);
+        $totalPages = ceil($totalRows / $perPage);
+        $page = $request->page;
+        
+        $chunk = array_slice($allToProcess, ($page - 1) * $perPage, $perPage);
+
+        // Codes generated for newly-created accounts in this chunk, so the
+        // admin can download them once the whole import finishes (mirrors
+        // the error-report download). Plaintext only lives here — the DB
+        // only ever stores the hash, same as the single-student flow.
+        $generatedCodes = [];
+
+        foreach ($chunk as $data) {
+            try {
+                DB::transaction(function () use ($data, &$generatedCodes) {
+                    $student = Student::where('student_id_number', $data['student_id_number'])->first();
+
+                    if ($student) {
+                        // Update existing
+                        $user = $student->user;
+                        $user->update([
+                            'name' => $data['first_name'] . ' ' . $data['last_name'],
+                        ]);
+                        
+                        $student->update([
+                            'course' => $data['course'],
+                            'education_level' => $data['education_level'],
+                            'first_name' => $data['first_name'],
+                            'last_name' => $data['last_name'],
+                            'middle_name' => $data['middle_name'] ?: null,
+                            'gender' => $data['gender'],
+                            'birthdate' => $data['birthdate'],
+                            'grade_level' => $data['grade_level'],
+                            'strand' => $data['strand'] ?: null,
+                            'section' => $data['section'],
+                            'school_year' => $data['school_year'],
+                            'parent_name' => $data['parent_name'],
+                            'parent_contact' => $data['parent_contact'],
+                            'parent_email' => $data['parent_email'] ?: null,
+                            'student_contact' => $data['student_contact'] ?: null,
+                            'address' => $data['address'],
+                            'status' => $data['status'],
+                        ]);
+                    } else {
+                        // Create new
+                        $plainCode = User::generateActivationCode();
+
+                        $user = User::create([
+                            'name' => $data['first_name'] . ' ' . $data['last_name'],
+                            'username' => $data['student_id_number'],
+                            'email' => null,
+                            'password' => Hash::make(Str::random(40)),
+                            'role' => 'student',
+                            'account_activated_at' => null,
+                            'activation_code' => Hash::make(User::canonicalActivationCode($plainCode)),
+                        ]);
+
+                        $generatedCodes[] = [
+                            'student_id_number' => $data['student_id_number'],
+                            'name' => $user->name,
+                            'activation_code' => $plainCode,
+                        ];
+
+                        Student::create([
+                            'user_id' => $user->id,
+                            'student_id_number' => $data['student_id_number'],
+                            'course' => $data['course'],
+                            'education_level' => $data['education_level'],
+                            'first_name' => $data['first_name'],
+                            'last_name' => $data['last_name'],
+                            'middle_name' => $data['middle_name'] ?: null,
+                            'gender' => $data['gender'],
+                            'birthdate' => $data['birthdate'],
+                            'grade_level' => $data['grade_level'],
+                            'strand' => $data['strand'] ?: null,
+                            'section' => $data['section'],
+                            'school_year' => $data['school_year'],
+                            'parent_name' => $data['parent_name'],
+                            'parent_contact' => $data['parent_contact'],
+                            'parent_email' => $data['parent_email'] ?: null,
+                            'student_contact' => $data['student_contact'] ?: null,
+                            'address' => $data['address'],
+                            'status' => $data['status'],
+                        ]);
+                    }
+                });
+            } catch (\Exception $e) {
+                // Silently log or ignore chunk errors for now to not break the batch
+                \Log::error('Import error for row ' . $data['_row'] . ': ' . $e->getMessage());
             }
         }
 
-        return $errors;
+        if (!empty($generatedCodes)) {
+            $cachedData['codes'] = array_merge($cachedData['codes'] ?? [], $generatedCodes);
+            \Illuminate\Support\Facades\Cache::put($cacheKey, $cachedData, now()->addHours(2));
+        }
+
+        // If this is the last page, we could clean up the cache, but let's keep it for downloading errors
+
+        return response()->json([
+            'success' => true,
+            'current_page' => $page,
+            'total_pages' => max(1, $totalPages),
+            'progress' => $totalPages > 0 ? round(($page / $totalPages) * 100) : 100,
+            'codes_generated' => count($cachedData['codes'] ?? []),
+        ]);
+    }
+
+    /**
+     * Phase 3: Download Error Report
+     */
+    public function downloadImportErrors($importId)
+    {
+        $cacheKey = "import_{$importId}";
+        $cachedData = \Illuminate\Support\Facades\Cache::get($cacheKey);
+
+        if (!$cachedData || empty($cachedData['invalid'])) {
+            return redirect()->route('admin.students.index')->with('error', 'No errors found or session expired.');
+        }
+
+        $filename = "import_errors_{$importId}.csv";
+        $header = $cachedData['header'];
+        $header[] = 'error_reason'; // Append error reason column
+
+        $callback = function () use ($cachedData, $header) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $header);
+            
+            foreach ($cachedData['invalid'] as $invalidRow) {
+                $row = [];
+                // Fill original columns
+                foreach ($cachedData['header'] as $col) {
+                    $row[] = $invalidRow[$col] ?? '';
+                }
+                // Append errors
+                $row[] = implode(" | ", $invalidRow['_errors']);
+                fputcsv($file, $row);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    /**
+     * Download the one-time activation codes generated for newly-created
+     * accounts in this import. Codes only ever exist in plaintext here (the
+     * cache) and in the CSV the admin downloads — the DB stores only the
+     * hash, so this is the only way to retrieve them after the fact.
+     */
+    public function downloadImportCodes($importId)
+    {
+        $cacheKey = "import_{$importId}";
+        $cachedData = \Illuminate\Support\Facades\Cache::get($cacheKey);
+
+        if (!$cachedData || empty($cachedData['codes'])) {
+            return redirect()->route('admin.students.index')->with('error', 'No activation codes found or session expired.');
+        }
+
+        $filename = "import_activation_codes_{$importId}.csv";
+
+        $callback = function () use ($cachedData) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, ['student_id_number', 'name', 'activation_code']);
+
+            foreach ($cachedData['codes'] as $row) {
+                fputcsv($file, [$row['student_id_number'], $row['name'], $row['activation_code']]);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    /**
+     * Issue a fresh activation code for a student who hasn't activated yet
+     * (e.g. they lost the original). Codes are one-time and stored hashed,
+     * so this is the only way to recover one. Mirrors
+     * UserController::regenerateActivationCode() for teachers.
+     */
+    public function regenerateActivationCode(Student $student)
+    {
+        $user = $student->user;
+
+        if (!$user) {
+            return back()->with('error', 'This student has no linked account.');
+        }
+        if ($user->isActivated()) {
+            return back()->with('error', "{$student->full_name}'s account is already activated.");
+        }
+
+        $plainCode = User::generateActivationCode();
+        $user->update(['activation_code' => Hash::make(User::canonicalActivationCode($plainCode))]);
+
+        return back()
+            ->with('success', 'New activation code generated.')
+            ->with('activation_code', [
+                'name' => $user->name,
+                'school_id' => $student->student_id_number,
+                'code' => $plainCode,
+                'id_label' => 'Student ID',
+                'portal' => 'the Student Portal app',
+            ]);
     }
 
     /**

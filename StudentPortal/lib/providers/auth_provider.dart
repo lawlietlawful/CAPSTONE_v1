@@ -36,7 +36,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> activate({
     required String studentIdNumber,
-    required DateTime birthdate,
+    required String activationCode,
     required String newPassword,
   }) async {
     _status = AuthStatus.loading;
@@ -45,7 +45,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       await AuthService.activate(
         studentIdNumber: studentIdNumber,
-        birthdate: birthdate,
+        activationCode: activationCode,
         newPassword: newPassword,
       );
       _status = AuthStatus.authenticated;
