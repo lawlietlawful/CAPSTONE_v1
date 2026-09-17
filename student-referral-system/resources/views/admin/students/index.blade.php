@@ -187,8 +187,8 @@
                             </div>
                         </td>
                         <td class="px-6 py-4">
-                            <div class="flex flex-col gap-1 items-start">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            <div class="flex flex-col gap-1 items-start max-w-[220px]">
+                                <span class="inline-block px-2 py-1 rounded-md text-xs font-medium leading-snug bg-indigo-50 text-indigo-700 border border-indigo-100">
                                     {{ $student->course ?? 'N/A' }}
                                 </span>
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium
