@@ -64,3 +64,17 @@ Route::middleware(['auth:sanctum', 'teacher'])->group(function () {
         Route::post('/notifications/read-all', [TeacherPortalController::class, 'markAllNotificationsRead']);
     });
 });
+
+// Shared messaging routes for any authenticated portal user (student or teacher)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/counselors', function() {
+        // Role is 'admin' — the former 'guidance_counselor' role was collapsed
+        // into 'admin' (see User::isCounselor()). 'counselor' never matched
+        // any real row, so this endpoint always returned an empty list.
+        return response()->json(['data' => \App\Models\User::where('role', 'admin')->select('id', 'name')->get()]);
+    });
+    Route::get('/messages', [\App\Http\Controllers\Api\MessageController::class, 'index']);
+    Route::get('/messages/sent', [\App\Http\Controllers\Api\MessageController::class, 'sent']);
+    Route::get('/messages/{id}', [\App\Http\Controllers\Api\MessageController::class, 'show'])->whereNumber('id');
+    Route::post('/messages', [\App\Http\Controllers\Api\MessageController::class, 'store']);
+});

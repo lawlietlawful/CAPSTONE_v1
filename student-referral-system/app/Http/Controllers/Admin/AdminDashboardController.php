@@ -16,6 +16,10 @@ class AdminDashboardController extends Controller
 {
     public function index()
     {
+        if (auth()->user()->role === 'admin') {
+            return redirect()->route('counselor.dashboard');
+        }
+
         // ── Stat Cards ────────────────────────────────────────────
 
         $totalStudents = Student::where('status', 'active')->count();
@@ -189,7 +193,7 @@ class AdminDashboardController extends Controller
         foreach ($riskFlags as $flag) {
             $activities[] = [
                 'type'    => 'risk',
-                'message' => "<strong>{$flag->student->full_name}</strong> flagged as <strong>High Risk</strong> by the ML system",
+                'message' => "<strong>" . e($flag->student->full_name) . "</strong> flagged as <strong>High Risk</strong> by the ML system",
                 'time'    => $flag->assessed_at->diffForHumans(),
                 'sort'    => $flag->assessed_at,
             ];
@@ -205,7 +209,7 @@ class AdminDashboardController extends Controller
         foreach ($smsLogs as $sms) {
             $activities[] = [
                 'type'    => 'sms',
-                'message' => "SMS sent to parent of <strong>{$sms->student?->full_name}</strong> regarding referral",
+                'message' => "SMS sent to parent of <strong>" . e($sms->student?->full_name) . "</strong> regarding referral",
                 'time'    => $sms->sent_at->diffForHumans(),
                 'sort'    => $sms->sent_at,
             ];
@@ -222,7 +226,7 @@ class AdminDashboardController extends Controller
             $counselorName = $ref->counselor?->name ?? 'the counselor';
             $activities[] = [
                 'type'    => 'resolved',
-                'message' => "<strong>{$ref->student->full_name}</strong> referral marked as <strong>Resolved</strong> by {$counselorName}",
+                'message' => "<strong>" . e($ref->student->full_name) . "</strong> referral marked as <strong>Resolved</strong> by " . e($counselorName),
                 'time'    => $ref->resolved_at->diffForHumans(),
                 'sort'    => $ref->resolved_at,
             ];
@@ -233,7 +237,7 @@ class AdminDashboardController extends Controller
         foreach ($seminars as $sem) {
             $activities[] = [
                 'type'    => 'seminar',
-                'message' => "New seminar <strong>\"{$sem->title}\"</strong> scheduled for {$sem->date->format('M d')}",
+                'message' => "New seminar <strong>\"" . e($sem->title) . "\"</strong> scheduled for {$sem->date->format('M d')}",
                 'time'    => $sem->created_at->diffForHumans(),
                 'sort'    => $sem->created_at,
             ];

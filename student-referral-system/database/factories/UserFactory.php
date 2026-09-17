@@ -49,10 +49,10 @@ class UserFactory extends Factory
         return $this->state(fn () => ['role' => 'teacher']);
     }
 
-    /** A guidance counselor account. */
+    /** A guidance counselor account. The counselor role value is 'admin' (see User::isCounselor()). */
     public function counselor(): static
     {
-        return $this->state(fn () => ['role' => 'guidance_counselor']);
+        return $this->state(fn () => ['role' => 'admin']);
     }
 
     /** A student login account (each Student row belongs to one). */
