@@ -279,7 +279,7 @@
 <div x-data="{ showMessages: false }" 
      @open-messages.window="showMessages = true"
      @keydown.escape.window="showMessages = false"
-     @message.window="if ($event.data === 'close-messages') showMessages = false"
+     @message.window="if ($event.origin === window.location.origin && $event.data === 'close-messages') showMessages = false"
      x-cloak
      class="relative z-[100]" 
      aria-labelledby="modal-title" 
