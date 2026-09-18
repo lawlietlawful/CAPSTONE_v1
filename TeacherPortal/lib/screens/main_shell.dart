@@ -13,6 +13,7 @@ import 'referrals/file_referral_screen.dart';
 import 'referrals/referrals_screen.dart';
 import 'reports/my_reports_screen.dart';
 import 'students/my_students_screen.dart';
+import 'messaging/messaging_screen.dart' as messaging_screen;
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -84,16 +85,36 @@ class _MainShellState extends State<MainShell> {
         // Navy bleeds into the status bar so NavyHeader looks seamless.
         backgroundColor: AppColors.navy,
         body: IndexedStack(index: _currentIndex, children: screens),
-        // Logging an incident is the speed-critical action, so it stays one tap
-        // away from every tab. A compact circular FAB keeps it prominent without
-        // covering list content the way the wide extended button did.
-        floatingActionButton: FloatingActionButton(
-          onPressed: _openLogIncident,
-          backgroundColor: AppColors.accent,
-          foregroundColor: Colors.white,
-          elevation: 2,
-          tooltip: 'Log Incident',
-          child: const Icon(Icons.edit_note_rounded, size: 24),
+        // Two FABs stacked: Messages on top, Log Incident on bottom.
+        floatingActionButton: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              heroTag: 'msg_fab',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const messaging_screen.MessagingScreen()),
+                );
+              },
+              backgroundColor: Colors.white,
+              foregroundColor: AppColors.accent,
+              elevation: 2,
+              tooltip: 'Messages',
+              child: const Icon(Icons.mail_outline_rounded, size: 24),
+            ),
+            const SizedBox(height: 12),
+            FloatingActionButton(
+              heroTag: 'log_fab',
+              onPressed: _openLogIncident,
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              elevation: 2,
+              tooltip: 'Log Incident',
+              child: const Icon(Icons.edit_note_rounded, size: 24),
+            ),
+          ],
         ),
         bottomNavigationBar: AppNavBar(
           currentIndex: _currentIndex,

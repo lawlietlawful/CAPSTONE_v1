@@ -7,6 +7,7 @@ import '../widgets/common/app_nav_bar.dart';
 import 'home/home_screen.dart';
 import 'seminars/seminars_screen.dart';
 import 'notifications/notifications_screen.dart';
+import 'messaging/messaging_screen.dart' as messaging_screen;
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -47,6 +48,19 @@ class _MainShellState extends State<MainShell> {
         body: IndexedStack(
           index: _currentIndex,
           children: _screens,
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const messaging_screen.MessagingScreen()),
+            );
+          },
+          backgroundColor: Colors.white,
+          foregroundColor: AppColors.accent,
+          elevation: 2,
+          tooltip: 'Counselor Notices',
+          child: const Icon(Icons.mail_outline_rounded, size: 24),
         ),
         bottomNavigationBar: AppNavBar(
           currentIndex: _currentIndex,
