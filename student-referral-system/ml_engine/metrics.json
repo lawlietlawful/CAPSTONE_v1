@@ -4,34 +4,34 @@
   "n_rows": 3000,
   "test_size": 0.2,
   "class_balance": {
-    "low": 927,
-    "moderate": 1293,
-    "high": 780
+    "low": 887,
+    "moderate": 1323,
+    "high": 790
   },
   "held_out": {
-    "baseline_majority_class": 0.4317,
-    "numeric_only": 0.5317,
-    "text_only": 0.57,
-    "stacked_accuracy": 0.785,
-    "stacked_macro_f1": 0.7881
+    "baseline_majority_class": 0.4417,
+    "numeric_only": 0.5483,
+    "text_only": 0.5567,
+    "stacked_accuracy": 0.8033,
+    "stacked_macro_f1": 0.8083
   },
-  "cv_accuracy_mean": 0.7721,
-  "cv_accuracy_std": 0.0091,
+  "cv_accuracy_mean": 0.7354,
+  "cv_accuracy_std": 0.0108,
   "confusion_matrix": [
     [
-      149,
-      33,
-      3
+      142,
+      35,
+      0
     ],
     [
-      30,
-      204,
-      25
+      23,
+      206,
+      36
     ],
     [
       0,
-      38,
-      118
+      24,
+      134
     ]
   ],
   "class_names": [
@@ -40,8 +40,8 @@
     "high"
   ],
   "feature_importance_share": {
-    "numeric": 0.4922,
-    "text": 0.5078
+    "numeric": 0.4865,
+    "text": 0.5135
   },
   "vectorizer_vocab_size": 300
 }

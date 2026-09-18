@@ -90,6 +90,14 @@ MILD = [
     "asked for study tips before midterms", "curious about scholarship requirements",
     "brief chat about time management", "seems a little quiet lately, nothing alarming",
     "requested guidance on enrollment", "asked about joining an organization",
+    "nangayo og tabang sa klase", "medyo hilom karon adlawa",
+    "nangutana bahin sa requirements", "walay gana maminaw usahay",
+    "naglisod gamay sa lesson", "nangayo og tambag bahin sa kurso",
+    "nangutana giunsa pag compute sa grado", "naay gamayng lalis sa iyang groupmate",
+    "morag luya kay gi ubo og sip on", "nagpatabang og sabot sa topic",
+    "ni sulti nga naglisod og adjust", "nangita og kaistorya bahin sa iyang pamilya",
+    "naghinuktok lang kaganina sa klase", "medyo balisa ug nag hilak gahapon",
+    "wala ganahi mo apil sa activity",
 ]
 
 SERIOUS = [
@@ -103,6 +111,15 @@ SERIOUS = [
     "occasional attendance concern worth noting", "arrived late three times this week",
     "distracted and unprepared for the quiz", "avoiding classmates during activities",
     "did not submit the last two assignments", "appears exhausted and disengaged",
+    "permi ma late sa klase", "sige og gamit sa cellphone",
+    "wala nag submit sa mga assignments", "sige og tabi sa klase",
+    "wala ni sud sa klase", "sige og katulog sa klase",
+    "cge og tabing sa tapad", "dili maminaw inig discussion",
+    "permi lang wala sa klase, sigeg absent", "nangopya sa assignment sa uban",
+    "cge og saba saba samtang ga klase", "nagsige og duwa og mobile legends sa klase",
+    "gitubag tubag ko sa atubangan sa klase", "wala nipasar sa mga major exams",
+    "wala na maminaw unya pirmi galakaw-lakaw", "nag inawayay sila sa sulod sa room",
+    "gisita nako pero nagmug-ot ra", "naghilak kay nag-away sa iyang uyab",
 ]
 
 SEVERE = [
@@ -121,6 +138,15 @@ SEVERE = [
     "has stopped attending and is unreachable",
     "verbally abusive toward a classmate",
     "multiple behavioral incidents reported this month",
+    "nanumbag og klasmeyt", "grabe ka badlongon, nag siniyagitay",
+    "nangopya sa exam unya nasuko", "nagdala og hinagiban sa school",
+    "grabe ka depress og luya", "naghulga sa iyang klasmeyt",
+    "sige og pangaway og pamunal sa uban",
+    "nagsinumbagay sa gawas sa eskwelahan", "nanabako sulod sa campus",
+    "nag-inom og makahubog sulod sa eskwelahan", "gi-bully pag-ayo ang usa ka estudyante",
+    "naghulga nga i-abangan ko sa gawas", "naglubaay og ballpen o hinagiban",
+    "nangawat og kwarta sa iyang klasmeyt", "nag post og pangdaut sa social media",
+    "gidaot ang gamit sa eskwelahan, gibungkag ang lingkuranan",
 ]
 
 TEXT_POOLS = {0: MILD, 1: SERIOUS, 2: SEVERE}
