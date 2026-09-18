@@ -1,0 +1,166 @@
+@extends(request()->has('modal') ? 'layouts.modal' : 'layouts.counselor')
+
+@section('title', 'Messages')
+@section('page-title', 'Messages & Notices')
+@section('page-sub', 'Communicate with students and teachers')
+
+@section('content')
+
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+    {{-- Left Sidebar: Compose & Navigation --}}
+    <div class="lg:col-span-1 space-y-6">
+        <button onclick="document.getElementById('composeModal').classList.remove('hidden')" class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-xl shadow-premium transition-all">
+            <i class="ti ti-edit text-lg"></i> Compose Notice
+        </button>
+
+        <div class="bg-white rounded-xl shadow-premium border border-gray-100 overflow-hidden" x-data="{ activeTab: 'inbox' }">
+            <div class="p-2 space-y-1">
+                <a href="{{ request()->fullUrlWithQuery(['tab' => 'inbox']) }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors {{ request('tab', 'inbox') === 'inbox' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50' }}">
+                    <span class="flex items-center gap-2.5"><i class="ti ti-inbox text-lg"></i> Inbox</span>
+                    @if($inbox->total() > 0)
+                        <span class="bg-blue-100 text-blue-700 py-0.5 px-2 rounded-full text-xs">{{ $inbox->total() }}</span>
+                    @endif
+                </a>
+                <a href="{{ request()->fullUrlWithQuery(['tab' => 'sent']) }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors {{ request('tab') === 'sent' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50' }}">
+                    <span class="flex items-center gap-2.5"><i class="ti ti-send text-lg"></i> Sent</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {{-- Right Content: Message List --}}
+    <div class="lg:col-span-3">
+        <div class="bg-white rounded-2xl shadow-premium border border-gray-100 overflow-hidden">
+            @php $messages = request('tab') === 'sent' ? $sent : $inbox; @endphp
+            
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                <h3 class="text-[15px] font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="ti ti-{{ request('tab') === 'sent' ? 'send' : 'inbox' }} text-gray-400"></i> 
+                    {{ request('tab') === 'sent' ? 'Sent Notices' : 'Inbox' }}
+                </h3>
+            </div>
+
+            <div class="divide-y divide-gray-100">
+                @forelse($messages as $msg)
+                    <div x-data="{ showDeleteModal: false, deleted: false }" x-show="!deleted" class="relative flex items-start gap-4 p-4 hover:bg-gray-50 transition-colors border-b border-gray-50 group {{ is_null($msg->read_at) && request('tab', 'inbox') === 'inbox' ? 'bg-blue-50/30' : '' }}">
+                        <a href="{{ request()->has('modal') ? route('counselor.messages.show', [$msg->id, 'modal' => 1]) : route('counselor.messages.show', $msg->id) }}" class="absolute inset-0 z-0"></a>
+                        
+                        <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold flex-shrink-0 relative z-10 pointer-events-none">
+                            {{ strtoupper(substr(request('tab') === 'sent' ? ($msg->receiver->name ?? '?') : ($msg->sender->name ?? '?'), 0, 1)) }}
+                        </div>
+                        <div class="flex-1 min-w-0 relative z-10 pointer-events-none">
+                            <div class="flex justify-between items-start mb-0.5">
+                                <h4 class="text-sm font-semibold {{ is_null($msg->read_at) && request('tab', 'inbox') === 'inbox' ? 'text-gray-900' : 'text-gray-700' }} truncate">
+                                    {{ request('tab') === 'sent' ? 'To: ' . ($msg->receiver->name ?? 'Unknown') : ($msg->sender->name ?? 'Unknown') }}
+                                    <span class="text-[10px] ml-2 px-2 py-0.5 rounded-full {{ request('tab') === 'sent' ? ($msg->receiver->role === 'teacher' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700') : ($msg->sender->role === 'teacher' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700') }}">
+                                        {{ ucfirst(request('tab') === 'sent' ? ($msg->receiver->role ?? 'user') : ($msg->sender->role ?? 'user')) }}
+                                    </span>
+                                </h4>
+                                <span class="text-[11px] text-gray-400 whitespace-nowrap">{{ $msg->created_at->diffForHumans() }}</span>
+                            </div>
+
+                            <p class="text-xs text-gray-500 truncate mt-1">{{ Str::limit($msg->content, 80) }}</p>
+                        </div>
+                        
+                        <div class="relative z-10 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                            <button type="button" @click="showDeleteModal = true" class="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition tooltip" data-tip="Delete Conversation">
+                                <i class="ti ti-trash text-lg"></i>
+                            </button>
+                        </div>
+
+                        <!-- Custom Delete Confirmation Modal using Alpine teleport -->
+                        <template x-teleport="body">
+                            <div x-show="showDeleteModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" style="display: none;">
+                                <div @click.away="showDeleteModal = false" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 transform transition-all relative">
+                                    <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 mb-4">
+                                        <i class="ti ti-alert-triangle text-2xl"></i>
+                                    </div>
+                                    <h3 class="text-lg font-bold text-gray-900 mb-2">Delete Conversation?</h3>
+                                    <p class="text-sm text-gray-500 mb-6">This action cannot be undone. The conversation will be removed from your view.</p>
+                                    <div class="flex justify-end gap-3">
+                                        <button @click="showDeleteModal = false" type="button" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                                        <button @click="
+                                            fetch('{{ route('counselor.messages.destroy', $msg->id) }}', {
+                                                method: 'DELETE',
+                                                headers: {
+                                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                                    'Accept': 'application/json'
+                                                }
+                                            }).then(res => {
+                                                if(res.ok) {
+                                                    showDeleteModal = false;
+                                                    deleted = true;
+                                                }
+                                            })
+                                        " type="button" class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                @empty
+                    <div class="p-12 text-center">
+                        <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-4">
+                            <i class="ti ti-inbox text-3xl"></i>
+                        </div>
+                        <p class="text-gray-900 font-medium">No messages found.</p>
+                        <p class="text-gray-500 text-sm mt-1">Your {{ request('tab', 'inbox') }} is empty.</p>
+                    </div>
+                @endforelse
+            </div>
+            
+            @if($messages->hasPages())
+                <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+                    {{ $messages->appends(request()->query())->links() }}
+                </div>
+            @endif
+        </div>
+    </div>
+</div>
+
+{{-- Compose Modal --}}
+<div id="composeModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all">
+        <form action="{{ request()->has('modal') ? route('counselor.messages.store', ['modal' => 1]) : route('counselor.messages.store') }}" method="POST">
+            @csrf
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <h3 class="text-[15px] font-semibold text-gray-900">Compose Notice</h3>
+                <button type="button" onclick="document.getElementById('composeModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="ti ti-x text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">Recipient</label>
+                    <select name="receiver_id" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                        <option value="">Select a student or teacher...</option>
+                        <optgroup label="Teachers">
+                            @foreach($teachers as $teacher)
+                                <option value="{{ $teacher->id }}">{{ $teacher->name }} (Teacher)</option>
+                            @endforeach
+                        </optgroup>
+                        <optgroup label="Students">
+                            @foreach($students as $student)
+                                <option value="{{ $student->id }}">{{ $student->name }} (Student)</option>
+                            @endforeach
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">Message</label>
+                    <textarea name="content" rows="5" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" placeholder="Type your notice here..." required></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+                <button type="button" onclick="document.getElementById('composeModal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">Cancel</button>
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center gap-2">
+                    <i class="ti ti-send text-base"></i> Send Notice
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@endsection

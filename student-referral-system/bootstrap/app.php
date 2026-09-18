@@ -18,11 +18,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->throttleApi();
 
         $middleware->alias([
-            'admin'      => \App\Http\Middleware\AdminMiddleware::class,
-            'counselor'  => \App\Http\Middleware\CounselorMiddleware::class,
-            'role'       => \App\Http\Middleware\RoleMiddleware::class,
-            'teacher'    => \App\Http\Middleware\TeacherMiddleware::class,
-            'student'    => \App\Http\Middleware\StudentMiddleware::class,
+            'admin'       => \App\Http\Middleware\AdminMiddleware::class,
+            'counselor'   => \App\Http\Middleware\CounselorMiddleware::class,
+            'super_admin' => \App\Http\Middleware\SuperAdminMiddleware::class,
+            'role'        => \App\Http\Middleware\RoleMiddleware::class,
+            'teacher'     => \App\Http\Middleware\TeacherMiddleware::class,
+            'student'     => \App\Http\Middleware\StudentMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
