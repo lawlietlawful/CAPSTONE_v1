@@ -74,7 +74,7 @@ class RiskController extends Controller
         $moderateRiskCount = RiskAssessment::whereIn('id', $latestRiskIds)->where('risk_level', 'moderate')->count();
         $lowRiskCount = RiskAssessment::whereIn('id', $latestRiskIds)->where('risk_level', 'low')->count();
 
-        $counselors = \App\Models\User::where('role', 'guidance_counselor')->orderBy('name')->get();
+        $counselors = \App\Models\User::where('role', 'admin')->orderBy('name')->get();
 
         return view('admin.risk.index', compact(
             'assessments', 'totalAssessed', 'highRiskCount', 'moderateRiskCount', 'lowRiskCount', 'counselors'
@@ -97,7 +97,7 @@ class RiskController extends Controller
             return redirect()->route('admin.risk.index')->with('error', 'No risk assessment found for this student.');
         }
 
-        $counselors = \App\Models\User::where('role', 'guidance_counselor')->orderBy('name')->get();
+        $counselors = \App\Models\User::where('role', 'admin')->orderBy('name')->get();
 
         return view('admin.risk.show', compact('student', 'latestAssessment', 'counselors'));
     }

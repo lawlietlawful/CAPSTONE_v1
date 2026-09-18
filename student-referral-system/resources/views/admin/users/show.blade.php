@@ -45,13 +45,13 @@
             <!-- Role -->
             <div>
                 <span class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">System Role</span>
-                @if($user->role === 'admin')
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
-                        Admin
+                @if($user->role === 'super_admin')
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                        <i class="ti ti-shield-check text-base mr-1.5"></i> Super Admin
                     </span>
-                @elseif($user->role === 'guidance_counselor' || $user->role === 'counselor')
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                        Guidance Counselor
+                @elseif($user->role === 'admin' || $user->role === 'counselor')
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        <i class="ti ti-heart-handshake text-base mr-1.5"></i> Admin (Counselor)
                     </span>
                 @elseif($user->role === 'teacher')
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">

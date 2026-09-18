@@ -73,7 +73,7 @@ class ReferralController extends Controller
     public function create()
     {
         $students = Student::where('status', 'active')->orderBy('last_name')->get();
-        $counselors = User::where('role', 'guidance_counselor')->orderBy('name')->get();
+        $counselors = User::where('role', 'admin')->orderBy('name')->get();
 
         return view('counselor.referrals.create', compact('students', 'counselors'));
     }
@@ -114,7 +114,7 @@ class ReferralController extends Controller
     {
         $referral->load(['student', 'referredBy', 'counselor', 'interventions', 'smsLogs', 'riskAssessment', 'behavioralReport']);
         
-        $counselors = User::where('role', 'guidance_counselor')->orderBy('name')->get();
+        $counselors = User::where('role', 'admin')->orderBy('name')->get();
 
         // Get AI Recommended Seminars if applicable
         $recommendedSeminars = [];

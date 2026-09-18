@@ -34,10 +34,10 @@
                         <td class="px-6 py-4 font-medium text-gray-800">{{ $user->name }}</td>
                         <td class="px-6 py-4 text-gray-500">{{ $user->email }}</td>
                         <td class="px-6 py-4">
-                            @if($user->role === 'admin')
-                                <span class="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">Admin</span>
-                            @elseif($user->role === 'guidance_counselor')
-                                <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">Counselor</span>
+                            @if($user->role === 'super_admin')
+                                <span class="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">Super Admin</span>
+                            @elseif($user->role === 'admin')
+                                <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">Admin</span>
                             @elseif($user->role === 'teacher')
                                 <span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">Teacher</span>
                             @else
@@ -147,8 +147,8 @@
                                                         <select name="role" id="edit-role-{{ $user->id }}" x-model="role" required {{ $user->role === 'student' ? 'disabled' : '' }}
                                                             class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('role') border-red-500 @enderror">
                                                             <option value="">Select a role...</option>
-                                                            <option value="admin">Admin</option>
-                                                            <option value="guidance_counselor">Guidance Counselor</option>
+                                                            <option value="super_admin">Super Admin</option>
+                                                            <option value="admin">Admin (Counselor)</option>
                                                             <option value="teacher">Teacher</option>
                                                             @if($user->role === 'student')
                                                                 <option value="student" selected>Student (Managed via Student Module)</option>
@@ -358,8 +358,8 @@
                         <select name="role" id="modal-role" x-model="role" required
                             class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('role') border-red-500 @enderror">
                             <option value="">Select a role...</option>
-                            <option value="admin">Admin</option>
-                            <option value="guidance_counselor">Guidance Counselor</option>
+                            <option value="super_admin">Super Admin</option>
+                            <option value="admin">Admin (Counselor)</option>
                             <option value="teacher">Teacher</option>
                         </select>
                         @error('role')

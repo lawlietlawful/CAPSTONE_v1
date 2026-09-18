@@ -66,8 +66,10 @@
                     <select name="role" id="role" x-model="role" required {{ $user->role === 'student' ? 'disabled' : '' }}
                         class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm @error('role') border-red-500 @enderror">
                         <option value="">Select a role...</option>
-                        <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Admin</option>
-                        <option value="guidance_counselor" {{ old('role', $user->role) === 'guidance_counselor' || old('role', $user->role) === 'counselor' ? 'selected' : '' }}>Guidance Counselor</option>
+                        @if(auth()->user()->role === 'super_admin')
+                            <option value="super_admin" {{ old('role', $user->role) === 'super_admin' ? 'selected' : '' }}>Super Admin</option>
+                            <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Admin (Counselor)</option>
+                        @endif
                         <option value="teacher" {{ old('role', $user->role) === 'teacher' ? 'selected' : '' }}>Teacher</option>
                         @if($user->role === 'student')
                             <option value="student" selected>Student (Managed via Student Module)</option>

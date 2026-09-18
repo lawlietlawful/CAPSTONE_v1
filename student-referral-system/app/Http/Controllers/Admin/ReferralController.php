@@ -59,7 +59,7 @@ class ReferralController extends Controller
         $resolvedCount   = Referral::where('status', 'resolved')->count();
         $totalCount      = Referral::count();
 
-        $counselors = \App\Models\User::where('role', 'guidance_counselor')->orderBy('name')->get();
+        $counselors = \App\Models\User::where('role', 'admin')->orderBy('name')->get();
         $students = \App\Models\Student::where('status', 'active')->orderBy('last_name')->get();
 
         return view('admin.referrals.index', compact(
@@ -76,7 +76,7 @@ class ReferralController extends Controller
     public function create(Request $request)
     {
         $students = Student::where('status', 'active')->orderBy('last_name')->get();
-        $counselors = User::where('role', 'guidance_counselor')->orderBy('name')->get();
+        $counselors = User::where('role', 'admin')->orderBy('name')->get();
 
         $prefillStudent = $request->get('student_id');
         $prefillReason = $request->get('reason');
@@ -113,7 +113,7 @@ class ReferralController extends Controller
     public function show(Referral $referral)
     {
         $referral->load(['student', 'referredBy', 'counselor', 'interventions', 'smsLogs', 'behavioralReport']);
-        $counselors = User::where('role', 'guidance_counselor')->orderBy('name')->get();
+        $counselors = User::where('role', 'admin')->orderBy('name')->get();
 
         return view('admin.referrals.show', compact('referral', 'counselors'));
     }
@@ -273,7 +273,7 @@ class ReferralController extends Controller
     public function edit(Referral $referral)
     {
         $referral->load('student');
-        $counselors = User::where('role', 'guidance_counselor')->orderBy('name')->get();
+        $counselors = User::where('role', 'admin')->orderBy('name')->get();
         return view('admin.referrals.edit', compact('referral', 'counselors'));
     }
 

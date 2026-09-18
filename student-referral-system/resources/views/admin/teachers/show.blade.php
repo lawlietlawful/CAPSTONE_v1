@@ -10,9 +10,14 @@
     <a href="{{ route('admin.teachers.index') }}" class="text-sm font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1">
         <i class="ti ti-arrow-left"></i> Back to Teachers
     </a>
-    <a href="{{ route('admin.teachers.print', $teacher->id) }}" target="_blank" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center gap-1.5">
-        <i class="ti ti-printer text-blue-600"></i> Print / Export PDF
-    </a>
+    <div class="flex items-center gap-3">
+        <a href="{{ route('admin.teachers.print', $teacher->id) }}" target="_blank" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center gap-1.5">
+            <i class="ti ti-printer text-blue-600"></i> Print / Export PDF
+        </a>
+        <a href="{{ route('counselor.messages.index') }}" class="px-4 py-2 bg-indigo-600 border border-transparent text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center gap-1.5">
+            <i class="ti ti-send text-white"></i> Send Notice
+        </a>
+    </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
