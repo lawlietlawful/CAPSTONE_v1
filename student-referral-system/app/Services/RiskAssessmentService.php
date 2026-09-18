@@ -152,23 +152,7 @@ class RiskAssessmentService
         array $mlData,
         bool $syncPriority = true
     ): RiskAssessment {
-        $assessment = RiskAssessment::create([
-            'student_id'               => $student->id,
-            'previous_referrals_count' => $features['previous_referrals_count'],
-            'behavioral_reports_count' => $features['behavioral_reports_count'],
-            'concern_type_encoded'     => $features['concern_type_encoded'],
-            'days_since_last_referral' => $features['days_since_last_referral'],
-            'risk_score'               => $mlData['risk_score'],
-            'risk_level'               => $mlData['risk_level'],
-            // Model casts risk_factors as 'array' — Eloquent handles the JSON
-            // encoding on save. Passing a pre-encoded string here would
-            // double-encode it, corrupting every future read.
-            'risk_factors' => [
-                'reason' => $features['referral_reason'],
-                'recommended_seminar_tag' => $mlData['recommended_seminar_tag'] ?? 'general',
-            ],
-            'assessed_at' => now(),
-        ]);
+        $assessment = $this->persistAssessment($student, $features, $mlData);
 
         $updates = ['risk_assessment_id' => $assessment->id];
 
@@ -184,26 +168,26 @@ class RiskAssessmentService
     }
 
     /**
-     * Run an ML Risk Assessment automatically triggered by behavioral reports or other backend changes.
+     * Record a RiskAssessment for a behavioral report that did NOT escalate
+     * into a referral — there's nothing to link the assessment to, but the
+     * risk signal must not simply vanish because no referral exists to hang
+     * it on. Without this, a student accumulating several non-escalating
+     * "Medium" reports stayed invisible to the Watchlist, Risk Distribution,
+     * and the At-Risk filter forever, since all three only ever read a
+     * student's LATEST RiskAssessment.
+     *
+     * Takes the SAME $features/$mlData the caller already computed for the
+     * report's severity grade — no second ML call, for the same reason
+     * recordAssessment() above was split out from assessAndAssignSeminar():
+     * two predictions from two feature vectors can disagree with each other.
      */
-    public function assessWithoutReferral(Student $student, $reason = "Automated Assessment triggered by backend updates")
+    public function recordAssessmentForReport(Student $student, array $features, array $mlData): RiskAssessment
     {
-        // No current referral to exclude here, so every referral IS history.
-        $features = [
-            'previous_referrals_count' => Referral::where('student_id', $student->id)->count(),
-            'behavioral_reports_count' => BehavioralReport::where('student_id', $student->id)->count(),
-            'concern_type_encoded'     => 0, // 'other' default for automated assessments
-            'days_since_last_referral' => $this->getDaysSinceLastReferral($student->id, 0),
-            'referral_reason'          => $reason,
-        ];
+        return $this->persistAssessment($student, $features, $mlData);
+    }
 
-        $mlData = $this->predict($features);
-        if ($mlData === null) {
-            return false;
-        }
-
-        $mlData = $this->applyPolicyOverride($mlData, $features['previous_referrals_count']);
-
+    private function persistAssessment(Student $student, array $features, array $mlData): RiskAssessment
+    {
         return RiskAssessment::create([
             'student_id'               => $student->id,
             'previous_referrals_count' => $features['previous_referrals_count'],
@@ -212,8 +196,11 @@ class RiskAssessmentService
             'days_since_last_referral' => $features['days_since_last_referral'],
             'risk_score'               => $mlData['risk_score'],
             'risk_level'               => $mlData['risk_level'],
+            // Model casts risk_factors as 'array' — Eloquent handles the JSON
+            // encoding on save. Passing a pre-encoded string here would
+            // double-encode it, corrupting every future read.
             'risk_factors' => [
-                'reason' => $reason,
+                'reason' => $features['referral_reason'],
                 'recommended_seminar_tag' => $mlData['recommended_seminar_tag'] ?? 'general',
             ],
             'assessed_at' => now(),

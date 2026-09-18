@@ -84,6 +84,41 @@
                     <p class="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-4 border border-gray-100">{{ $behavioral_report->description }}</p>
                 </div>
 
+                @if($behavioral_report->riskAssessment)
+                    @php
+                        $ra = $behavioral_report->riskAssessment;
+                        $raColor = match ($ra->risk_level) {
+                            'high' => 'red', 'moderate' => 'amber', default => 'emerald',
+                        };
+                    @endphp
+                    <div class="pt-4 border-t border-gray-100">
+                        <span class="block text-xs text-gray-400 uppercase tracking-wider mb-1.5">AI Risk Assessment</span>
+                        <div class="bg-{{ $raColor }}-50/50 border border-{{ $raColor }}-100 rounded-lg p-4 space-y-2">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-{{ $raColor }}-100 text-{{ $raColor }}-800">
+                                    <i class="ti ti-brain text-xs"></i> Score {{ number_format($ra->risk_score, 0) }}/100
+                                </span>
+                                <span class="text-xs text-gray-500">Assessed {{ $ra->assessed_at->diffForHumans() }}</span>
+                            </div>
+                            <p class="text-xs text-gray-600">
+                                Based on {{ $ra->previous_referrals_count }} prior referral{{ $ra->previous_referrals_count === 1 ? '' : 's' }}
+                                and {{ $ra->behavioral_reports_count }} prior behavioral report{{ $ra->behavioral_reports_count === 1 ? '' : 's' }} on file for this student.
+                            </p>
+                            @if(!empty($ra->risk_factors['recommended_seminar_tag']))
+                                <p class="text-xs text-indigo-700 flex items-center gap-1">
+                                    <i class="ti ti-school text-xs"></i> Suggested intervention: {{ ucwords(str_replace('_', ' ', $ra->risk_factors['recommended_seminar_tag'])) }}
+                                </p>
+                            @endif
+                        </div>
+                    </div>
+                @elseif($behavioral_report->severity === \App\Services\BehavioralReportService::SEVERITY_UNASSESSED)
+                    <div class="pt-4 border-t border-gray-100">
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-500 flex items-center gap-2">
+                            <i class="ti ti-clock-pause"></i> Not yet assessed — the AI risk engine was unreachable when this was filed. It will be graded automatically once it's back online.
+                        </div>
+                    </div>
+                @endif
+
                 <div class="pt-4 border-t border-gray-100">
                     <span class="block text-xs text-gray-400 uppercase tracking-wider mb-0.5">Date Filed</span>
                     <span class="text-sm text-gray-600">{{ $behavioral_report->created_at->format('F j, Y — h:i A') }}</span>

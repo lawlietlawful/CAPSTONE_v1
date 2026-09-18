@@ -38,6 +38,7 @@ class BehavioralReport extends Model
         'incident_type',
         'description',
         'severity',
+        'risk_assessment_id',
         'incident_date',
         'location',
         'status',
@@ -67,5 +68,17 @@ class BehavioralReport extends Model
     public function escalatedReferral()
     {
         return $this->hasOne(Referral::class);
+    }
+
+    /**
+     * The AI's assessment behind this report's severity grade — the score,
+     * when it ran, and why (risk_factors). Set for every graded report,
+     * whether or not it escalated: an escalated report's assessment is also
+     * reachable via escalatedReferral->riskAssessment, but a non-escalated
+     * report has no referral to go through, so this is the only path to it.
+     */
+    public function riskAssessment()
+    {
+        return $this->belongsTo(RiskAssessment::class);
     }
 }

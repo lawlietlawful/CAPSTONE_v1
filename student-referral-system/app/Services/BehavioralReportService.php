@@ -27,6 +27,33 @@ class BehavioralReportService
      */
     public const CRITICAL_INCIDENT_TYPES = ['Academic Failure', 'Failing Grade'];
 
+    /**
+     * Description text naming physical violence, a weapon, or an explicit
+     * threat to harm someone. Checked independently of the ML severity grade
+     * and the incident_type list above, because the grade is influenced by
+     * the student's history (previous_referrals_count, behavioral_reports_
+     * count) — a first-ever incident can still be genuinely dangerous, and
+     * "wait and see if this becomes a pattern" is the wrong call for this
+     * category specifically. Also fires even if the ML engine never ran
+     * (reassess() picks up the RiskAssessment once it's back — see the
+     * $existing branch there, the same fallback already used for
+     * CRITICAL_INCIDENT_TYPES).
+     *
+     * Narrowed from the full SEVERE phrase pool in
+     * ml_engine/generate_dataset.py to violence/weapons/threats specifically
+     * — that pool also covers truancy, substance use, and theft, which are
+     * serious but not this kind of immediate-safety urgent.
+     */
+    private const VIOLENCE_KEYWORDS = [
+        // English
+        'punch', 'punched', 'hit', 'stab', 'stabbed', 'weapon', 'knife', 'gun',
+        'threat', 'threaten', 'threatened', 'kill', 'assault', 'attack', 'attacked',
+        'fight', 'fought', 'hurt someone',
+        // Cebuano / Bisaya
+        'nanumbag', 'sumbag', 'panumbag', 'hinagiban', 'naghulga', 'hulga',
+        'pamunal', 'sinumbagay', 'lubaay', 'pangaway', 'abangan', 'suntok',
+    ];
+
     public function __construct(
         protected RiskAssessmentService $riskService,
         protected SmsService $smsService,
@@ -163,17 +190,53 @@ class BehavioralReportService
         array $features,
         ?array $mlData
     ): ?Referral {
-        // An Unassessed report is never treated as severe here — the model never
-        // ran, so we have no grounds. It still escalates if its incident_type is
-        // independently critical, and reports:reassess will re-check it later.
+        // Independent of severity/incident_type: fires even for an Unassessed
+        // report (the model never ran) and even when history alone would have
+        // graded this "first offense" as Low/Medium.
+        $hasViolentLanguage = $this->containsViolentLanguage($report->description);
+
+        // An Unassessed report is never treated as severe on the ML grade alone
+        // — the model never ran, so we have no grounds there. It still
+        // escalates if its incident_type is independently critical, its
+        // description names violence/a weapon/a threat, and reports:reassess
+        // will re-check it later regardless.
         $shouldEscalate = in_array($severity, ['High', 'Critical'])
-            || in_array($report->incident_type, self::CRITICAL_INCIDENT_TYPES);
+            || in_array($report->incident_type, self::CRITICAL_INCIDENT_TYPES)
+            || $hasViolentLanguage;
 
         if (! $shouldEscalate) {
+            // Not escalating doesn't mean "no risk signal" — without this, a
+            // student accumulating several non-escalating "Medium" reports
+            // stayed invisible to the Watchlist, Risk Distribution, and the
+            // At-Risk filter forever, since all three only read a student's
+            // LATEST RiskAssessment, and only an escalated report ever
+            // created one. Reuses the SAME prediction already made for the
+            // severity grade above — no second ML call.
+            if ($mlData !== null) {
+                $assessment = $this->riskService->recordAssessmentForReport(
+                    $student,
+                    $features,
+                    $this->riskService->applyPolicyOverride($mlData, $features['previous_referrals_count'])
+                );
+
+                // The only path back to this assessment for a report that
+                // never escalates — there's no referral to reach it through.
+                $report->update(['risk_assessment_id' => $assessment->id]);
+            }
+
             return null;
         }
 
         $referralType = $this->referralTypeForIncident($report->incident_type);
+
+        // Make the reason for an otherwise-unremarkable-looking escalation
+        // legible to the counselor: without this, a "Medium severity, first
+        // offense" report showing up as a high-priority referral looks like a
+        // mistake rather than a deliberate safety-net decision.
+        $reasonPrefix = "[AUTO-ESCALATED from Behavioral Report #{$report->id}]";
+        if ($hasViolentLanguage && ! in_array($severity, ['High', 'Critical']) && ! in_array($report->incident_type, self::CRITICAL_INCIDENT_TYPES)) {
+            $reasonPrefix .= ' [Flagged: description names violence/a weapon/a threat]';
+        }
 
         $referral = Referral::create([
             'student_id'           => $student->id,
@@ -184,7 +247,7 @@ class BehavioralReportService
             // omitting it silently filed every escalated referral as 'other',
             // mis-grouping it in analytics and feeding the ML the wrong feature.
             'concern_type'         => Referral::concernTypeFor($referralType),
-            'reason'               => "[AUTO-ESCALATED from Behavioral Report #{$report->id}] " . $report->description,
+            'reason'               => "{$reasonPrefix} " . $report->description,
             'priority'             => 'high',
             'status'               => 'pending',
         ]);
@@ -199,13 +262,18 @@ class BehavioralReportService
                 $features['previous_referrals_count']
             );
 
-            $this->riskService->recordAssessment(
+            $assessment = $this->riskService->recordAssessment(
                 $student,
                 $referral,
                 $features,
                 $mlData,
                 syncPriority: false
             );
+
+            // Reachable via escalatedReferral->riskAssessment too, but the
+            // report show page reads it directly — keeps that page's query
+            // the same regardless of whether the report escalated.
+            $report->update(['risk_assessment_id' => $assessment->id]);
         }
 
         if ($student->parent_contact) {
@@ -293,6 +361,13 @@ class BehavioralReportService
                     $this->riskService->applyPolicyOverride($mlData, $features['previous_referrals_count']),
                     syncPriority: false
                 );
+                $existing->refresh();
+            }
+
+            // Keep the report's own link in sync with the referral's — the
+            // show page reads risk_assessment_id directly off the report.
+            if ($report->risk_assessment_id !== $existing->risk_assessment_id) {
+                $report->update(['risk_assessment_id' => $existing->risk_assessment_id]);
             }
 
             return true;
@@ -317,5 +392,22 @@ class BehavioralReportService
             'Disciplinary Incident' => 'Misconduct',
             default                 => 'Other',
         };
+    }
+
+    /**
+     * Whether the description names physical violence, a weapon, or an
+     * explicit threat to harm someone — see VIOLENCE_KEYWORDS. Matched on
+     * word boundaries (not raw substring containment) so e.g. English "hit"
+     * doesn't fire on an unrelated word that happens to contain it.
+     */
+    private function containsViolentLanguage(string $description): bool
+    {
+        foreach (self::VIOLENCE_KEYWORDS as $keyword) {
+            if (preg_match('/\b' . preg_quote($keyword, '/') . '\b/iu', $description) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
