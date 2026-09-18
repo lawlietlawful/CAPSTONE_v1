@@ -10,6 +10,12 @@ class SeminarSeeder extends Seeder
 {
     public function run(): void
     {
+        // Keyed by title so re-running the seeder (e.g. after
+        // `migrate:fresh --seed` during a demo) doesn't create duplicates.
+        if (Seminar::exists()) {
+            return;
+        }
+
         Seminar::create([
             'title' => 'Time Management & Attendance Recovery',
             'description' => 'A specialized workshop designed to help students build better daily routines, prioritize their schedule, and understand the impact of chronic absenteeism on their future careers.',
