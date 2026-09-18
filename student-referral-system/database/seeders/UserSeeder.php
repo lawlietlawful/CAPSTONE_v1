@@ -10,20 +10,20 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // Admin
+        // Super Admin (Developers)
         User::create([
             'name'     => 'System Admin',
             'email'    => 'admin@school.com',
             'password' => Hash::make('password'),
-            'role'     => 'admin',
+            'role'     => 'super_admin',
         ]);
 
-        // Guidance Counselor
+        // School Admin / Guidance Counselor
         User::create([
             'name'     => 'Ma\'am Edago',
             'email'    => 'counselor@school.com',
             'password' => Hash::make('password'),
-            'role'     => 'guidance_counselor',
+            'role'     => 'admin',
         ]);
 
         // Teacher

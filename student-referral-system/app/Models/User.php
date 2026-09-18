@@ -148,12 +148,13 @@ class User extends Authenticatable
     // Role checker helpers
     public function isAdmin()
     {
-        return $this->role === 'admin';
+        return in_array($this->role, ['admin', 'super_admin']);
     }
 
     public function isCounselor()
     {
-        return $this->role === 'guidance_counselor';
+        // The former 'guidance_counselor' role is now 'admin'
+        return $this->role === 'admin';
     }
 
     public function isTeacher()

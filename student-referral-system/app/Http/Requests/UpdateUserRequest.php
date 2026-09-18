@@ -28,7 +28,11 @@ class UpdateUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $userId],
             'password' => ['nullable', 'string', 'min:8'],
-            'role' => ['required', 'string', 'in:admin,guidance_counselor,teacher,student'],
+            'role' => [
+                'required', 
+                'string', 
+                auth()->user()->role === 'super_admin' ? 'in:super_admin,admin,teacher,student' : 'in:teacher'
+            ],
         ];
     }
 }

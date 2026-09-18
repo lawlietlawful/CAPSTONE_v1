@@ -31,12 +31,12 @@ class AuthenticatedSessionController extends Controller
         $role = auth()->user()->role;
 
         return match($role) {
-            'admin'              => redirect()->intended('/admin/dashboard'),
-            'guidance_counselor' => redirect()->intended('/counselor/dashboard'),
-            'teacher'            => redirect()->intended('/teacher/dashboard'),
-            'student'            => redirect()->intended('/student/dashboard'),
-            default              => redirect()->intended('/dashboard'),
-    };
+            'super_admin' => redirect()->intended('/admin/dashboard'),
+            'admin'       => redirect()->intended('/counselor/dashboard'),
+            'teacher'     => redirect()->intended('/teacher/dashboard'),
+            'student'     => redirect()->intended('/student/dashboard'),
+            default       => redirect()->intended('/dashboard'),
+        };
     }
 
     /**

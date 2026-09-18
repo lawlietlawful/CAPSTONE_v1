@@ -30,7 +30,11 @@ class StoreUserRequest extends FormRequest
             // web-only and get a password directly.
             'username' => ['nullable', 'string', 'max:255', 'unique:users', 'required_if:role,teacher'],
             'password' => ['nullable', 'string', 'min:8', 'required_unless:role,teacher'],
-            'role' => ['required', 'string', 'in:admin,guidance_counselor,teacher'],
+            'role' => [
+                'required', 
+                'string', 
+                auth()->user()->role === 'super_admin' ? 'in:super_admin,admin,teacher' : 'in:teacher'
+            ],
             'assignments' => ['nullable', 'array'],
             'assignments.*.course' => ['nullable', 'string', 'max:255'],
             'assignments.*.grade_level' => ['nullable', 'string', 'max:50'],
