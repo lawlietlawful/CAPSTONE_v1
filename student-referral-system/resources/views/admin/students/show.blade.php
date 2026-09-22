@@ -61,14 +61,15 @@
                 </div>
                 <div class="rounded-xl border border-gray-100 p-3 hover:border-gray-200 transition-colors flex flex-col justify-center items-center">
                     @php
-                        $latestRisk = $student->riskAssessments->last();
-                        $riskColor = match($latestRisk?->risk_level ?? 'low') {
+                        $latestRisk = $student->latestRiskAssessment;
+                        $riskColor = match($latestRisk?->risk_level) {
                             'high' => 'text-red-500',
                             'moderate' => 'text-amber-500',
-                            default => 'text-emerald-500'
+                            'low' => 'text-emerald-500',
+                            default => 'text-gray-400',
                         };
                     @endphp
-                    <span class="block text-[15px] font-bold {{ $riskColor }} leading-tight mb-0.5">{{ ucfirst($latestRisk?->risk_level ?? 'Low') }}</span>
+                    <span class="block text-[15px] font-bold {{ $riskColor }} leading-tight mb-0.5">{{ $latestRisk ? ucfirst($latestRisk->risk_level) : 'Not Assessed' }}</span>
                     <span class="block text-[9px] text-gray-400 font-semibold uppercase tracking-widest mt-1">Risk Lvl</span>
                 </div>
             </div>
@@ -226,7 +227,7 @@
                     </h4>
 
                     @php
-                        $latestRisk = $student->riskAssessments->last();
+                        $latestRisk = $student->latestRiskAssessment;
                         // risk_factors is cast to 'array' on the model — already decoded here.
                         $riskFactors = $latestRisk ? $latestRisk->risk_factors : null;
                     @endphp
@@ -336,7 +337,9 @@
                                             </span>
                                         </td>
                                         <td class="py-3 px-4 print:hidden">
-                                            <a href="{{ route('admin.referrals.show', $ref->id) }}" class="text-blue-600 hover:text-blue-800 font-medium">View</a>
+                                            <a href="{{ route('admin.referrals.show', $ref->id) }}" class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="View Referral">
+                                                <i class="ti ti-eye"></i>
+                                            </a>
                                         </td>
                                     </tr>
                                 @empty

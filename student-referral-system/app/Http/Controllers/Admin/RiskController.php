@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Referral;
 use App\Models\RiskAssessment;
 use App\Models\Student;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,27 @@ class RiskController extends Controller
             ->select(DB::raw('MAX(id) as id'))
             ->groupBy('student_id')
             ->pluck('id');
+
+        // "My Students" (?scope=mine): narrows the whole page — summary
+        // counts included — to students in the viewing counselor's own
+        // referral scope (assigned to them, or unclaimed), the same "mine or
+        // unclaimed" rule the counselor dashboard's own Watchlist uses. Only
+        // meaningful for a counselor; a super_admin has no personal scope to
+        // narrow to, so the param is a no-op for them.
+        $scopedToMe = $request->get('scope') === 'mine' && auth()->user()->role === 'admin';
+        if ($scopedToMe) {
+            $myStudentIds = Referral::where(function ($q) {
+                    $q->where('counselor_id', auth()->id())->orWhereNull('counselor_id');
+                })
+                ->distinct()
+                ->pluck('student_id');
+
+            $latestRiskIds = DB::table('risk_assessments')
+                ->whereIn('student_id', $myStudentIds)
+                ->select(DB::raw('MAX(id) as id'))
+                ->groupBy('student_id')
+                ->pluck('id');
+        }
 
         $query = RiskAssessment::with(['student' => function($q) {
             $q->with(['referrals' => function($r) {
@@ -77,7 +99,7 @@ class RiskController extends Controller
         $counselors = \App\Models\User::where('role', 'admin')->orderBy('name')->get();
 
         return view('admin.risk.index', compact(
-            'assessments', 'totalAssessed', 'highRiskCount', 'moderateRiskCount', 'lowRiskCount', 'counselors'
+            'assessments', 'totalAssessed', 'highRiskCount', 'moderateRiskCount', 'lowRiskCount', 'counselors', 'scopedToMe'
         ));
     }
 
@@ -105,6 +127,23 @@ class RiskController extends Controller
     public function export(Request $request)
     {
         $latestRiskIds = DB::table('risk_assessments')->select(DB::raw('MAX(id) as id'))->groupBy('student_id')->pluck('id');
+
+        // Mirrors index()'s ?scope=mine — an export taken from the "My
+        // Students" view must not silently include the whole school.
+        if ($request->get('scope') === 'mine' && auth()->user()->role === 'admin') {
+            $myStudentIds = Referral::where(function ($q) {
+                    $q->where('counselor_id', auth()->id())->orWhereNull('counselor_id');
+                })
+                ->distinct()
+                ->pluck('student_id');
+
+            $latestRiskIds = DB::table('risk_assessments')
+                ->whereIn('student_id', $myStudentIds)
+                ->select(DB::raw('MAX(id) as id'))
+                ->groupBy('student_id')
+                ->pluck('id');
+        }
+
         $query = RiskAssessment::with(['student'])->whereIn('id', $latestRiskIds);
 
         if ($request->filled('risk_level')) {

@@ -6,9 +6,27 @@
 
 @section('content')
 
+@php
+    // Preserved on every filter/summary-card link so "My Students" stays
+    // active while paging through risk_level/search — only "Clear" and the
+    // explicit "Show everyone" link below drop it.
+    $scopeParam = request()->only('scope');
+@endphp
+
+@if($scopedToMe)
+    <div class="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
+        <span class="text-sm text-blue-800 flex items-center gap-2">
+            <i class="ti ti-user-check"></i> Showing only <strong>your</strong> assigned or unclaimed students.
+        </span>
+        <a href="{{ route('admin.risk.index', request()->except('scope')) }}" class="text-xs font-medium text-blue-700 hover:text-blue-900 underline">
+            Show everyone
+        </a>
+    </div>
+@endif
+
 {{-- ── Summary Cards ─────────────────────────────────────────── --}}
 <div class="grid grid-cols-4 gap-3 mb-5">
-    <a href="{{ route('admin.risk.index') }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-gray-300 transition block cursor-pointer">
+    <a href="{{ route('admin.risk.index', $scopeParam) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-gray-300 transition block cursor-pointer">
         <div class="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
             <i class="ti ti-users text-gray-500 text-lg"></i>
         </div>
@@ -17,7 +35,7 @@
             <div class="text-[11px] font-medium text-gray-400 mt-0.5">Total Assessed</div>
         </div>
     </a>
-    <a href="{{ route('admin.risk.index', ['risk_level' => 'high']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-red-200 transition block cursor-pointer">
+    <a href="{{ route('admin.risk.index', $scopeParam + ['risk_level' => 'high']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-red-200 transition block cursor-pointer">
         <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
             <i class="ti ti-alert-triangle text-red-600 text-lg"></i>
         </div>
@@ -26,7 +44,7 @@
             <div class="text-[11px] font-medium text-gray-400 mt-0.5">High Risk</div>
         </div>
     </a>
-    <a href="{{ route('admin.risk.index', ['risk_level' => 'moderate']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-amber-200 transition block cursor-pointer">
+    <a href="{{ route('admin.risk.index', $scopeParam + ['risk_level' => 'moderate']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-amber-200 transition block cursor-pointer">
         <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
             <i class="ti ti-alert-circle text-amber-600 text-lg"></i>
         </div>
@@ -35,7 +53,7 @@
             <div class="text-[11px] font-medium text-gray-400 mt-0.5">Moderate Risk</div>
         </div>
     </a>
-    <a href="{{ route('admin.risk.index', ['risk_level' => 'low']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-green-200 transition block cursor-pointer">
+    <a href="{{ route('admin.risk.index', $scopeParam + ['risk_level' => 'low']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-green-200 transition block cursor-pointer">
         <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
             <i class="ti ti-check text-green-600 text-lg"></i>
         </div>
@@ -49,6 +67,7 @@
 {{-- ── Filters ───────────────────────────────────────────────── --}}
 <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-4 mb-4">
     <form method="GET" action="{{ route('admin.risk.index') }}" class="flex flex-wrap gap-3 items-end" id="filterForm">
+        <input type="hidden" name="scope" value="{{ request('scope') }}">
         <div class="flex-1 min-w-[250px] w-full relative">
             <label class="block text-xs font-medium text-gray-500 mb-1">Search Student</label>
             <div class="relative">

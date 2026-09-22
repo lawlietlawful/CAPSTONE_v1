@@ -24,6 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
+        [x-cloak] { display: none !important; }
         body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
         .sidebar { width: 250px; min-width: 250px; transition: all 0.3s ease; }
         .main-content { flex: 1; min-width: 0; }
@@ -86,9 +87,9 @@
                 <i class="ti ti-heart-handshake text-base w-5"></i> Interventions
             </a>
 
-            <a href="{{ route('admin.behavioral-reports.index') }}"
+            <a href="{{ route('counselor.behavioral-reports.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
-                      {{ request()->routeIs('admin.behavioral-reports.*') || request()->routeIs('counselor.behavioral-reports.*') ? 'active text-white' : 'text-white/60' }}">
+                      {{ request()->routeIs('counselor.behavioral-reports.*') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-message-report text-base w-5"></i> Behavioral Reports
             </a>
 
@@ -135,7 +136,7 @@
                 </div>
                 <div class="min-w-0">
                     <p class="text-white text-xs font-medium truncate">{{ auth()->user()->name }}</p>
-                    <p class="text-white/40 text-[11px]">Administrator</p>
+                    <p class="text-white/40 text-[11px]">Guidance Counselor</p>
                 </div>
                 <form method="POST" action="{{ route('logout') }}" class="ml-auto">
                     @csrf
@@ -164,13 +165,7 @@
                 </span>
 
                 {{-- Notifications --}}
-                <div class="relative cursor-pointer text-gray-400 hover:text-gray-600">
-                    <i class="ti ti-bell text-xl"></i>
-                    @if(isset($unreadNotifications) && $unreadNotifications > 0)
-                        <span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full
-                                     border-2 border-white"></span>
-                    @endif
-                </div>
+                @include('components.notification-bell', ['prefix' => 'admin', 'accent' => 'blue'])
             </div>
         </header>
 

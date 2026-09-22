@@ -84,8 +84,8 @@
                             </td>
                             <td class="px-6 py-4 align-middle text-right">
                                 <div class="flex justify-end gap-2">
-                                    <a href="{{ route('teacher.behavioral-reports.show', $report->id) }}" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="View Details">
-                                        <i class="ti ti-eye text-lg"></i>
+                                    <a href="{{ route('teacher.behavioral-reports.show', $report->id) }}" class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="View Details">
+                                        <i class="ti ti-eye"></i>
                                     </a>
                                 </div>
                             </td>

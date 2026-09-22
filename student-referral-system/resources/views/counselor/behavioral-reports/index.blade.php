@@ -9,76 +9,45 @@
 {{-- ── Summary Cards ─────────────────────────────────────────── --}}
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
     {{-- Total Reports --}}
-    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between gap-3 hover:shadow-md transition">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
-                <i class="ti ti-message-report text-gray-500 text-lg"></i>
-            </div>
-            <div>
-                <div class="text-lg font-bold text-gray-900 leading-none">{{ number_format($totalReports) }}</div>
-                <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Total Reports</div>
-            </div>
+    <a href="{{ route('counselor.behavioral-reports.index') }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-hover hover:border-gray-300 hover:-translate-y-0.5 transition-all duration-300 block cursor-pointer">
+        <div class="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+            <i class="ti ti-message-report text-gray-500 text-lg"></i>
         </div>
-    </div>
+        <div>
+            <div class="text-lg font-bold text-gray-900 leading-none">{{ number_format($totalReports) }}</div>
+            <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Total Reports</div>
+        </div>
+    </a>
     {{-- Pending Review --}}
-    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between gap-3 hover:shadow-md transition">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                <i class="ti ti-clock text-blue-600 text-lg"></i>
-            </div>
-            <div>
-                <div class="text-lg font-bold text-gray-900 leading-none">{{ number_format($pendingCount) }}</div>
-                <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Pending</div>
-            </div>
+    <a href="{{ route('counselor.behavioral-reports.index', ['status' => 'pending']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-hover hover:border-blue-200 hover:-translate-y-0.5 transition-all duration-300 block cursor-pointer">
+        <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+            <i class="ti ti-clock text-blue-600 text-lg"></i>
         </div>
-    </div>
+        <div>
+            <div class="text-lg font-bold text-blue-700 leading-none">{{ number_format($pendingCount) }}</div>
+            <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Pending</div>
+        </div>
+    </a>
     {{-- Reviewed --}}
-    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between gap-3 hover:shadow-md transition">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                <i class="ti ti-eye text-amber-600 text-lg"></i>
-            </div>
-            <div>
-                <div class="text-lg font-bold text-gray-900 leading-none">{{ number_format($reviewedCount) }}</div>
-                <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Reviewed</div>
-            </div>
+    <a href="{{ route('counselor.behavioral-reports.index', ['status' => 'reviewed']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-hover hover:border-amber-200 hover:-translate-y-0.5 transition-all duration-300 block cursor-pointer">
+        <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+            <i class="ti ti-eye text-amber-600 text-lg"></i>
         </div>
-    </div>
+        <div>
+            <div class="text-lg font-bold text-amber-700 leading-none">{{ number_format($reviewedCount) }}</div>
+            <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Reviewed</div>
+        </div>
+    </a>
     {{-- Resolved --}}
-    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between gap-3 hover:shadow-md transition">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
-                <i class="ti ti-circle-check text-green-600 text-lg"></i>
-            </div>
-            <div>
-                <div class="text-lg font-bold text-gray-900 leading-none">{{ number_format($resolvedCount) }}</div>
-                <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Resolved</div>
-            </div>
+    <a href="{{ route('counselor.behavioral-reports.index', ['status' => 'resolved']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-hover hover:border-green-200 hover:-translate-y-0.5 transition-all duration-300 block cursor-pointer">
+        <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+            <i class="ti ti-circle-check text-green-600 text-lg"></i>
         </div>
-    </div>
-</div>
-
-{{-- ── Analytics Charts ─────────────────────────────────────── --}}
-<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-    {{-- Severity Chart --}}
-    <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-5 flex flex-col items-center">
-        <h3 class="w-full font-bold text-gray-800 text-sm mb-4 flex items-center gap-2">
-            <i class="ti ti-chart-donut text-blue-600"></i> Reports by Severity
-        </h3>
-        <div class="relative w-full max-w-[200px] aspect-square">
-            <canvas id="severityChart"></canvas>
+        <div>
+            <div class="text-lg font-bold text-green-700 leading-none">{{ number_format($resolvedCount) }}</div>
+            <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Resolved</div>
         </div>
-    </div>
-    
-    {{-- Status Chart --}}
-    <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-5 flex flex-col items-center">
-        <h3 class="w-full font-bold text-gray-800 text-sm mb-4 flex items-center gap-2">
-            <i class="ti ti-chart-pie text-blue-600"></i> Reports by Status
-        </h3>
-        <div class="relative w-full max-w-[200px] aspect-square">
-            <canvas id="statusChart"></canvas>
-        </div>
-    </div>
+    </a>
 </div>
 
 {{-- ── Filters ───────────────────────────────────────────────── --}}
@@ -92,16 +61,15 @@
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i class="ti ti-search text-gray-400"></i>
                     </div>
-                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Name or Student ID..."
-                        x-on:input.debounce.500ms="$el.closest('form').submit()"
-                        class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition" autocomplete="off">
+                    <input type="text" id="searchInput" name="search" value="{{ request('search') }}" placeholder="Name or Student ID..."
+                        class="block w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition text-sm text-gray-900 shadow-sm" autocomplete="off">
                 </div>
             </div>
             
             {{-- Teacher Filter --}}
             <div class="w-full lg:w-40">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Reported By</label>
-                <select name="reported_by_id" @change="$el.closest('form').submit()" class="block w-full py-2 px-3 border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition cursor-pointer">
+                <select name="reported_by_id" @change="$el.closest('form').submit()" class="block w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition text-sm text-gray-900 shadow-sm cursor-pointer">
                     <option value="">All Teachers</option>
                     @if(isset($teachers))
                         @foreach($teachers as $teacher)
@@ -114,7 +82,7 @@
             {{-- Severity Filter --}}
             <div class="w-full lg:w-32">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Severity</label>
-                <select name="severity" @change="$el.closest('form').submit()" class="block w-full py-2 px-3 border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition cursor-pointer">
+                <select name="severity" @change="$el.closest('form').submit()" class="block w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition text-sm text-gray-900 shadow-sm cursor-pointer">
                     <option value="">All Severity</option>
                     <option value="minor" {{ request('severity') == 'minor' ? 'selected' : '' }}>Minor</option>
                     <option value="moderate" {{ request('severity') == 'moderate' ? 'selected' : '' }}>Moderate</option>
@@ -125,7 +93,7 @@
             {{-- Status Filter --}}
             <div class="w-full lg:w-32">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                <select name="status" @change="$el.closest('form').submit()" class="block w-full py-2 px-3 border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition cursor-pointer">
+                <select name="status" @change="$el.closest('form').submit()" class="block w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition text-sm text-gray-900 shadow-sm cursor-pointer">
                     <option value="">All Status</option>
                     <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
                     <option value="reviewed" {{ request('status') == 'reviewed' ? 'selected' : '' }}>Reviewed</option>
@@ -135,10 +103,10 @@
 
             {{-- Action Buttons --}}
             <div class="flex gap-2 w-full lg:w-auto mt-3 lg:mt-0">
-                <a href="{{ route('counselor.behavioral-reports.index') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap">
+                <a href="{{ route('counselor.behavioral-reports.index') }}" class="px-4 py-2.5 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition shadow-sm flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap">
                     <i class="ti ti-x"></i> Reset
                 </a>
-                <a href="{{ route('counselor.behavioral-reports.export', request()->all()) }}" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition shadow-sm flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap">
+                <a href="{{ route('counselor.behavioral-reports.export', request()->all()) }}" class="px-4 py-2.5 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition shadow-sm flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap">
                     <i class="ti ti-file-spreadsheet"></i> Export CSV
                 </a>
             </div>
@@ -147,7 +115,7 @@
 </div>
 
 {{-- ── Reports Table ─────────────────────────────────────────── --}}
-<div x-data="bulkActions()" class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden">
+<div x-data="bulkActions()" class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover">
     <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
             <thead>
@@ -172,7 +140,7 @@
                     </td>
                     <td class="px-5 py-3">
                         <div class="flex flex-col items-start gap-1">
-                            <span class="font-medium text-gray-900">{{ $report->student->last_name }}, {{ $report->student->first_name }}</span>
+                            <a href="{{ route('counselor.behavioral-reports.show', $report->id) }}" class="font-medium text-gray-900 hover:text-blue-600 hover:underline transition">{{ $report->student->last_name }}, {{ $report->student->first_name }}</a>
                             <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shrink-0">{{ $report->student->student_id_number }}</span>
                         </div>
                     </td>
@@ -180,30 +148,30 @@
                     <td class="px-5 py-3 text-center">
                         @php
                             $severityClass = match($report->severity) {
-                                'severe'   => 'bg-red-50 text-red-700',
-                                'moderate' => 'bg-amber-50 text-amber-700',
-                                'minor'    => 'bg-green-50 text-green-700',
-                                'Critical' => 'bg-red-50 text-red-700',
-                                'High'     => 'bg-red-50 text-red-700',
-                                'Medium'   => 'bg-amber-50 text-amber-700',
-                                'Low'      => 'bg-green-50 text-green-700',
-                                default    => 'bg-gray-100 text-gray-500',
+                                'severe'   => 'bg-red-50 text-red-700 border-red-200',
+                                'moderate' => 'bg-amber-50 text-amber-700 border-amber-200',
+                                'minor'    => 'bg-green-50 text-green-700 border-green-200',
+                                'Critical' => 'bg-red-50 text-red-700 border-red-200',
+                                'High'     => 'bg-red-50 text-red-700 border-red-200',
+                                'Medium'   => 'bg-amber-50 text-amber-700 border-amber-200',
+                                'Low'      => 'bg-green-50 text-green-700 border-green-200',
+                                default    => 'bg-gray-100 text-gray-500 border-gray-200',
                             };
                         @endphp
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium {{ $severityClass }}">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium border {{ $severityClass }}">
                             {{ ucfirst($report->severity) }}
                         </span>
                     </td>
                     <td class="px-5 py-3 text-center">
                         @php
                             $statusClass = match($report->status) {
-                                'pending'  => 'bg-blue-50 text-blue-700',
-                                'reviewed' => 'bg-amber-50 text-amber-700',
-                                'resolved' => 'bg-green-50 text-green-700',
-                                default    => 'bg-gray-100 text-gray-500',
+                                'pending'  => 'bg-blue-50 text-blue-700 border-blue-200',
+                                'reviewed' => 'bg-amber-50 text-amber-700 border-amber-200',
+                                'resolved' => 'bg-green-50 text-green-700 border-green-200',
+                                default    => 'bg-gray-100 text-gray-500 border-gray-200',
                             };
                         @endphp
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium {{ $statusClass }}">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium border {{ $statusClass }}">
                             {{ ucfirst($report->status) }}
                         </span>
                     </td>
@@ -213,6 +181,7 @@
                         <div class="flex items-center justify-center gap-2">
                             <a href="{{ route('counselor.behavioral-reports.show', $report->id) }}" class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="View Report">
                                 <i class="ti ti-eye"></i>
+                            </a>
                         </div>
                     </td>
                 </tr>
@@ -297,84 +266,29 @@
         }));
     });
 
-    // Chart.js Initialization
-    document.addEventListener('DOMContentLoaded', function() {
-        // Safe JSON parsing
-        const severityData = @json($severityChartData ?? []);
-        const statusData = @json($statusChartData ?? []);
+    let searchTimeout = null;
+    const searchInput = document.getElementById('searchInput');
+    const filterForm = document.getElementById('filterForm');
 
-        // Default colors
-        const severityColors = {
-            'minor': '#10B981',    // green-500
-            'moderate': '#F59E0B', // amber-500
-            'severe': '#EF4444',   // red-500
-            'Critical': '#EF4444',
-            'High': '#EF4444',
-            'Medium': '#F59E0B',
-            'Low': '#10B981'
-        };
+    if (searchInput && filterForm) {
+        searchInput.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            const val = e.target.value.trim();
 
-        const statusColors = {
-            'pending': '#3B82F6',  // blue-500
-            'reviewed': '#F59E0B', // amber-500
-            'resolved': '#10B981'  // green-500
-        };
+            // Auto submit if cleared or if length >= 2
+            if (val.length === 0 || val.length >= 2) {
+                searchTimeout = setTimeout(() => {
+                    filterForm.submit();
+                }, 500); // Wait 500ms after user stops typing
+            }
+        });
 
-        // Initialize Severity Chart
-        if (Object.keys(severityData).length > 0) {
-            const sevLabels = Object.keys(severityData).map(l => l.charAt(0).toUpperCase() + l.slice(1));
-            const sevValues = Object.values(severityData);
-            const sevBgColors = Object.keys(severityData).map(k => severityColors[k] || '#9CA3AF');
-
-            new Chart(document.getElementById('severityChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: sevLabels,
-                    datasets: [{
-                        data: sevValues,
-                        backgroundColor: sevBgColors,
-                        borderWidth: 0,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '70%',
-                    plugins: {
-                        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: { family: "'Inter', sans-serif", size: 11 } } }
-                    }
-                }
-            });
+        // Put cursor at the end of text when page reloads with search value
+        if (searchInput.value) {
+            const length = searchInput.value.length;
+            searchInput.focus();
+            searchInput.setSelectionRange(length, length);
         }
-
-        // Initialize Status Chart
-        if (Object.keys(statusData).length > 0) {
-            const statLabels = Object.keys(statusData).map(l => l.charAt(0).toUpperCase() + l.slice(1));
-            const statValues = Object.values(statusData);
-            const statBgColors = Object.keys(statusData).map(k => statusColors[k] || '#9CA3AF');
-
-            new Chart(document.getElementById('statusChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: statLabels,
-                    datasets: [{
-                        data: statValues,
-                        backgroundColor: statBgColors,
-                        borderWidth: 0,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '70%',
-                    plugins: {
-                        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: { family: "'Inter', sans-serif", size: 11 } } }
-                    }
-                }
-            });
-        }
-    });
+    }
 </script>
 @endsection

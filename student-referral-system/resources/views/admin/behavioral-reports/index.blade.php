@@ -70,8 +70,7 @@
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i class="ti ti-search text-gray-400"></i>
                     </div>
-                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Name or Student ID..."
-                        x-on:input.debounce.500ms="$el.closest('form').submit()"
+                    <input type="text" id="searchInput" name="search" value="{{ request('search') }}" placeholder="Name or Student ID..."
                         class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition" autocomplete="off">
                 </div>
             </div>
@@ -150,7 +149,7 @@
                     </td>
                     <td class="px-5 py-3">
                         <div class="flex flex-col items-start gap-1">
-                            <span class="font-medium text-gray-900">{{ $report->student->last_name }}, {{ $report->student->first_name }}</span>
+                            <a href="{{ route('admin.behavioral-reports.show', $report->id) }}" class="font-medium text-gray-900 hover:text-blue-600 hover:underline transition">{{ $report->student->last_name }}, {{ $report->student->first_name }}</a>
                             <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shrink-0">{{ $report->student->student_id_number }}</span>
                         </div>
                     </td>
@@ -282,6 +281,29 @@
         }));
     });
 
+    let searchTimeout = null;
+    const searchInput = document.getElementById('searchInput');
+    const filterForm = document.getElementById('filterForm');
 
+    if (searchInput && filterForm) {
+        searchInput.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            const val = e.target.value.trim();
+
+            // Auto submit if cleared or if length >= 2
+            if (val.length === 0 || val.length >= 2) {
+                searchTimeout = setTimeout(() => {
+                    filterForm.submit();
+                }, 500); // Wait 500ms after user stops typing
+            }
+        });
+
+        // Put cursor at the end of text when page reloads with search value
+        if (searchInput.value) {
+            const length = searchInput.value.length;
+            searchInput.focus();
+            searchInput.setSelectionRange(length, length);
+        }
+    }
 </script>
 @endsection

@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\Notification;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -23,6 +26,30 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureRateLimiting();
+        $this->composeNotificationBell();
+    }
+
+    /**
+     * The header bell (badge count + its dropdown preview) lives in all
+     * three role layouts and is needed on every page, not just whichever
+     * dashboard controller happened to compute it — a per-controller value
+     * here would go stale the moment a page other than the dashboard loads
+     * first.
+     */
+    protected function composeNotificationBell(): void
+    {
+        View::composer(['layouts.admin', 'layouts.counselor', 'layouts.teacher'], function ($view) {
+            if (! Auth::check()) {
+                $view->with(['unreadNotifications' => 0, 'recentNotifications' => collect()]);
+
+                return;
+            }
+
+            $view->with([
+                'unreadNotifications' => Notification::where('user_id', Auth::id())->where('is_read', false)->count(),
+                'recentNotifications' => Notification::recentForBell(Auth::id()),
+            ]);
+        });
     }
 
     /**

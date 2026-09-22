@@ -6,6 +6,15 @@
 
 @section('content')
 
+@php
+    // These three forms share this page, so a validation failure on one
+    // must not silently reopen or blank out the others.
+    $interventionFailed = $errors->hasAny(['intervention_type', 'intervention_date', 'description', 'outcome', 'follow_up_date', 'follow_up_notes']);
+    $parentContactFailed = $errors->hasAny(['contact_method', 'summary']);
+@endphp
+
+<div x-data="{ activeModal: {!! $interventionFailed ? "'intervention'" : 'null' !!} }">
+
 <div class="mb-6 flex justify-between items-center">
     <a href="{{ route('counselor.referrals.index') }}" class="text-sm font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1">
         <i class="ti ti-arrow-left"></i> Back to Referrals
@@ -17,9 +26,9 @@
         <button onclick="document.getElementById('parent-contact-modal').classList.remove('hidden')" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition shadow-sm flex items-center gap-2">
             <i class="ti ti-headset"></i> Log Parent Contact
         </button>
-        <a href="{{ route('counselor.interventions.create', ['referral_id' => $referral->id]) }}" class="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition shadow-sm flex items-center gap-2">
+        <button type="button" @click="activeModal = 'intervention'" class="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition shadow-sm flex items-center gap-2">
             <i class="ti ti-plus"></i> Log Intervention
-        </a>
+        </button>
     </div>
 </div>
 
@@ -195,13 +204,19 @@
                                     <div class="font-medium text-indigo-900 text-sm">{{ $seminar->title }}</div>
                                     <div class="text-xs text-indigo-600/70">{{ \Carbon\Carbon::parse($seminar->date)->format('M d, Y') }}</div>
                                 </div>
-                                <form action="{{ route('counselor.seminars.assign', $seminar->id) }}" method="POST">
-                                    @csrf
-                                    <input type="hidden" name="student_ids[]" value="{{ $referral->student_id }}">
-                                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 transition shadow-sm">
-                                        Assign Student
-                                    </button>
-                                </form>
+                                @if(in_array($seminar->id, $enrolledSeminarIds))
+                                    <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-100 rounded">
+                                        <i class="ti ti-check"></i> Already Enrolled
+                                    </span>
+                                @else
+                                    <form action="{{ route('counselor.seminars.assign', $seminar->id) }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="student_ids[]" value="{{ $referral->student_id }}">
+                                        <button type="submit" class="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 transition shadow-sm">
+                                            Assign Student
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         @endforeach
                     </div>
@@ -296,6 +311,13 @@
                     <p class="text-sm text-gray-500 italic">No AI Risk Assessment was generated for this referral.</p>
                 @endif
 
+                @if($referral->escalation_caveat)
+                    <div class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
+                        <i class="ti ti-alert-triangle mt-0.5 shrink-0"></i>
+                        <span>{{ $referral->escalation_caveat }}</span>
+                    </div>
+                @endif
+
                 @if($referral->student->seminars->count() > 0)
                     <div class="pt-3 border-t border-gray-100">
                         <span class="block text-xs text-gray-400 uppercase tracking-wider mb-2">Auto-Assigned Seminars</span>
@@ -325,7 +347,7 @@
                         <div>
                             <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                             <select name="status" id="status" required
-                                class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
+                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                                 <option value="pending" {{ $referral->status == 'pending' ? 'selected' : '' }}>Pending</option>
                                 <option value="in_progress" {{ $referral->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
                                 <option value="resolved" {{ $referral->status == 'resolved' ? 'selected' : '' }}>Resolved</option>
@@ -335,7 +357,7 @@
                         <div>
                             <label for="counselor_id" class="block text-sm font-medium text-gray-700 mb-1">Assign Counselor</label>
                             <select name="counselor_id" id="counselor_id"
-                                class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
+                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                                 <option value="">Unassigned</option>
                                 @foreach($counselors as $counselor)
                                     <option value="{{ $counselor->id }}" {{ $referral->counselor_id == $counselor->id ? 'selected' : '' }}>
@@ -348,7 +370,7 @@
                         <div>
                             <label for="counselor_notes" class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                             <textarea name="counselor_notes" id="counselor_notes" rows="3" placeholder="Add notes about progress, actions taken..."
-                                class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">{{ $referral->counselor_notes }}</textarea>
+                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ $referral->counselor_notes }}</textarea>
                         </div>
 
                         <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center justify-center gap-2">
@@ -362,7 +384,7 @@
 </div>
 
 <!-- Parent Contact Modal -->
-<div id="parent-contact-modal" class="fixed inset-0 z-50 hidden">
+<div id="parent-contact-modal" class="fixed inset-0 z-50 {{ $parentContactFailed ? '' : 'hidden' }}">
     <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="document.getElementById('parent-contact-modal').classList.add('hidden')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative z-10">
@@ -380,18 +402,20 @@
                 <div class="space-y-4">
                     <div>
                         <label for="contact_method" class="block text-sm font-medium text-gray-700 mb-1">Contact Method</label>
-                        <select name="contact_method" id="contact_method" required class="w-full rounded-lg border-gray-300 focus:border-purple-500 focus:ring focus:ring-purple-200 text-sm">
-                            <option value="call">Phone Call</option>
-                            <option value="sms">SMS / Text</option>
-                            <option value="email">Email</option>
-                            <option value="visit">Office Visit</option>
-                            <option value="other">Other</option>
+                        <select name="contact_method" id="contact_method" required class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-purple-500 focus:ring focus:ring-purple-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('contact_method') border-red-500 @enderror">
+                            <option value="call" {{ old('contact_method') == 'call' ? 'selected' : '' }}>Phone Call</option>
+                            <option value="sms" {{ old('contact_method') == 'sms' ? 'selected' : '' }}>SMS / Text</option>
+                            <option value="email" {{ old('contact_method') == 'email' ? 'selected' : '' }}>Email</option>
+                            <option value="visit" {{ old('contact_method') == 'visit' ? 'selected' : '' }}>Office Visit</option>
+                            <option value="other" {{ old('contact_method') == 'other' ? 'selected' : '' }}>Other</option>
                         </select>
+                        @error('contact_method') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
                     </div>
-                    
+
                     <div>
                         <label for="summary" class="block text-sm font-medium text-gray-700 mb-1">Summary / Notes</label>
-                        <textarea name="summary" id="summary" rows="4" required placeholder="What was discussed?" class="w-full rounded-lg border-gray-300 focus:border-purple-500 focus:ring focus:ring-purple-200 text-sm"></textarea>
+                        <textarea name="summary" id="summary" rows="4" required placeholder="What was discussed?" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-purple-500 focus:ring focus:ring-purple-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('summary') border-red-500 @enderror">{{ old('summary') }}</textarea>
+                        @error('summary') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
                     </div>
                 </div>
                 
@@ -407,5 +431,86 @@
         </div>
     </div>
 </div>
+
+{{-- Log Intervention Modal --}}
+<div x-cloak x-show="activeModal === 'intervention'">
+    <div class="fixed inset-0 z-[100] overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity bg-gray-900/60 backdrop-blur-sm" @click="activeModal = null"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+            <div class="inline-block w-full max-w-2xl p-6 text-left align-middle transition-all transform bg-white shadow-premium rounded-2xl sm:p-8 relative z-[101]">
+                <div class="flex justify-between items-center mb-5 border-b border-gray-100 pb-4">
+                    <h3 class="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                        <i class="ti ti-heart-handshake text-amber-500"></i> Log Intervention
+                    </h3>
+                    <button type="button" @click="activeModal = null" class="text-gray-400 hover:text-gray-600 transition">
+                        <i class="ti ti-x text-xl"></i>
+                    </button>
+                </div>
+                <form action="{{ route('counselor.interventions.store') }}" method="POST">
+                    @csrf
+                    <input type="hidden" name="referral_id" value="{{ $referral->id }}">
+                    <div class="space-y-5">
+                        <div class="grid grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Intervention Type <span class="text-red-500">*</span></label>
+                                <select name="intervention_type" required class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('intervention_type') border-red-500 @enderror">
+                                    <option value="" disabled {{ old('intervention_type') ? '' : 'selected' }}>Select type...</option>
+                                    @foreach($interventionTypes as $type)
+                                        <option value="{{ $type }}" {{ old('intervention_type') == $type ? 'selected' : '' }}>{{ $type }}</option>
+                                    @endforeach
+                                </select>
+                                @error('intervention_type') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Date of Intervention <span class="text-red-500">*</span></label>
+                                <input type="date" name="intervention_date" required value="{{ old('intervention_date', date('Y-m-d')) }}"
+                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('intervention_date') border-red-500 @enderror">
+                                @error('intervention_date') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Session Notes / Description <span class="text-red-500">*</span></label>
+                            <textarea name="description" rows="3" required placeholder="Describe what was discussed or action taken..."
+                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('description') border-red-500 @enderror">{{ old('description') }}</textarea>
+                            @error('description') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="grid grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Current Outcome</label>
+                                <select name="outcome" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('outcome') border-red-500 @enderror">
+                                    <option value="" {{ old('outcome') ? '' : 'selected' }}>-- Not yet evaluated --</option>
+                                    <option value="improving" {{ old('outcome') == 'improving' ? 'selected' : '' }}>Improving</option>
+                                    <option value="no_change" {{ old('outcome') == 'no_change' ? 'selected' : '' }}>No Change</option>
+                                    <option value="worsening" {{ old('outcome') == 'worsening' ? 'selected' : '' }}>Worsening</option>
+                                    <option value="resolved" {{ old('outcome') == 'resolved' ? 'selected' : '' }}>Resolved (Closes Referral)</option>
+                                </select>
+                                @error('outcome') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Scheduled Follow-up Date</label>
+                                <input type="date" name="follow_up_date" value="{{ old('follow_up_date') }}"
+                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('follow_up_date') border-red-500 @enderror">
+                                @error('follow_up_date') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Follow-up Requirements / Goals</label>
+                            <textarea name="follow_up_notes" rows="2" placeholder="Goals set for the student before next session..."
+                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('follow_up_notes') border-red-500 @enderror">{{ old('follow_up_notes') }}</textarea>
+                            @error('follow_up_notes') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                    <div class="mt-8 flex justify-end gap-3 pt-5 border-t border-gray-100">
+                        <button type="button" @click="activeModal = null" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">Cancel</button>
+                        <button type="submit" class="px-5 py-2.5 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition shadow-sm flex items-center gap-2"><i class="ti ti-device-floppy"></i> Save Intervention</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div> {{-- Close Alpine Wrapper --}}
 
 @endsection

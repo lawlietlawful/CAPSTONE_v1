@@ -6,7 +6,10 @@
 
 @section('content')
 
-<div x-data="{ activeModal: null, activeId: null }">
+<div x-data="{
+        activeModal: {!! $errors->any() ? (old('edit_referral_id') ? "'edit'" : "'create'") : 'null' !!},
+        activeId: {{ old('edit_referral_id') ? (int) old('edit_referral_id') : 'null' }}
+    }">
 
 {{-- ── Summary Cards ─────────────────────────────────────────── --}}
 <div class="grid grid-cols-4 gap-3 mb-5">
@@ -271,7 +274,7 @@
                         <td class="px-5 py-3 text-xs text-gray-500">{{ $referral->created_at->format('M d, Y') }}</td>
                         <td class="px-5 py-3 text-center">
                             <div class="flex justify-center items-center gap-2">
-                                <a href="{{ route('admin.referrals.show', $referral->id) }}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition text-lg" title="View Details">
+                                <a href="{{ route('admin.referrals.show', $referral->id) }}" class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="View Details">
                                     <i class="ti ti-eye"></i>
                                 </a>
                                 
@@ -294,11 +297,19 @@
                                 <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-3">
                                     <i class="ti ti-file-off text-2xl"></i>
                                 </div>
-                                <h3 class="text-base font-medium text-gray-900 mb-1">No Referrals Found</h3>
-                                <p class="text-sm text-gray-500 mb-4">Referrals will appear here once teachers or counselors submit them.</p>
-                                <a href="{{ route('admin.referrals.create') }}" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm">
-                                    Create Referral
-                                </a>
+                                @if(request()->anyFilled(['search', 'status', 'priority', 'counselor_id', 'date_range']))
+                                    <h3 class="text-base font-medium text-gray-900 mb-1">No Matching Referrals</h3>
+                                    <p class="text-sm text-gray-500 mb-4">No referrals match your current search or filters.</p>
+                                    <a href="{{ route('admin.referrals.index') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
+                                        Clear Filters
+                                    </a>
+                                @else
+                                    <h3 class="text-base font-medium text-gray-900 mb-1">No Referrals Found</h3>
+                                    <p class="text-sm text-gray-500 mb-4">Referrals will appear here once teachers or counselors submit them.</p>
+                                    <a href="{{ route('admin.referrals.create') }}" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm">
+                                        Create Referral
+                                    </a>
+                                @endif
                             </div>
                         </td>
                     </tr>
@@ -316,7 +327,7 @@
 </form>
 
 <!-- Modal Declarations Outside Main Form -->
-    <div x-cloak x-show="activeModal === 'create'" x-data="{ referralType: '' }">
+    <div x-cloak x-show="activeModal === 'create'" x-data="{ referralType: '{{ old('edit_referral_id') ? '' : old('referral_type') }}' }">
         <!-- Create Modal -->
         <div class="fixed inset-0 z-[100] overflow-y-auto">
             <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -333,52 +344,50 @@
                     </div>
                     <form action="{{ route('admin.referrals.store') }}" method="POST">
                         @csrf
+                        {{-- Errors on this page could belong to the Edit modal instead — only
+                             surface them here when it wasn't an edit submission that failed. --}}
+                        @php $creatingFailed = $errors->any() && !old('edit_referral_id'); @endphp
                         <!-- Modal Content -->
                         <div class="space-y-5">
                             <div>
                                 <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Student <span class="text-red-500">*</span></label>
-                                <select name="student_id" required class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
+                                <select name="student_id" required class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @if($creatingFailed) @error('student_id') border-red-500 @enderror @endif">
                                     <option value="">Select a student...</option>
                                     @foreach($students as $s)
-                                        <option value="{{ $s->id }}">{{ $s->last_name }}, {{ $s->first_name }} ({{ $s->student_id_number }})</option>
+                                        <option value="{{ $s->id }}" {{ old('student_id') == $s->id ? 'selected' : '' }}>{{ $s->last_name }}, {{ $s->first_name }} ({{ $s->student_id_number }})</option>
                                     @endforeach
                                 </select>
+                                @if($creatingFailed) @error('student_id') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror @endif
                             </div>
-                            <div class="grid grid-cols-2 gap-5">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Referral Type <span class="text-red-500">*</span></label>
-                                    <select name="referral_type" required x-model="referralType" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                        <option value="">Select type...</option>
-                                        @foreach(\App\Models\Referral::REFERRAL_TYPES as $type)
-                                            <option value="{{ $type }}">{{ $type }}</option>
-                                        @endforeach
-                                    </select>
-                                    <div x-show="referralType === 'Other'" x-cloak class="mt-2">
-                                        <input type="text" name="referral_type_other" placeholder="Please specify"
-                                            class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                    </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Referral Type <span class="text-red-500">*</span></label>
+                                <select name="referral_type" required x-model="referralType" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @if($creatingFailed) @error('referral_type') border-red-500 @enderror @endif">
+                                    <option value="">Select type...</option>
+                                    @foreach(\App\Models\Referral::REFERRAL_TYPES as $type)
+                                        <option value="{{ $type }}">{{ $type }}</option>
+                                    @endforeach
+                                </select>
+                                @if($creatingFailed) @error('referral_type') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror @endif
+                                <div x-show="referralType === 'Other'" x-cloak class="mt-2">
+                                    <input type="text" name="referral_type_other" value="{{ $creatingFailed ? old('referral_type_other') : '' }}" placeholder="Please specify"
+                                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @if($creatingFailed) @error('referral_type_other') border-red-500 @enderror @endif">
+                                    @if($creatingFailed) @error('referral_type_other') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror @endif
                                 </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Priority Level <span class="text-red-500">*</span></label>
-                                    <select name="priority" required class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                        <option value="low">Low</option>
-                                        <option value="moderate">Moderate</option>
-                                        <option value="high">High</option>
-                                    </select>
-                                </div>
+                                <p class="text-xs text-gray-400 mt-1">Priority is set automatically by the AI risk assessment once submitted.</p>
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Assign to Counselor</label>
                                 <select name="counselor_id" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                                     <option value="">Unassigned (Counselor will pick up)</option>
                                     @foreach($counselors as $c)
-                                        <option value="{{ $c->id }}">{{ $c->name }}</option>
+                                        <option value="{{ $c->id }}" {{ old('counselor_id') == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
                                     @endforeach
                                 </select>
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Reason for Referral <span class="text-red-500">*</span></label>
-                                <textarea name="reason" rows="3" required placeholder="Describe the concern or reason for referring this student..." class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm"></textarea>
+                                <textarea name="reason" rows="3" required placeholder="Describe the concern or reason for referring this student..." class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @if($creatingFailed) @error('reason') border-red-500 @enderror @endif">{{ $creatingFailed ? old('reason') : '' }}</textarea>
+                                @if($creatingFailed) @error('reason') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror @endif
                             </div>
                         </div>
                         <div class="mt-8 flex justify-end gap-3 pt-5 border-t border-gray-100">
@@ -409,6 +418,7 @@
                     <form action="{{ route('admin.referrals.update', $referral->id) }}" method="POST">
                         @csrf
                         @method('PUT')
+                        <input type="hidden" name="edit_referral_id" value="{{ $referral->id }}">
                         <!-- Modal Content -->
                         <div class="space-y-5">
                             <div>
@@ -417,10 +427,11 @@
                                     {{ $referral->student->last_name }}, {{ $referral->student->first_name }} ({{ $referral->student->student_id_number }})
                                 </div>
                             </div>
+                            @php $editingThis = old('edit_referral_id') == $referral->id; @endphp
                             <div class="grid grid-cols-2 gap-5">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Referral Type <span class="text-red-500">*</span></label>
-                                    <select name="referral_type" required x-model="referralType" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
+                                    <select name="referral_type" required x-model="referralType" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @if($editingThis) @error('referral_type') border-red-500 @enderror @endif">
                                         @unless(in_array($referral->referral_type, \App\Models\Referral::REFERRAL_TYPES))
                                             {{-- Preserve a legacy value (e.g. "Automated Risk Alert") that predates the fixed option list, so saving without changing this field doesn't silently overwrite it. --}}
                                             <option value="{{ $referral->referral_type }}">{{ $referral->referral_type }} (legacy)</option>
@@ -429,9 +440,11 @@
                                             <option value="{{ $type }}">{{ $type }}</option>
                                         @endforeach
                                     </select>
+                                    @if($editingThis) @error('referral_type') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror @endif
                                     <div x-show="referralType === 'Other'" x-cloak class="mt-2">
-                                        <input type="text" name="referral_type_other" value="{{ $referral->referral_type_other }}" placeholder="Please specify"
-                                            class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
+                                        <input type="text" name="referral_type_other" value="{{ $editingThis ? old('referral_type_other') : $referral->referral_type_other }}" placeholder="Please specify"
+                                            class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @if($editingThis) @error('referral_type_other') border-red-500 @enderror @endif">
+                                        @if($editingThis) @error('referral_type_other') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror @endif
                                     </div>
                                 </div>
                                 <div>
@@ -463,7 +476,8 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Reason for Referral <span class="text-red-500">*</span></label>
-                                <textarea name="reason" rows="3" required class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ $referral->reason }}</textarea>
+                                <textarea name="reason" rows="3" required class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @if($editingThis) @error('reason') border-red-500 @enderror @endif">{{ $editingThis ? old('reason') : $referral->reason }}</textarea>
+                                @if($editingThis) @error('reason') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror @endif
                             </div>
                         </div>
                         <div class="mt-8 flex justify-end gap-3 pt-5 border-t border-gray-100">

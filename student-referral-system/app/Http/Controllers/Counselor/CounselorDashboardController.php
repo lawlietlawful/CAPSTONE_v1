@@ -16,6 +16,22 @@ class CounselorDashboardController extends Controller
 {
     public function index()
     {
+        return view('counselor.dashboard.index', $this->dashboardData());
+    }
+
+    /**
+     * Polled by the dashboard every few seconds (same idea as the header
+     * bell's poll endpoint) so a referral filed elsewhere shows up in the
+     * widgets themselves — not just the notification — without a manual
+     * refresh. Returns just the content partial, not the full layout.
+     */
+    public function refresh()
+    {
+        return view('counselor.dashboard.partials.body', $this->dashboardData());
+    }
+
+    private function dashboardData(): array
+    {
         $counselorId = auth()->id();
 
         // 1. Pending Referrals — this counselor's assigned cases, plus
@@ -197,7 +213,7 @@ class CounselorDashboardController extends Controller
             ->take(5)
             ->values();
 
-        return view('counselor.dashboard.index', compact(
+        return compact(
             'pendingReferralsCount', 'recentPendingReferrals',
             'upcomingInterventionsCount', 'upcomingInterventions',
             'overdueInterventionsCount', 'overdueInterventions',
@@ -205,6 +221,6 @@ class CounselorDashboardController extends Controller
             'behavioralReportsToday', 'behavioralReportsThisWeek',
             'newPendingToday', 'interventionsDueThisWeek',
             'riskDistribution', 'todaysInterventions', 'watchlistAssessments', 'recentActivity'
-        ));
+        );
     }
 }

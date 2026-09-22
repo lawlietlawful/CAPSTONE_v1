@@ -92,6 +92,31 @@ class CounselorDashboardTest extends TestCase
         $response->assertSee('Three referrals this semester');
     }
 
+    /**
+     * The score badge used to print the raw risk_score (e.g. "88.99"),
+     * inconsistent with the rounded whole-number display used everywhere
+     * else in the app (e.g. the behavioral report's AI Risk panel).
+     */
+    public function test_watchlist_score_badge_is_rounded_to_a_whole_number(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $student = Student::factory()->create();
+        $this->putInScope($student);
+
+        RiskAssessment::create([
+            'student_id' => $student->id,
+            'risk_score' => 88.99,
+            'risk_level' => 'high',
+            'assessed_at' => now(),
+        ]);
+
+        $response = $this->actingAs($counselor)->get(route('counselor.dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('89');
+        $response->assertDontSee('88.99');
+    }
+
     public function test_watchlist_excludes_moderate_and_low_risk_students(): void
     {
         $counselor = User::factory()->counselor()->create();
@@ -381,5 +406,94 @@ class CounselorDashboardTest extends TestCase
         $response->assertViewHas('recentActivity', function ($activity) {
             return $activity->count() === 1 && $activity->first()->type === 'behavioral_report';
         });
+    }
+
+    // ── Live refresh (polled by the dashboard so widgets update without a
+    // manual reload — same data, same Blade partial as a real page load) ──
+
+    public function test_refresh_returns_the_same_pending_referral_data_as_a_full_page_load(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $referral = Referral::factory()->create(['status' => 'pending', 'counselor_id' => null]);
+
+        $response = $this->actingAs($counselor)->get(route('counselor.dashboard.refresh'));
+
+        $response->assertOk();
+        $response->assertSee($referral->student->first_name);
+        $response->assertSee($referral->student->last_name);
+    }
+
+    public function test_refresh_picks_up_a_referral_filed_after_the_original_page_load(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+
+        // Nothing exists yet — mirrors the counselor's dashboard already
+        // being open when a teacher files a referral moments later.
+        $first = $this->actingAs($counselor)->get(route('counselor.dashboard.refresh'));
+        $first->assertSee('All caught up!');
+
+        $referral = Referral::factory()->create(['status' => 'pending', 'counselor_id' => null]);
+
+        $second = $this->actingAs($counselor)->get(route('counselor.dashboard.refresh'));
+        $second->assertSee($referral->student->first_name);
+        $second->assertDontSee('All caught up!');
+    }
+
+    public function test_a_non_counselor_cannot_reach_the_refresh_endpoint(): void
+    {
+        $teacher = User::factory()->teacher()->create();
+
+        $this->actingAs($teacher)->get(route('counselor.dashboard.refresh'))
+            ->assertForbidden();
+    }
+
+    public function test_refresh_does_not_render_the_surrounding_layout(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+
+        $response = $this->actingAs($counselor)->get(route('counselor.dashboard.refresh'));
+
+        $response->assertOk();
+        // The sidebar/header only exist in the full layout, never in the
+        // partial — if this ever starts rendering layouts.counselor by
+        // mistake, the whole point of polling just the body is defeated.
+        $response->assertDontSee('Guidance & Counseling Office');
+        $response->assertDontSee('Misamis University');
+    }
+
+    /**
+     * Pending Referrals used to read $referral->student->first_name with no
+     * null-guard, unlike the other three widgets on this page (Overdue,
+     * Today's Itinerary, Upcoming Follow-ups), which all fall back to
+     * 'Unknown'/'Student'. Not reachable through a real request today —
+     * referrals cascade-delete with their student — so this renders the
+     * partial directly with an unsaved Referral whose student_id points at
+     * nothing, the only way to exercise the guard at all.
+     */
+    public function test_pending_referrals_widget_does_not_crash_on_a_referral_with_no_student(): void
+    {
+        $orphanReferral = Referral::factory()->make(['id' => 1, 'student_id' => 999999, 'created_at' => now()]);
+
+        $html = view('counselor.dashboard.partials.body', [
+            'pendingReferralsCount' => 1,
+            'recentPendingReferrals' => collect([$orphanReferral]),
+            'upcomingInterventionsCount' => 0,
+            'upcomingInterventions' => collect(),
+            'overdueInterventionsCount' => 0,
+            'overdueInterventions' => collect(),
+            'totalStudents' => 0,
+            'newStudentsThisWeek' => 0,
+            'behavioralReportsToday' => 0,
+            'behavioralReportsThisWeek' => 0,
+            'newPendingToday' => 0,
+            'interventionsDueThisWeek' => 0,
+            'riskDistribution' => ['low' => 0, 'moderate' => 0, 'high' => 0, 'low_pct' => 0, 'moderate_pct' => 0, 'high_pct' => 0],
+            'todaysInterventions' => collect(),
+            'watchlistAssessments' => collect(),
+            'recentActivity' => collect(),
+        ])->render();
+
+        $this->assertStringContainsString('Unknown', $html);
+        $this->assertStringContainsString('Student', $html);
     }
 }

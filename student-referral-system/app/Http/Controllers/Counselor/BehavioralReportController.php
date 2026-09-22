@@ -7,10 +7,14 @@ use Illuminate\Http\Request;
 use App\Models\BehavioralReport;
 use App\Models\Student;
 use App\Models\User;
-use Illuminate\Support\Facades\Response;
+use App\Services\BehavioralReportService;
 
 class BehavioralReportController extends Controller
 {
+    public function __construct(protected BehavioralReportService $reportService)
+    {
+    }
+
     public function index(Request $request)
     {
         $query = BehavioralReport::with(['student', 'reportedBy'])->latest();
@@ -53,7 +57,7 @@ class BehavioralReportController extends Controller
             $query->whereDate('incident_date', '<=', $request->date_to);
         }
 
-        $reports = $query->paginate(20)->appends($request->query());
+        $reports = $query->paginate(10)->appends($request->query());
 
         // Summary stats
         $totalReports   = BehavioralReport::count();
@@ -70,19 +74,8 @@ class BehavioralReportController extends Controller
         // Get teachers for filter dropdown
         $teachers = User::where('role', 'teacher')->orderBy('name')->get();
 
-        // Analytics Data
-        $severityChartData = BehavioralReport::selectRaw('severity, count(*) as count')
-            ->groupBy('severity')
-            ->pluck('count', 'severity')
-            ->toArray();
-
-        $statusChartData = BehavioralReport::selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-
         return view('counselor.behavioral-reports.index', compact(
-            'reports', 'totalReports', 'pendingCount', 'reviewedCount', 'resolvedCount', 'incidentTypes', 'teachers', 'severityChartData', 'statusChartData'
+            'reports', 'totalReports', 'pendingCount', 'reviewedCount', 'resolvedCount', 'incidentTypes', 'teachers'
         ));
     }
 
@@ -90,7 +83,15 @@ class BehavioralReportController extends Controller
     {
         $behavioral_report->load(['student', 'reportedBy', 'escalatedReferral']);
 
-        return view('counselor.behavioral-reports.show', compact('behavioral_report'));
+        // The AI Risk Assessment panel already cites a count of this
+        // student's prior reports — this turns that number into something
+        // the counselor can actually inspect instead of taking on faith.
+        $otherReportsQuery = BehavioralReport::where('student_id', $behavioral_report->student_id)
+            ->where('id', '!=', $behavioral_report->id);
+        $otherReportsCount = $otherReportsQuery->count();
+        $otherReports = $otherReportsQuery->latest('incident_date')->take(5)->get();
+
+        return view('counselor.behavioral-reports.show', compact('behavioral_report', 'otherReports', 'otherReportsCount'));
     }
 
     public function print(BehavioralReport $behavioral_report)
@@ -107,10 +108,7 @@ class BehavioralReportController extends Controller
             'counselor_notes' => 'nullable|string',
         ]);
 
-        $behavioral_report->update([
-            'status' => $request->status,
-            'counselor_notes' => $request->counselor_notes,
-        ]);
+        $this->reportService->updateStatus($behavioral_report, $request->status, $request->counselor_notes);
 
         return redirect()->back()->with('success', 'Report updated successfully.');
     }
@@ -125,9 +123,9 @@ class BehavioralReportController extends Controller
 
         $status = $request->action === 'mark_reviewed' ? 'reviewed' : 'resolved';
 
-        BehavioralReport::whereIn('id', $request->ids)->update([
-            'status' => $status
-        ]);
+        BehavioralReport::whereIn('id', $request->ids)->get()->each(
+            fn (BehavioralReport $report) => $this->reportService->updateStatus($report, $status, $report->counselor_notes)
+        );
 
         return redirect()->back()->with('success', count($request->ids) . ' reports have been marked as ' . $status . '.');
     }
@@ -145,21 +143,38 @@ class BehavioralReportController extends Controller
 
         $reports = $query->get();
 
-        $csvData = "ID,Student Name,Student ID,Incident Type,Severity,Status,Reported By,Incident Date,Description\n";
-        
-        foreach ($reports as $report) {
-            $studentName = $report->student ? $report->student->last_name . ', ' . $report->student->first_name : 'N/A';
-            $studentId = $report->student ? $report->student->student_id_number : 'N/A';
-            $reporterName = $report->reportedBy ? $report->reportedBy->name : 'N/A';
-            
-            $desc = str_replace(["\r", "\n", ","], [" ", " ", ";"], $report->description);
-            
-            $csvData .= "{$report->id},\"{$studentName}\",\"{$studentId}\",\"{$report->incident_type}\",\"{$report->severity}\",\"{$report->status}\",\"{$reporterName}\",\"{$report->incident_date}\",\"{$desc}\"\n";
-        }
+        $filename = 'behavioral_reports_' . date('Y-m-d') . '.csv';
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$filename",
+            'Pragma'              => 'no-cache',
+            'Cache-Control'       => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires'             => '0',
+        ];
 
-        return Response::make($csvData, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="behavioral_reports_' . date('Y-m-d') . '.csv"',
-        ]);
+        $columns = ['ID', 'Student Name', 'Student ID', 'Incident Type', 'Severity', 'Status', 'Reported By', 'Incident Date', 'Description'];
+
+        $callback = function () use ($reports, $columns) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+
+            foreach ($reports as $report) {
+                fputcsv($file, [
+                    $report->id,
+                    $report->student ? $report->student->last_name . ', ' . $report->student->first_name : 'N/A',
+                    $report->student->student_id_number ?? 'N/A',
+                    $report->incident_type,
+                    $report->severity,
+                    $report->status,
+                    $report->reportedBy->name ?? 'N/A',
+                    $report->incident_date,
+                    $report->description,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

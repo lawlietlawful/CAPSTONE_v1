@@ -186,6 +186,74 @@ class RiskAssessmentService
         return $this->persistAssessment($student, $features, $mlData);
     }
 
+    /**
+     * Re-run a student's prediction with no new incident driving it — just an
+     * updated days_since_last_referral — so a long stretch with no new
+     * referrals/reports can lower a stale score the same way a new incident
+     * would raise one. Without this, risk_level never changes on its own:
+     * it's only ever set when a NEW referral/report triggers a fresh
+     * assessment, so a student flagged 'high' months ago still shows 'high'
+     * today even after a spotless year.
+     *
+     * Returns null (never throws) for a student with nothing to refresh yet
+     * ("Not Assessed" is already an honest, correct state — there's no prior
+     * profile to carry forward) or when the ML engine is unreachable, so the
+     * scheduled command can just count failures and retry next run.
+     */
+    public function reassessOverTime(Student $student): ?RiskAssessment
+    {
+        $lastAssessment = $student->latestRiskAssessment;
+        if (! $lastAssessment) {
+            return null;
+        }
+
+        $features = $this->featuresForPeriodicRecheck($student, $lastAssessment);
+
+        $mlData = $this->predict($features);
+        if ($mlData === null) {
+            return null;
+        }
+
+        $mlData = $this->applyPolicyOverride($mlData, $features['previous_referrals_count']);
+
+        return $this->persistAssessment($student, $features, $mlData);
+    }
+
+    /**
+     * Same profile as the student's last real assessment — concern type and
+     * the original incident text carried over unchanged, since there's no
+     * new incident to describe — but with days_since_last_referral (the one
+     * feature that naturally changes with the mere passage of time) and the
+     * referral/report counts (cheap to refresh, and correct if anything
+     * changed without triggering its own assessment) brought up to date.
+     */
+    private function featuresForPeriodicRecheck(Student $student, RiskAssessment $lastAssessment): array
+    {
+        return [
+            'previous_referrals_count' => Referral::where('student_id', $student->id)->count(),
+            'behavioral_reports_count' => BehavioralReport::where('student_id', $student->id)->count(),
+            'concern_type_encoded'     => $lastAssessment->concern_type_encoded,
+            'days_since_last_referral' => $this->getDaysSinceLastReferral($student->id),
+            'referral_reason'          => $this->reassessmentReason($lastAssessment->risk_factors['reason'] ?? ''),
+        ];
+    }
+
+    /**
+     * Marks the carried-over incident text as coming from an automated
+     * recheck rather than a fresh complaint — mirrors the
+     * "[AUTO-ESCALATED ...]" marker BehavioralReportService already uses for
+     * the same reason (transparency in the UI). Idempotent: a student
+     * re-checked several times in a row (each time carrying forward the
+     * previous recheck's already-prefixed text) doesn't accumulate the
+     * marker over and over.
+     */
+    private function reassessmentReason(string $originalReason): string
+    {
+        $prefix = '[Automated re-check] ';
+
+        return str_starts_with($originalReason, $prefix) ? $originalReason : $prefix . $originalReason;
+    }
+
     private function persistAssessment(Student $student, array $features, array $mlData): RiskAssessment
     {
         return RiskAssessment::create([
@@ -228,7 +296,11 @@ class RiskAssessmentService
     }
 
     /**
-     * Calculate the number of days since the student's last referral.
+     * Calculate the number of days since the student's last referral, or
+     * their most recent one before $excludeReferralId when computing
+     * features for that same referral (it doesn't count as "history" for
+     * itself). Omit $excludeReferralId for a periodic recheck, where there
+     * is no "current" referral to exclude.
      *
      * Carbon 3's diffInDays() returns a float (e.g. 4.926 days). The (int) cast
      * is explicit rather than implicit: PHP 8.1+ deprecates the lossy implicit
@@ -236,10 +308,10 @@ class RiskAssessmentService
      * is deliberate — it counts *whole elapsed days*, which is what the ML model
      * was trained on and what every existing risk_assessments row already holds.
      */
-    private function getDaysSinceLastReferral(int $studentId, int $currentReferralId): int
+    private function getDaysSinceLastReferral(int $studentId, ?int $excludeReferralId = null): int
     {
         $last = Referral::where('student_id', $studentId)
-                        ->where('id', '!=', $currentReferralId)
+                        ->when($excludeReferralId, fn ($q) => $q->where('id', '!=', $excludeReferralId))
                         ->latest()
                         ->first();
 

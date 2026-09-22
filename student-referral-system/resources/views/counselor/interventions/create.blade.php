@@ -6,17 +6,14 @@
 
 @section('content')
 
-<div class="mb-6">
-    <a href="{{ route('counselor.interventions.index') }}" class="text-sm font-medium text-gray-500 hover:text-blue-600 transition flex items-center gap-1 w-fit">
-        <i class="ti ti-arrow-left"></i> Back to Logs
-    </a>
-</div>
-
-<div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden max-w-3xl">
-    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-        <h3 class="font-semibold text-gray-800 flex items-center gap-2">
+<div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden max-w-3xl">
+    <div class="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+        <h3 class="font-semibold text-gray-800 text-lg flex items-center gap-2">
             <i class="ti ti-heart-handshake text-blue-500"></i> Intervention Details
         </h3>
+        <a href="{{ route('counselor.interventions.index') }}" class="text-sm font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1">
+            <i class="ti ti-arrow-left"></i> Back
+        </a>
     </div>
     
     <div class="p-6">
@@ -27,7 +24,7 @@
             <div>
                 <label for="referral_id" class="block text-sm font-medium text-gray-700 mb-1">Target Student / Referral <span class="text-red-500">*</span></label>
                 <select name="referral_id" id="referral_id" required
-                        class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
+                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                     <option value="" disabled selected>Select a pending or active referral...</option>
                     @foreach($referrals as $ref)
                         <option value="{{ $ref->id }}" {{ old('referral_id') == $ref->id ? 'selected' : '' }}>
@@ -43,7 +40,7 @@
                 <div>
                     <label for="intervention_type" class="block text-sm font-medium text-gray-700 mb-1">Intervention Type <span class="text-red-500">*</span></label>
                     <select name="intervention_type" id="intervention_type" required
-                            class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
+                            class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                         <option value="" disabled selected>Select type...</option>
                         @foreach($interventionTypes as $type)
                             <option value="{{ $type }}" {{ old('intervention_type') == $type ? 'selected' : '' }}>{{ $type }}</option>
@@ -57,7 +54,7 @@
                     <label for="intervention_date" class="block text-sm font-medium text-gray-700 mb-1">Date of Intervention <span class="text-red-500">*</span></label>
                     <input type="date" name="intervention_date" id="intervention_date" required
                            value="{{ old('intervention_date', date('Y-m-d')) }}"
-                           class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
+                           class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                     @error('intervention_date') <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
@@ -66,7 +63,7 @@
             <div>
                 <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Session Notes / Description <span class="text-red-500">*</span></label>
                 <textarea name="description" id="description" rows="4" required placeholder="Describe what was discussed or action taken..."
-                          class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">{{ old('description') }}</textarea>
+                          class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ old('description') }}</textarea>
                 @error('description') <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
             </div>
 
@@ -77,7 +74,7 @@
                 <div>
                     <label for="outcome" class="block text-sm font-medium text-gray-700 mb-1">Current Outcome</label>
                     <select name="outcome" id="outcome"
-                            class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
+                            class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                         <option value="">-- Not yet evaluated --</option>
                         <option value="improving" {{ old('outcome') == 'improving' ? 'selected' : '' }}>Improving</option>
                         <option value="no_change" {{ old('outcome') == 'no_change' ? 'selected' : '' }}>No Change</option>
@@ -92,7 +89,7 @@
                     <label for="follow_up_date" class="block text-sm font-medium text-gray-700 mb-1">Scheduled Follow-up Date (Optional)</label>
                     <input type="date" name="follow_up_date" id="follow_up_date"
                            value="{{ old('follow_up_date') }}"
-                           class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
+                           class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                     @error('follow_up_date') <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
@@ -100,7 +97,7 @@
             <div>
                 <label for="follow_up_notes" class="block text-sm font-medium text-gray-700 mb-1">Follow-up Requirements / Goals</label>
                 <textarea name="follow_up_notes" id="follow_up_notes" rows="2" placeholder="Goals set for the student before next session..."
-                          class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">{{ old('follow_up_notes') }}</textarea>
+                          class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ old('follow_up_notes') }}</textarea>
                 @error('follow_up_notes') <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
             </div>
 

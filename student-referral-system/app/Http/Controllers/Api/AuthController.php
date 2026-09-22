@@ -39,7 +39,7 @@ class AuthController extends Controller
 
         if (!$user->isActivated()) {
             return response()->json([
-                'message' => 'Please activate your account first using your Student ID and birthdate.',
+                'message' => 'Please activate your account first using your Student ID and activation code.',
             ], 403);
         }
 

@@ -7,10 +7,15 @@ use Illuminate\Http\Request;
 use App\Models\BehavioralReport;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\BehavioralReportService;
 use Illuminate\Support\Facades\Response;
 
 class BehavioralReportController extends Controller
 {
+    public function __construct(protected BehavioralReportService $reportService)
+    {
+    }
+
     public function index(Request $request)
     {
         $query = BehavioralReport::with(['student', 'reportedBy'])->latest();
@@ -42,7 +47,7 @@ class BehavioralReportController extends Controller
 
         // Filter by reported_by_id (Teacher)
         if ($request->filled('reported_by_id')) {
-            $query->where('reported_by_id', $request->reported_by_id);
+            $query->where('reported_by', $request->reported_by_id);
         }
 
         // Date range
@@ -53,7 +58,7 @@ class BehavioralReportController extends Controller
             $query->whereDate('incident_date', '<=', $request->date_to);
         }
 
-        $reports = $query->paginate(20)->appends($request->query());
+        $reports = $query->paginate(10)->appends($request->query());
 
         // Summary stats
         $totalReports   = BehavioralReport::count();
@@ -80,7 +85,15 @@ class BehavioralReportController extends Controller
     {
         $behavioral_report->load(['student', 'reportedBy', 'escalatedReferral']);
 
-        return view('admin.behavioral-reports.show', compact('behavioral_report'));
+        // The AI Risk Assessment panel already cites a count of this
+        // student's prior reports — this turns that number into something
+        // the counselor/admin can actually inspect instead of taking on faith.
+        $otherReportsQuery = BehavioralReport::where('student_id', $behavioral_report->student_id)
+            ->where('id', '!=', $behavioral_report->id);
+        $otherReportsCount = $otherReportsQuery->count();
+        $otherReports = $otherReportsQuery->latest('incident_date')->take(5)->get();
+
+        return view('admin.behavioral-reports.show', compact('behavioral_report', 'otherReports', 'otherReportsCount'));
     }
 
     public function print(BehavioralReport $behavioral_report)
@@ -97,10 +110,7 @@ class BehavioralReportController extends Controller
             'counselor_notes' => 'nullable|string',
         ]);
 
-        $behavioral_report->update([
-            'status' => $request->status,
-            'counselor_notes' => $request->counselor_notes,
-        ]);
+        $this->reportService->updateStatus($behavioral_report, $request->status, $request->counselor_notes);
 
         return redirect()->back()->with('success', 'Report updated successfully.');
     }
@@ -115,9 +125,9 @@ class BehavioralReportController extends Controller
 
         $status = $request->action === 'mark_reviewed' ? 'reviewed' : 'resolved';
 
-        BehavioralReport::whereIn('id', $request->ids)->update([
-            'status' => $status
-        ]);
+        BehavioralReport::whereIn('id', $request->ids)->get()->each(
+            fn (BehavioralReport $report) => $this->reportService->updateStatus($report, $status, $report->counselor_notes)
+        );
 
         return redirect()->back()->with('success', count($request->ids) . ' reports have been marked as ' . $status . '.');
     }
@@ -129,7 +139,7 @@ class BehavioralReportController extends Controller
         if ($request->filled('severity')) $query->where('severity', $request->severity);
         if ($request->filled('status')) $query->where('status', $request->status);
         if ($request->filled('incident_type')) $query->where('incident_type', $request->incident_type);
-        if ($request->filled('reported_by_id')) $query->where('reported_by_id', $request->reported_by_id);
+        if ($request->filled('reported_by_id')) $query->where('reported_by', $request->reported_by_id);
         if ($request->filled('date_from')) $query->whereDate('incident_date', '>=', $request->date_from);
         if ($request->filled('date_to')) $query->whereDate('incident_date', '<=', $request->date_to);
 

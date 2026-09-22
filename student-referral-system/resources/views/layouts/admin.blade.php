@@ -78,9 +78,9 @@
 
             <p class="px-5 pt-4 pb-1 text-white/30 text-[10px] uppercase tracking-widest">Counseling Services</p>
 
-            <a href="{{ route('admin.referrals.index') }}"
+            <a href="{{ auth()->user()->role === 'super_admin' ? route('admin.referrals.index') : route('counselor.referrals.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
-                      {{ request()->routeIs('admin.referrals.*') ? 'active text-white' : 'text-white/60' }}">
+                      {{ request()->routeIs('admin.referrals.*') || request()->routeIs('counselor.referrals.*') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-file-text text-base w-5"></i> Referrals
             </a>
 
@@ -122,9 +122,9 @@
                 <i class="ti ti-books text-base w-5"></i> Courses &amp; Sections
             </a>
 
-            <a href="{{ route('admin.seminars.index') }}"
+            <a href="{{ auth()->user()->role === 'super_admin' ? route('admin.seminars.index') : route('counselor.seminars.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
-                      {{ request()->routeIs('admin.seminars.*') ? 'active text-white' : 'text-white/60' }}">
+                      {{ request()->routeIs('admin.seminars.*') || request()->routeIs('counselor.seminars.*') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-school text-base w-5"></i> Seminars
             </a>
 
@@ -162,7 +162,7 @@
                 </div>
                 <div class="min-w-0">
                     <p class="text-white text-xs font-medium truncate">{{ auth()->user()->name }}</p>
-                    <p class="text-white/40 text-[11px]">Administrator</p>
+                    <p class="text-white/40 text-[11px]">{{ auth()->user()->role === 'super_admin' ? 'Administrator' : 'Guidance Counselor' }}</p>
                 </div>
                 <form method="POST" action="{{ route('logout') }}" class="ml-auto">
                     @csrf
@@ -191,13 +191,7 @@
                 </span>
 
                 {{-- Notifications --}}
-                <div class="relative cursor-pointer text-gray-400 hover:text-gray-600">
-                    <i class="ti ti-bell text-xl"></i>
-                    @if(isset($unreadNotifications) && $unreadNotifications > 0)
-                        <span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full
-                                     border-2 border-white"></span>
-                    @endif
-                </div>
+                @include('components.notification-bell', ['prefix' => 'admin', 'accent' => 'blue'])
             </div>
         </header>
 

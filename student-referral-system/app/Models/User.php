@@ -171,4 +171,22 @@ class User extends Authenticatable
     {
         return $this->account_activated_at !== null;
     }
+
+    /**
+     * The one counselor to auto-assign a new referral to, for a school
+     * staffed with exactly one. Returns null the moment a second counselor
+     * exists — at that point "just pick the counselor" is no longer a safe
+     * assumption, and a referral is left genuinely unassigned again until
+     * someone claims it, same as before this existed.
+     *
+     * Shared by ReferralService::create() and BehavioralReportService's
+     * auto-escalation path, which both create referrals but can't depend on
+     * each other (BehavioralReportService already feeds ReferralService).
+     */
+    public static function soleCounselorId(): ?int
+    {
+        $counselors = static::where('role', 'admin')->pluck('id');
+
+        return $counselors->count() === 1 ? $counselors->first() : null;
+    }
 }

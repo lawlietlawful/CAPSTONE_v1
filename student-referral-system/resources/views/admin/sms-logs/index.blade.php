@@ -40,10 +40,10 @@
 
 {{-- ── Filters ───────────────────────────────────────────────── --}}
 <div class="bg-white border border-gray-100 rounded-xl p-4 mb-4">
-    <form method="GET" action="{{ route('admin.sms-logs.index') }}" class="flex flex-wrap items-end gap-3">
+    <form method="GET" action="{{ route('admin.sms-logs.index') }}" class="flex flex-wrap items-end gap-3" id="filterForm">
         <div class="flex-1 min-w-[200px]">
             <label class="block text-xs font-medium text-gray-500 mb-1">Search</label>
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Recipient name, number, or message..."
+            <input type="text" id="searchInput" name="search" value="{{ request('search') }}" placeholder="Recipient name, number, or message..."
                 class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
         </div>
         <div>
@@ -174,5 +174,32 @@
         </div>
     @endif
 </div>
+
+<script>
+    let searchTimeout = null;
+    const searchInput = document.getElementById('searchInput');
+    const filterForm = document.getElementById('filterForm');
+
+    if (searchInput && filterForm) {
+        searchInput.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            const val = e.target.value.trim();
+
+            // Auto submit if cleared or if length >= 2
+            if (val.length === 0 || val.length >= 2) {
+                searchTimeout = setTimeout(() => {
+                    filterForm.submit();
+                }, 500); // Wait 500ms after user stops typing
+            }
+        });
+
+        // Put cursor at the end of text when page reloads with search value
+        if (searchInput.value) {
+            const length = searchInput.value.length;
+            searchInput.focus();
+            searchInput.setSelectionRange(length, length);
+        }
+    }
+</script>
 
 @endsection

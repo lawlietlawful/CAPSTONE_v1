@@ -12,7 +12,7 @@
     </a>
     
     <a href="{{ route('counselor.behavioral-reports.print', $behavioral_report->id) }}" target="_blank"
-       class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition shadow-sm">
+       class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition shadow-sm">
         <i class="ti ti-printer text-gray-500"></i> Print Official Report
     </a>
 </div>
@@ -23,8 +23,11 @@
     <div class="lg:col-span-2 space-y-6">
         <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover">
             <div class="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                <h3 class="font-semibold text-gray-800 text-lg flex items-center gap-2">
-                    <i class="ti ti-message-report text-amber-600"></i> Incident Report #{{ $behavioral_report->id }}
+                <h3 class="font-semibold text-gray-800 text-lg flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                        <i class="ti ti-message-report text-amber-600"></i>
+                    </div>
+                    Incident Report #{{ $behavioral_report->id }}
                 </h3>
                 <div class="flex items-center gap-2">
                     @php
@@ -72,7 +75,7 @@
                 @if($behavioral_report->escalatedReferral)
                     <div class="pt-4 border-t border-gray-100">
                         <a href="{{ route('counselor.referrals.show', $behavioral_report->escalatedReferral->id) }}"
-                            class="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3 hover:bg-red-100 transition">
+                            class="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3.5 hover:bg-red-100 transition shadow-sm">
                             <i class="ti ti-alert-triangle text-lg"></i>
                             <span>This report was auto-escalated to <span class="font-semibold">Referral #{{ $behavioral_report->escalatedReferral->id }}</span> — click to view the case</span>
                         </a>
@@ -81,7 +84,7 @@
 
                 <div class="pt-4 border-t border-gray-100">
                     <span class="block text-xs text-gray-400 uppercase tracking-wider mb-1.5">Incident Description</span>
-                    <p class="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-lg p-4 border border-gray-100">{{ $behavioral_report->description }}</p>
+                    <p class="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-4 border border-gray-100">{{ $behavioral_report->description }}</p>
                 </div>
 
                 @if($behavioral_report->riskAssessment)
@@ -93,7 +96,7 @@
                     @endphp
                     <div class="pt-4 border-t border-gray-100">
                         <span class="block text-xs text-gray-400 uppercase tracking-wider mb-1.5">AI Risk Assessment</span>
-                        <div class="bg-{{ $raColor }}-50/50 border border-{{ $raColor }}-100 rounded-lg p-4 space-y-2">
+                        <div class="bg-{{ $raColor }}-50/50 border border-{{ $raColor }}-100 rounded-xl p-4 space-y-2 shadow-sm">
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-{{ $raColor }}-100 text-{{ $raColor }}-800">
                                     <i class="ti ti-brain text-xs"></i> Score {{ number_format($ra->risk_score, 0) }}/100
@@ -113,8 +116,14 @@
                     </div>
                 @elseif($behavioral_report->severity === \App\Services\BehavioralReportService::SEVERITY_UNASSESSED)
                     <div class="pt-4 border-t border-gray-100">
-                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-500 flex items-center gap-2">
+                        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3.5 text-xs text-gray-500 flex items-center gap-2">
                             <i class="ti ti-clock-pause"></i> Not yet assessed — the AI risk engine was unreachable when this was filed. It will be graded automatically once it's back online.
+                        </div>
+                    </div>
+                @else
+                    <div class="pt-4 border-t border-gray-100">
+                        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3.5 text-xs text-gray-500 flex items-center gap-2">
+                            <i class="ti ti-info-circle"></i> No AI risk assessment is on file for this report.
                         </div>
                     </div>
                 @endif
@@ -131,14 +140,19 @@
     <div class="lg:col-span-1 space-y-6">
 
         <!-- Student Info -->
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
-            <h4 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <i class="ti ti-user text-blue-600"></i> Student Information
-            </h4>
-            <div class="space-y-3 text-sm">
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover">
+            <div class="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                    <i class="ti ti-user text-blue-600"></i>
+                </div>
+                <h4 class="font-semibold text-gray-800">Student Information</h4>
+            </div>
+            <div class="p-6 space-y-3.5 text-sm">
                 <div>
                     <span class="block text-xs text-gray-400 uppercase tracking-wider">Full Name</span>
-                    <span class="font-medium text-gray-900">{{ $behavioral_report->student->last_name }}, {{ $behavioral_report->student->first_name }} {{ $behavioral_report->student->middle_name }}</span>
+                    <a href="{{ route('admin.students.show', $behavioral_report->student->id) }}" class="font-medium text-gray-900 hover:text-blue-600 hover:underline transition">
+                        {{ $behavioral_report->student->last_name }}, {{ $behavioral_report->student->first_name }} {{ $behavioral_report->student->middle_name }}
+                    </a>
                 </div>
                 <div>
                     <span class="block text-xs text-gray-400 uppercase tracking-wider">Student ID</span>
@@ -156,13 +170,50 @@
             </div>
         </div>
 
+        @if($otherReports->isNotEmpty())
+            <!-- Other Reports for This Student -->
+            <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover">
+                <div class="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                        <i class="ti ti-history text-amber-600"></i>
+                    </div>
+                    <h4 class="font-semibold text-gray-800">Other Reports for This Student</h4>
+                </div>
+                <div class="p-6 space-y-3">
+                    @foreach($otherReports as $other)
+                        @php
+                            $otherSeverityClass = match($other->severity) {
+                                'severe', 'Critical', 'High' => 'bg-red-50 text-red-700 border-red-200',
+                                'moderate', 'Medium'         => 'bg-amber-50 text-amber-700 border-amber-200',
+                                default                       => 'bg-green-50 text-green-700 border-green-200',
+                            };
+                        @endphp
+                        <a href="{{ route('counselor.behavioral-reports.show', $other->id) }}" class="block p-3.5 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50/50 hover:shadow-sm transition">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-sm font-medium text-gray-900">{{ $other->incident_type }}</span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border {{ $otherSeverityClass }} shrink-0">{{ ucfirst($other->severity) }}</span>
+                            </div>
+                            <span class="text-xs text-gray-500">{{ $other->incident_date->format('M j, Y') }} &middot; {{ ucfirst($other->status) }}</span>
+                        </a>
+                    @endforeach
+                </div>
+                @if($otherReportsCount > $otherReports->count())
+                    <a href="{{ route('counselor.behavioral-reports.index', ['search' => $behavioral_report->student->student_id_number]) }}" class="block text-center text-xs font-medium text-blue-600 hover:text-blue-800 pb-5 -mt-1">
+                        View all {{ $otherReportsCount + 1 }} reports for this student
+                    </a>
+                @endif
+            </div>
+        @endif
+
         <!-- Status Update -->
         <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover">
-            <div class="bg-gray-50/50 px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                <i class="ti ti-edit text-amber-600"></i>
+            <div class="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                    <i class="ti ti-edit text-amber-600"></i>
+                </div>
                 <h4 class="font-semibold text-gray-800">Update Status</h4>
             </div>
-            <div class="p-5">
+            <div class="p-6">
                 <form action="{{ route('counselor.behavioral-reports.updateStatus', $behavioral_report->id) }}" method="POST">
                     @csrf
                     @method('PATCH')
@@ -171,7 +222,7 @@
                         <div>
                             <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Review Status</label>
                             <select name="status" id="status" required
-                                class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
+                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                                 <option value="pending" {{ $behavioral_report->status == 'pending' ? 'selected' : '' }}>Pending</option>
                                 <option value="reviewed" {{ $behavioral_report->status == 'reviewed' ? 'selected' : '' }}>Reviewed</option>
                                 <option value="resolved" {{ $behavioral_report->status == 'resolved' ? 'selected' : '' }}>Resolved</option>
@@ -181,11 +232,11 @@
                         <div>
                             <label for="counselor_notes" class="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
                             <textarea name="counselor_notes" id="counselor_notes" rows="4" placeholder="Add internal notes or feedback here..."
-                                class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">{{ $behavioral_report->counselor_notes }}</textarea>
+                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ $behavioral_report->counselor_notes }}</textarea>
                             <span class="text-[10px] text-gray-400 mt-1 block">These notes are only visible to Admins and Counselors.</span>
                         </div>
 
-                        <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center justify-center gap-2">
+                        <button type="submit" class="w-full px-4 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition shadow-sm flex items-center justify-center gap-2">
                             <i class="ti ti-check"></i> Save & Update
                         </button>
                     </div>

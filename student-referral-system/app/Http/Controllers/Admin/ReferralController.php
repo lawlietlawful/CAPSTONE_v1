@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use App\Models\Referral;
 use App\Models\Student;
@@ -84,27 +85,23 @@ class ReferralController extends Controller
         return view('admin.referrals.create', compact('students', 'counselors', 'prefillStudent', 'prefillReason'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ReferralService $referralService)
     {
         $request->validate([
             'student_id'          => 'required|exists:students,id',
             'referral_type'       => 'required|in:' . implode(',', Referral::REFERRAL_TYPES),
             'referral_type_other' => 'nullable|required_if:referral_type,Other|string|max:255',
             'reason'              => 'required|string',
-            'priority'            => 'required|in:low,moderate,high',
             'counselor_id'        => 'nullable|exists:users,id',
         ]);
 
-        Referral::create([
-            'student_id'          => $request->student_id,
-            'referred_by'         => auth()->id(),
-            'counselor_id'        => $request->counselor_id,
-            'referral_type'       => $request->referral_type,
-            'referral_type_other' => $request->referral_type_other,
-            'reason'              => $request->reason,
-            'priority'            => $request->priority,
-            'status'              => 'pending',
-        ]);
+        // Goes through the same service the teacher-filed flow uses, so a
+        // referral an admin files by hand gets the same ML risk assessment
+        // and seminar recommendation instead of silently skipping both (the
+        // previous raw Referral::create() here never ran either).
+        $referralService->create(auth()->user(), $request->only([
+            'student_id', 'referral_type', 'referral_type_other', 'reason', 'counselor_id',
+        ]));
 
         return redirect()->route('admin.referrals.index')
             ->with('success', 'Referral submitted successfully.');
@@ -118,7 +115,7 @@ class ReferralController extends Controller
         return view('admin.referrals.show', compact('referral', 'counselors'));
     }
 
-    public function updateStatus(Request $request, Referral $referral)
+    public function updateStatus(Request $request, Referral $referral, ReferralService $referralService)
     {
         $request->validate([
             'status'          => 'required|in:pending,in_progress,resolved,cancelled',
@@ -126,20 +123,12 @@ class ReferralController extends Controller
             'counselor_notes' => 'nullable|string',
         ]);
 
-        $data = [
-            'status'          => $request->status,
-            'counselor_notes' => $request->counselor_notes,
-        ];
-
-        if ($request->filled('counselor_id')) {
-            $data['counselor_id'] = $request->counselor_id;
-        }
-
-        if ($request->status === 'resolved') {
-            $data['resolved_at'] = now();
-        }
-
-        $referral->update($data);
+        $referralService->updateStatus(
+            $referral,
+            $request->status,
+            $request->counselor_id,
+            $request->counselor_notes
+        );
 
         return redirect()->back()->with('success', 'Referral status updated successfully.');
     }
@@ -222,11 +211,17 @@ class ReferralController extends Controller
             Referral::whereIn('id', $ids)->update(['counselor_id' => $request->assign_counselor_id]);
             return redirect()->back()->with('success', 'Counselor assigned to selected referrals successfully.');
         } else {
-            $data = ['status' => $action];
-            if ($action === 'resolved') {
-                $data['resolved_at'] = now();
+            // Per-row via the shared service (not a single mass UPDATE): each
+            // referral needs its OWN old-status check for resolved_at and its
+            // own notification to whoever filed it — a blanket query can't
+            // tell a referral that was already 'resolved' apart from one that
+            // wasn't, and mass updates don't fire the events a notification
+            // would need anyway.
+            $referralService = app(ReferralService::class);
+            foreach (Referral::whereIn('id', $ids)->get() as $referral) {
+                $referralService->updateStatus($referral, $action, null, null);
             }
-            Referral::whereIn('id', $ids)->update($data);
+
             return redirect()->back()->with('success', 'Status of selected referrals updated to ' . ucfirst(str_replace('_', ' ', $action)) . '.');
         }
     }
@@ -268,13 +263,6 @@ class ReferralController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
-    }
-
-    public function edit(Referral $referral)
-    {
-        $referral->load('student');
-        $counselors = User::where('role', 'admin')->orderBy('name')->get();
-        return view('admin.referrals.edit', compact('referral', 'counselors'));
     }
 
     public function update(Request $request, Referral $referral)

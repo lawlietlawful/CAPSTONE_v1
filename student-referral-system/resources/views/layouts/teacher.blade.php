@@ -24,6 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
+        [x-cloak] { display: none !important; }
         body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
         .sidebar { transition: all 0.3s ease; }
         .nav-item { transition: all 0.2s ease; }
@@ -119,10 +120,12 @@
                 </div>
                 
                 {{-- Notifications --}}
-                <button class="w-9 h-9 flex items-center justify-center rounded-full bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 transition relative">
-                    <i class="ti ti-bell"></i>
-                    <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-                </button>
+                @include('components.notification-bell', [
+                    'prefix' => 'teacher',
+                    'accent' => 'amber',
+                    'buttonClass' => 'w-9 h-9 flex items-center justify-center rounded-full bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 transition relative',
+                    'badgeClass' => 'absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white',
+                ])
             </div>
         </header>
 

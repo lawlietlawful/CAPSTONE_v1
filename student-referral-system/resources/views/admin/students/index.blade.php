@@ -214,7 +214,7 @@
                         </td>
                         <td class="px-6 py-4 text-right">
                             <div class="flex items-center justify-end gap-2">
-                                <a href="{{ route('admin.students.show', $student->id) }}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="View Profile">
+                                <a href="{{ route('admin.students.show', $student->id) }}" class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="View Profile">
                                     <i class="ti ti-eye"></i>
                                 </a>
                                 <button type="button" @click="$dispatch('open-edit-modal-{{ $student->id }}')" class="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Edit Student">

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Counselor;
 
 use App\Http\Controllers\Controller;
+use App\Services\ReferralService;
 use Illuminate\Http\Request;
 use App\Models\Referral;
 use App\Models\Student;
@@ -40,7 +41,7 @@ class ReferralController extends Controller
             });
         }
 
-        $referrals = $query->paginate(15)->appends($request->query());
+        $referrals = $query->paginate(10)->appends($request->query());
 
         // Summary counts — scoped the same way as the list above, so the
         // tiles and the table always agree.
@@ -49,8 +50,15 @@ class ReferralController extends Controller
         $resolvedCount   = $this->scopeMineOrUnclaimed(Referral::where('status', 'resolved'))->count();
         $totalCount      = $this->scopeMineOrUnclaimed(Referral::query())->count();
 
+        // For the "New Referral" quick-create modal on this page (mirrors
+        // Admin's index page, which has the same inline modal alongside its
+        // own standalone create() page).
+        $students = Student::where('status', 'active')->orderBy('last_name')->get();
+        $counselors = User::where('role', 'admin')->orderBy('name')->get();
+
         return view('counselor.referrals.index', compact(
-            'referrals', 'pendingCount', 'inProgressCount', 'resolvedCount', 'totalCount'
+            'referrals', 'pendingCount', 'inProgressCount', 'resolvedCount', 'totalCount',
+            'students', 'counselors'
         ));
     }
 
@@ -81,27 +89,23 @@ class ReferralController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, ReferralService $referralService)
     {
         $request->validate([
             'student_id'          => 'required|exists:students,id',
             'referral_type'       => 'required|in:' . implode(',', Referral::REFERRAL_TYPES),
             'referral_type_other' => 'nullable|required_if:referral_type,Other|string|max:255',
             'reason'              => 'required|string',
-            'priority'            => 'required|in:low,moderate,high',
             'counselor_id'        => 'nullable|exists:users,id',
         ]);
 
-        Referral::create([
-            'student_id'          => $request->student_id,
-            'referred_by'         => auth()->id(),
-            'counselor_id'        => $request->counselor_id,
-            'referral_type'       => $request->referral_type,
-            'referral_type_other' => $request->referral_type_other,
-            'reason'              => $request->reason,
-            'priority'            => $request->priority,
-            'status'              => 'pending',
-        ]);
+        // Goes through the same service the teacher-filed flow uses, so a
+        // referral a counselor files by hand gets the same ML risk
+        // assessment and seminar recommendation instead of silently skipping
+        // both (the previous raw Referral::create() here never ran either).
+        $referralService->create(auth()->user(), $request->only([
+            'student_id', 'referral_type', 'referral_type_other', 'reason', 'counselor_id',
+        ]));
 
         return redirect()->route('counselor.referrals.index')
             ->with('success', 'Referral submitted successfully.');
@@ -128,6 +132,10 @@ class ReferralController extends Controller
                     ->get();
             }
         }
+
+        // So the view can tell "Assign Student" from "already enrolled" —
+        // assigning again would just bounce back with an error.
+        $enrolledSeminarIds = $referral->student->seminars->pluck('id')->all();
 
         // Build Visual Timeline
         $timeline = collect();
@@ -211,13 +219,15 @@ class ReferralController extends Controller
 
         $timeline = $timeline->sortByDesc('date')->values();
 
-        return view('counselor.referrals.show', compact('referral', 'counselors', 'recommendedSeminars', 'timeline'));
+        $interventionTypes = \App\Models\Intervention::TYPES;
+
+        return view('counselor.referrals.show', compact('referral', 'counselors', 'recommendedSeminars', 'timeline', 'interventionTypes', 'enrolledSeminarIds'));
     }
 
     /**
      * Update the referral status (used by admin to assign counselor or change status).
      */
-    public function updateStatus(Request $request, Referral $referral)
+    public function updateStatus(Request $request, Referral $referral, ReferralService $referralService)
     {
         $request->validate([
             'status'          => 'required|in:pending,in_progress,resolved,cancelled',
@@ -225,31 +235,12 @@ class ReferralController extends Controller
             'counselor_notes' => 'nullable|string',
         ]);
 
-        $data = [
-            'status'          => $request->status,
-            'counselor_notes' => $request->counselor_notes,
-        ];
-
-        if ($request->filled('counselor_id')) {
-            $data['counselor_id'] = $request->counselor_id;
-        }
-
-        if ($request->status === 'resolved' && $referral->status !== 'resolved') {
-            $data['resolved_at'] = now();
-        } elseif ($request->status !== 'resolved') {
-            $data['resolved_at'] = null;
-        }
-
-        $statusChanged = $referral->status !== $request->status;
-
-        $referral->update($data);
-
-        // Notify the teacher who filed it that Guidance acted on their referral —
-        // only on an actual status change, and only for teacher-filed referrals.
-        if ($statusChanged) {
-            app(\App\Services\NotificationService::class)
-                ->referralStatusChanged($referral->fresh());
-        }
+        $referralService->updateStatus(
+            $referral,
+            $request->status,
+            $request->counselor_id,
+            $request->counselor_notes
+        );
 
         return redirect()->back()->with('success', 'Referral status updated successfully.');
     }

@@ -236,4 +236,58 @@ class MessagingApiTest extends TestCase
 
         $this->assertNotNull($thread->fresh()->read_at);
     }
+
+    // ── Response shaping ─────────────────────────────────────────────────
+    // Responses used to be raw model dumps, exposing deleted_by_sender/
+    // deleted_by_receiver — internal per-side bookkeeping the mobile client
+    // has no use for. Every endpoint now shapes its output explicitly.
+
+    public function test_index_response_does_not_expose_internal_delete_flags(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $student = Student::factory()->create()->user;
+        Message::create(['sender_id' => $counselor->id, 'receiver_id' => $student->id, 'content' => 'Notice']);
+        Sanctum::actingAs($student);
+
+        $response = $this->getJson('/api/messages')->assertOk();
+
+        $response->assertJsonMissingPath('data.0.deleted_by_sender');
+        $response->assertJsonMissingPath('data.0.deleted_by_receiver');
+    }
+
+    public function test_show_response_includes_subject_and_shaped_replies_without_delete_flags(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $student = Student::factory()->create()->user;
+        $thread = Message::create([
+            'sender_id' => $counselor->id, 'receiver_id' => $student->id,
+            'subject' => 'Reminder', 'content' => 'Please see me.',
+        ]);
+        Message::create([
+            'sender_id' => $student->id, 'receiver_id' => $counselor->id,
+            'parent_id' => $thread->id, 'content' => 'On my way.',
+        ]);
+        Sanctum::actingAs($student);
+
+        $response = $this->getJson('/api/messages/' . $thread->id)->assertOk();
+
+        $response->assertJsonPath('subject', 'Reminder');
+        $response->assertJsonCount(1, 'replies');
+        $response->assertJsonPath('replies.0.content', 'On my way.');
+        $response->assertJsonMissingPath('deleted_by_sender');
+        $response->assertJsonMissingPath('replies.0.deleted_by_sender');
+    }
+
+    public function test_store_response_does_not_expose_internal_delete_flags(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        Sanctum::actingAs(User::factory()->teacher()->create());
+
+        $response = $this->postJson('/api/messages', [
+            'receiver_id' => $counselor->id, 'content' => 'Need advice.',
+        ])->assertCreated();
+
+        $response->assertJsonMissingPath('data.deleted_by_sender');
+        $response->assertJsonMissingPath('data.deleted_by_receiver');
+    }
 }

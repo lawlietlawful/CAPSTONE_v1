@@ -149,6 +149,37 @@ class Referral extends Model
         );
     }
 
+    /**
+     * Why this referral is High Priority even though its own AI score isn't
+     * — or null when there's nothing to explain. An auto-escalated referral
+     * keeps priority 'high' by policy regardless of what the ML model scores
+     * (see BehavioralReportService::maybeEscalate()), so a low/moderate AI
+     * score next to a "High Priority" badge is expected, not a bug — but the
+     * page showing both with no explanation looks self-contradictory. Only
+     * meaningful for auto-escalated referrals: a directly-filed referral's
+     * priority IS synced from its AI score, so no divergence is expected there.
+     */
+    public function getEscalationCaveatAttribute(): ?string
+    {
+        if (! $this->behavioral_report_id || $this->priority !== 'high') {
+            return null;
+        }
+
+        if ($this->riskAssessment && $this->riskAssessment->risk_level === 'high') {
+            return null;
+        }
+
+        if (str_contains($this->reason, '[Flagged: description names violence/a weapon/a threat]')) {
+            return "Marked High Priority because the report's description named violence, a weapon, or a threat — not this AI score.";
+        }
+
+        if ($this->behavioralReport && in_array($this->behavioralReport->incident_type, \App\Services\BehavioralReportService::CRITICAL_INCIDENT_TYPES, true)) {
+            return "Marked High Priority because \"{$this->behavioralReport->incident_type}\" always escalates regardless of AI score.";
+        }
+
+        return 'Marked High Priority by escalation policy, not this AI score.';
+    }
+
     // Helper — get priority badge color
     public function getPriorityColorAttribute()
     {

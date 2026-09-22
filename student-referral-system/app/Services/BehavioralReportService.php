@@ -43,15 +43,48 @@ class BehavioralReportService
      * ml_engine/generate_dataset.py to violence/weapons/threats specifically
      * — that pool also covers truancy, substance use, and theft, which are
      * serious but not this kind of immediate-safety urgent.
+     *
+     * Extended beyond that pool to cover bullying, choking/strangling,
+     * bladed objects and explosives named without the word "weapon", and
+     * sexual violence/harassment — all squarely "a threat to harm someone"
+     * even though the original SEVERE pool didn't phrase them that way.
+     * Deliberately left out anything with a common innocuous double-meaning
+     * in this context: "kick"/"kicked" ("kicked out of class"), "shoot"/
+     * "shot" ("shoot hoops", "gave it a shot"), "bit"/"bite" (collides with
+     * the word "bit"), "burn" ("burned out"), "killing" ("killing it" as
+     * praise), and "abuse"/"abusive" (collides with "substance abuse", a
+     * real and separate concern type that shouldn't get pulled into a
+     * violence escalation). Self-harm and
+     * suicide risk are an intentionally separate concern from *this* list —
+     * "a threat to harm someone [else]" — and would need their own
+     * escalation path, not a keyword bolted on here.
+     *
+     * The Cebuano/Bisaya list stays close to generate_dataset.py's own
+     * vocabulary rather than added terms I'm less certain of the exact
+     * usage/spelling for — worth a native speaker's review if more should
+     * be added.
      */
     private const VIOLENCE_KEYWORDS = [
-        // English
-        'punch', 'punched', 'hit', 'stab', 'stabbed', 'weapon', 'knife', 'gun',
-        'threat', 'threaten', 'threatened', 'kill', 'assault', 'attack', 'attacked',
-        'fight', 'fought', 'hurt someone',
+        // English — physical violence
+        'punch', 'punched', 'punching', 'hit', 'stab', 'stabbed', 'stabbing',
+        'slap', 'slapped', 'slapping', 'shove', 'shoved', 'shoving',
+        'beat up', 'beating up', 'beaten', 'choke', 'choked', 'choking',
+        'strangle', 'strangled', 'strangling', 'assault', 'assaulted',
+        'attack', 'attacked', 'attacking', 'fight', 'fought', 'hurt someone',
+        'aggressive',
+        // English — bullying
+        'bully', 'bullied', 'bullying',
+        // English — weapons / explosives
+        'weapon', 'knife', 'blade', 'razor', 'gun', 'bomb', 'explosive',
+        // English — threats
+        'threat', 'threaten', 'threatened', 'threatening', 'kill',
+        // English — sexual violence / harassment
+        'rape', 'raped', 'raping', 'molest', 'molested', 'molesting',
+        'sexual assault', 'harass', 'harassed', 'harassing', 'harassment',
         // Cebuano / Bisaya
         'nanumbag', 'sumbag', 'panumbag', 'hinagiban', 'naghulga', 'hulga',
         'pamunal', 'sinumbagay', 'lubaay', 'pangaway', 'abangan', 'suntok',
+        'patyon', 'dunggab', 'dunggabon',
     ];
 
     public function __construct(
@@ -117,6 +150,47 @@ class BehavioralReportService
         $report->setRelation('escalatedReferral', $referral);
 
         return $report;
+    }
+
+    /**
+     * Persist a counselor's status/notes change on a behavioral report and
+     * tell the reporting teacher, mirroring ReferralService::updateStatus() —
+     * without this the filer has no way to know their report was looked at.
+     */
+    public function updateStatus(BehavioralReport $report, string $status, ?string $counselorNotes): BehavioralReport
+    {
+        $report->update([
+            'status'          => $status,
+            'counselor_notes' => $counselorNotes,
+        ]);
+
+        $this->notificationService->reportStatusChanged($report);
+
+        return $report;
+    }
+
+    /**
+     * Keep an escalated report's own status in step with what happened to
+     * the referral it turned into — otherwise resolving (or cancelling) the
+     * referral leaves the originating report sitting "Pending" in the
+     * reports queue forever, permanently showing as unaddressed work that's
+     * actually already been handled.
+     *
+     * No notification here: ReferralService::updateStatus() already tells
+     * the filing teacher about the referral via referralStatusChanged() — a
+     * second notification about the same underlying case would be redundant.
+     */
+    public function syncStatusFromReferral(BehavioralReport $report, string $referralStatus): void
+    {
+        $status = match ($referralStatus) {
+            'resolved', 'cancelled' => 'resolved',
+            'in_progress'           => 'reviewed',
+            default                 => 'pending',
+        };
+
+        if ($report->status !== $status) {
+            $report->update(['status' => $status]);
+        }
     }
 
     /**
@@ -242,6 +316,7 @@ class BehavioralReportService
             'student_id'           => $student->id,
             'referred_by'          => $reporter->id,
             'behavioral_report_id' => $report->id,
+            'counselor_id'         => User::soleCounselorId(),
             'referral_type'        => $referralType,
             // Must be set explicitly: the column is NOT NULL DEFAULT 'other', so
             // omitting it silently filed every escalated referral as 'other',
@@ -301,6 +376,7 @@ class BehavioralReportService
         // the submission sheet, and (on the reports:reassess path) tells them
         // about an escalation that happened well after they filed the report.
         $this->notificationService->reportEscalated($report, $referral);
+        $this->notificationService->newPendingReferral($referral);
 
         return $referral;
     }

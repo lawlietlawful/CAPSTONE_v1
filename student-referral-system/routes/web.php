@@ -43,6 +43,18 @@ Route::prefix('admin')
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])
          ->name('dashboard');
 
+    // Notifications (each viewer sees only their own — see NotificationController)
+    Route::get('/notifications', [\App\Http\Controllers\Admin\NotificationController::class, 'index'])
+         ->name('notifications.index');
+    // Must come before the {notification} wildcard below, or "poll" gets
+    // swallowed as a route-model-binding lookup for a notification id.
+    Route::get('/notifications/poll', [\App\Http\Controllers\Admin\NotificationController::class, 'poll'])
+         ->name('notifications.poll');
+    Route::get('/notifications/{notification}', [\App\Http\Controllers\Admin\NotificationController::class, 'show'])
+         ->name('notifications.show');
+    Route::post('/notifications/mark-all-read', [\App\Http\Controllers\Admin\NotificationController::class, 'markAllRead'])
+         ->name('notifications.markAllRead');
+
     // Students
     Route::get('/students/import/template', [StudentController::class, 'downloadImportTemplate'])
          ->name('students.import.template');
@@ -54,7 +66,12 @@ Route::prefix('admin')
          ->name('students.import.errors');
     Route::get('/students/import/codes/{importId}', [StudentController::class, 'downloadImportCodes'])
          ->name('students.import.codes');
-    Route::resource('students', StudentController::class);
+    // create/edit excluded: both are modals (on the index page and the show
+    // page respectively) rather than standalone pages. create had no link
+    // pointing to it; edit had no controller method at all and would 500 if
+    // ever visited — mirrors the same exclusion already applied to Teacher's
+    // behavioral-reports/referrals resources for the same reason.
+    Route::resource('students', StudentController::class)->except(['create', 'edit']);
     Route::post('/students/{student}/activation-code', [StudentController::class, 'regenerateActivationCode'])
          ->name('students.activation-code');
 
@@ -71,8 +88,11 @@ Route::prefix('admin')
          ->name('referrals.store');
     Route::get('/referrals/{referral}', [AdminReferralController::class, 'show'])
          ->name('referrals.show');
-    Route::get('/referrals/{referral}/edit', [AdminReferralController::class, 'edit'])
-         ->name('referrals.edit');
+    // No standalone edit page/route: editing is an inline modal on the index
+    // page that posts straight to update() below. edit() used to point at a
+    // view file (admin.referrals.edit) that was never created, so visiting
+    // the route directly 500'd — the same "orphaned and broken" pattern
+    // already found and fixed on the Students page.
     Route::put('/referrals/{referral}', [AdminReferralController::class, 'update'])
          ->name('referrals.update');
     Route::delete('/referrals/{referral}', [AdminReferralController::class, 'destroy'])
@@ -191,6 +211,8 @@ Route::prefix('counselor')
 
     Route::get('/dashboard', [CounselorDashboardController::class, 'index'])
          ->name('dashboard');
+    Route::get('/dashboard/refresh', [CounselorDashboardController::class, 'refresh'])
+         ->name('dashboard.refresh');
 
     Route::get('referrals/{referral}/print', [ReferralController::class, 'print'])->name('referrals.print');
     Route::post('referrals/{referral}/log-parent-contact', [ReferralController::class, 'logParentContact'])->name('referrals.logParentContact');
@@ -199,6 +221,10 @@ Route::prefix('counselor')
         [ReferralController::class, 'updateStatus'])
          ->name('referrals.updateStatus');
 
+    Route::get('interventions/export', [InterventionController::class, 'export'])->name('interventions.export');
+    Route::get('interventions/followups', [InterventionController::class, 'followUps'])->name('interventions.followups');
+    Route::get('interventions/{intervention}/print', [InterventionController::class, 'print'])->name('interventions.print');
+    Route::patch('interventions/{intervention}/quick-update', [InterventionController::class, 'quickUpdate'])->name('interventions.quickUpdate');
     Route::resource('interventions', InterventionController::class);
 
     // Behavioral Reports (Read-Only)
@@ -242,7 +268,17 @@ Route::prefix('teacher')
     Route::get('/dashboard', [TeacherDashboardController::class, 'index'])
          ->name('dashboard');
 
-
+    // Notifications (each viewer sees only their own — see NotificationController)
+    Route::get('/notifications', [\App\Http\Controllers\Teacher\NotificationController::class, 'index'])
+         ->name('notifications.index');
+    // Must come before the {notification} wildcard below, or "poll" gets
+    // swallowed as a route-model-binding lookup for a notification id.
+    Route::get('/notifications/poll', [\App\Http\Controllers\Teacher\NotificationController::class, 'poll'])
+         ->name('notifications.poll');
+    Route::get('/notifications/{notification}', [\App\Http\Controllers\Teacher\NotificationController::class, 'show'])
+         ->name('notifications.show');
+    Route::post('/notifications/mark-all-read', [\App\Http\Controllers\Teacher\NotificationController::class, 'markAllRead'])
+         ->name('notifications.markAllRead');
 
     // Only the actions the controller actually implements. The full resource
     // exposed edit/update/destroy URLs that 500 on a missing controller method.

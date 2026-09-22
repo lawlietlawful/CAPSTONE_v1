@@ -109,6 +109,144 @@ class CounselorMessagingTest extends TestCase
         });
     }
 
+    // ── Subject display ──────────────────────────────────────────────────
+    // The subject field was validated and stored server-side but had no
+    // compose input and was never rendered anywhere — every message was
+    // subject-less by construction. Now it's collected and shown.
+
+    public function test_a_messages_subject_is_shown_in_the_inbox_list(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $student = Student::factory()->create()->user;
+        Message::create([
+            'sender_id' => $student->id, 'receiver_id' => $counselor->id,
+            'subject' => 'Question about my grade', 'content' => 'Can you help me?',
+        ]);
+
+        $this->actingAs($counselor)->get(route('counselor.messages.index'))
+            ->assertSee('Question about my grade');
+    }
+
+    public function test_a_messages_subject_is_shown_in_the_thread_header(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $student = Student::factory()->create()->user;
+        $message = Message::create([
+            'sender_id' => $student->id, 'receiver_id' => $counselor->id,
+            'subject' => 'Question about my grade', 'content' => 'Can you help me?',
+        ]);
+
+        $this->actingAs($counselor)->get(route('counselor.messages.show', $message))
+            ->assertSee('Question about my grade');
+    }
+
+    public function test_thread_header_falls_back_to_a_generic_title_with_no_subject(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $student = Student::factory()->create()->user;
+        $message = Message::create([
+            'sender_id' => $student->id, 'receiver_id' => $counselor->id, 'content' => 'No subject here.',
+        ]);
+
+        $this->actingAs($counselor)->get(route('counselor.messages.show', $message))
+            ->assertSee('Notice Thread');
+    }
+
+    // ── Search ────────────────────────────────────────────────────────────
+
+    public function test_search_filters_the_inbox_by_sender_name(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $juan = User::factory()->create(['role' => 'student', 'name' => 'Juan Dela Cruz']);
+        $maria = User::factory()->create(['role' => 'student', 'name' => 'Maria Santos']);
+        Message::create(['sender_id' => $juan->id, 'receiver_id' => $counselor->id, 'content' => 'Hello']);
+        Message::create(['sender_id' => $maria->id, 'receiver_id' => $counselor->id, 'content' => 'Hi there']);
+
+        $response = $this->actingAs($counselor)->get(route('counselor.messages.index', ['search' => 'Juan']));
+
+        $response->assertViewHas('inbox', fn ($inbox) => $inbox->total() === 1);
+    }
+
+    public function test_search_filters_the_inbox_by_message_content(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $studentA = Student::factory()->create()->user;
+        $studentB = Student::factory()->create()->user;
+        Message::create(['sender_id' => $studentA->id, 'receiver_id' => $counselor->id, 'content' => 'About my grades']);
+        Message::create(['sender_id' => $studentB->id, 'receiver_id' => $counselor->id, 'content' => 'Unrelated question']);
+
+        $response = $this->actingAs($counselor)->get(route('counselor.messages.index', ['search' => 'grades']));
+
+        $response->assertViewHas('inbox', fn ($inbox) => $inbox->total() === 1);
+    }
+
+    public function test_search_on_sent_tab_matches_the_receivers_name(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $juan = User::factory()->create(['role' => 'student', 'name' => 'Juan Dela Cruz']);
+        $maria = User::factory()->create(['role' => 'student', 'name' => 'Maria Santos']);
+        Message::create(['sender_id' => $counselor->id, 'receiver_id' => $juan->id, 'content' => 'Notice A']);
+        Message::create(['sender_id' => $counselor->id, 'receiver_id' => $maria->id, 'content' => 'Notice B']);
+
+        $response = $this->actingAs($counselor)->get(route('counselor.messages.index', ['tab' => 'sent', 'search' => 'Maria']));
+
+        $response->assertViewHas('sent', fn ($sent) => $sent->total() === 1);
+    }
+
+    // ── Unread badge ──────────────────────────────────────────────────────
+
+    public function test_unread_badge_counts_unread_messages_not_total_threads(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $studentA = Student::factory()->create()->user;
+        $studentB = Student::factory()->create()->user;
+        Message::create([
+            'sender_id' => $studentA->id, 'receiver_id' => $counselor->id, 'content' => 'Unread one',
+        ]);
+        Message::create([
+            'sender_id' => $studentB->id, 'receiver_id' => $counselor->id, 'content' => 'Already read', 'read_at' => now(),
+        ]);
+
+        $response = $this->actingAs($counselor)->get(route('counselor.messages.index'));
+
+        // Two threads exist, but only one is actually unread — the badge
+        // must reflect that, not $inbox->total() (which would say 2).
+        $response->assertViewHas('unreadCount', 1);
+    }
+
+    public function test_unread_badge_is_zero_once_everything_has_been_read(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $student = Student::factory()->create()->user;
+        Message::create([
+            'sender_id' => $student->id, 'receiver_id' => $counselor->id, 'content' => 'Read already', 'read_at' => now(),
+        ]);
+
+        $response = $this->actingAs($counselor)->get(route('counselor.messages.index'));
+
+        $response->assertViewHas('unreadCount', 0);
+        $response->assertDontSee('bg-blue-100 text-blue-700 py-0.5 px-2 rounded-full text-xs">1', false);
+    }
+
+    public function test_unread_badge_includes_an_unread_reply_on_a_thread_the_counselor_started(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $student = Student::factory()->create()->user;
+        $thread = Message::create([
+            'sender_id' => $counselor->id, 'receiver_id' => $student->id, 'content' => 'Please see me.',
+        ]);
+        // The student's reply lives under the counselor's "Sent" tab
+        // structurally (parent was sent by the counselor), but it's still
+        // an unread message the counselor hasn't seen.
+        Message::create([
+            'sender_id' => $student->id, 'receiver_id' => $counselor->id, 'content' => 'Okay.', 'parent_id' => $thread->id,
+        ]);
+
+        $response = $this->actingAs($counselor)->get(route('counselor.messages.index'));
+
+        $response->assertViewHas('unreadCount', 1);
+    }
+
     // ── Delete lifecycle ──────────────────────────────────────────────────
 
     public function test_deleting_a_message_only_hides_it_for_that_side(): void

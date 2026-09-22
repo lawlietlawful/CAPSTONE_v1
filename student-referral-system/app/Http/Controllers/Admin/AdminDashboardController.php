@@ -8,7 +8,6 @@ use App\Models\Referral;
 use App\Models\RiskAssessment;
 use App\Models\Seminar;
 use App\Models\SmsLog;
-use App\Models\Notification;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -150,12 +149,6 @@ class AdminDashboardController extends Controller
 
         $recentActivities = $this->getRecentActivities();
 
-        // ── Unread Notifications ─────────────────────────────────
-
-        $unreadNotifications = Notification::where('user_id', auth()->id())
-            ->where('is_read', false)
-            ->count();
-
         return view('admin.dashboard', compact(
             'totalStudents',
             'newStudentsThisWeek',
@@ -172,8 +165,7 @@ class AdminDashboardController extends Controller
             'monthLabels',
             'monthlyReferrals',
             'monthlyResolved',
-            'recentActivities',
-            'unreadNotifications'
+            'recentActivities'
         ));
     }
 

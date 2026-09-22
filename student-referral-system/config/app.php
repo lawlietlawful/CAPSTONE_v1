@@ -60,12 +60,14 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | will be used by the PHP date and date-time functions. Misamis
+    | University is in the Philippines (UTC+8), so date-boundary logic
+    | (seminar scheduling, the dashboard's daily itinerary, exports) needs
+    | this to be Asia/Manila rather than the framework's UTC default.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),
 
     /*
     |--------------------------------------------------------------------------

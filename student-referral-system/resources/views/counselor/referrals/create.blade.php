@@ -36,34 +36,23 @@
                     @error('student_id') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
                 </div>
 
-                <!-- Type & Priority -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="referral_type" class="block text-sm font-medium text-gray-700 mb-1">Referral Type <span class="text-red-500">*</span></label>
-                        <select name="referral_type" id="referral_type" required x-model="referralType"
-                            class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm @error('referral_type') border-red-500 @enderror">
-                            <option value="">Select type...</option>
-                            @foreach(\App\Models\Referral::REFERRAL_TYPES as $type)
-                                <option value="{{ $type }}" {{ old('referral_type') == $type ? 'selected' : '' }}>{{ $type }}</option>
-                            @endforeach
-                        </select>
-                        @error('referral_type') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
-                        <div x-show="referralType === 'Other'" x-cloak class="mt-2">
-                            <input type="text" name="referral_type_other" value="{{ old('referral_type_other') }}" placeholder="Please specify"
-                                class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
-                            @error('referral_type_other') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
-                        </div>
+                <!-- Type -->
+                <div>
+                    <label for="referral_type" class="block text-sm font-medium text-gray-700 mb-1">Referral Type <span class="text-red-500">*</span></label>
+                    <select name="referral_type" id="referral_type" required x-model="referralType"
+                        class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm @error('referral_type') border-red-500 @enderror">
+                        <option value="">Select type...</option>
+                        @foreach(\App\Models\Referral::REFERRAL_TYPES as $type)
+                            <option value="{{ $type }}" {{ old('referral_type') == $type ? 'selected' : '' }}>{{ $type }}</option>
+                        @endforeach
+                    </select>
+                    @error('referral_type') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
+                    <div x-show="referralType === 'Other'" x-cloak class="mt-2">
+                        <input type="text" name="referral_type_other" value="{{ old('referral_type_other') }}" placeholder="Please specify"
+                            class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
+                        @error('referral_type_other') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
                     </div>
-                    <div>
-                        <label for="priority" class="block text-sm font-medium text-gray-700 mb-1">Priority Level <span class="text-red-500">*</span></label>
-                        <select name="priority" id="priority" required
-                            class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm @error('priority') border-red-500 @enderror">
-                            <option value="low" {{ old('priority') == 'low' ? 'selected' : '' }}>Low</option>
-                            <option value="moderate" {{ old('priority') == 'moderate' ? 'selected' : '' }}>Moderate</option>
-                            <option value="high" {{ old('priority') == 'high' ? 'selected' : '' }}>High</option>
-                        </select>
-                        @error('priority') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
-                    </div>
+                    <p class="text-xs text-gray-400 mt-1">Priority is set automatically by the AI risk assessment once submitted.</p>
                 </div>
 
                 <!-- Assign Counselor -->

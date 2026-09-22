@@ -145,11 +145,21 @@ abstract class BaseSeminarController extends Controller
             'student_ids.*' => 'exists:students,id',
         ]);
 
+        // Students already enrolled would violate the students_seminars
+        // unique(student_id, seminar_id) constraint if re-attached — drop
+        // them instead of letting attach() throw a 500.
+        $alreadyEnrolledIds = $seminar->students()->whereIn('students.id', $request->student_ids)->pluck('students.id')->all();
+        $newStudentIds = array_diff($request->student_ids, $alreadyEnrolledIds);
+
+        if (empty($newStudentIds)) {
+            return redirect()->back()->with('error', 'The selected student(s) are already enrolled in this seminar.');
+        }
+
         // Respect the seminar's capacity, matching the auto-assign job. Only
         // enforced when a limit is set (max_participants is nullable = no cap).
         if ($seminar->max_participants) {
             $remaining = max(0, $seminar->max_participants - $seminar->students()->count());
-            $incoming = count($request->student_ids);
+            $incoming = count($newStudentIds);
 
             if ($incoming > $remaining) {
                 return redirect()->back()->with('error',
@@ -157,10 +167,10 @@ abstract class BaseSeminarController extends Controller
             }
         }
 
-        $seminar->students()->attach($request->student_ids, ['status' => 'enrolled', 'assigned_by' => 'manual']);
+        $seminar->students()->attach($newStudentIds, ['status' => 'enrolled', 'assigned_by' => 'manual']);
 
         if ($seminar->is_required) {
-            $students = Student::whereIn('id', $request->student_ids)->get();
+            $students = Student::whereIn('id', $newStudentIds)->get();
             $dateFormatted = \Carbon\Carbon::parse($seminar->date)->format('M d, Y');
 
             foreach ($students as $student) {
@@ -176,7 +186,11 @@ abstract class BaseSeminarController extends Controller
             }
         }
 
-        return redirect()->back()->with('success', 'Students assigned successfully. SMS notifications sent.');
+        $message = count($alreadyEnrolledIds) > 0
+            ? count($newStudentIds) . ' student(s) assigned successfully (' . count($alreadyEnrolledIds) . ' were already enrolled and skipped). SMS notifications sent.'
+            : 'Students assigned successfully. SMS notifications sent.';
+
+        return redirect()->back()->with('success', $message);
     }
 
     public function updateAttendance(Request $request, Seminar $seminar)

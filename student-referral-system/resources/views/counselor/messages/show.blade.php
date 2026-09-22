@@ -15,7 +15,7 @@
         {{-- Thread Header --}}
         <div class="px-8 py-6 border-b border-gray-100 bg-gray-50/30 flex justify-between items-start">
             <div>
-                <h2 class="text-xl font-bold text-gray-900">Notice Thread</h2>
+                <h2 class="text-xl font-bold text-gray-900">{{ $message->subject ?: 'Notice Thread' }}</h2>
                 <div class="flex items-center gap-2 mt-2 text-sm text-gray-500">
                     <span>From: <strong>{{ $message->sender->name }}</strong> ({{ ucfirst($message->sender->role) }})</span>
                     <span>&bull;</span>

@@ -90,4 +90,26 @@ class Course extends Model
             'section' => $s->section,
         ])->values();
     }
+
+    /**
+     * Whether a (course, grade_level, section) combination exists in the
+     * catalog — the same check the CSV importer already runs on every row
+     * (StudentController::previewImport), now shared with the single-student
+     * Add/Edit forms so a raw request can't create a student pointing at a
+     * course/section that doesn't exist, the way the UI's cascading
+     * dropdowns already prevent in practice. Strand is deliberately not
+     * part of the match, matching the importer's own check exactly.
+     */
+    public static function comboExists(?string $course, ?string $gradeLevel, ?string $section): bool
+    {
+        if (! $course || ! $gradeLevel || ! $section) {
+            return false;
+        }
+
+        return static::picklist()->contains(fn ($c) =>
+            strcasecmp($c['course'], $course) === 0
+            && strcasecmp($c['grade_level'], $gradeLevel) === 0
+            && strcasecmp($c['section'], $section) === 0
+        );
+    }
 }

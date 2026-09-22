@@ -115,17 +115,6 @@ class StudentController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        $courseCombos = Course::picklist();
-
-        return view('admin.students.create', compact('courseCombos'))
-            ->with($this->gradeLevelLists());
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(StoreStudentRequest $request)
@@ -598,8 +587,13 @@ class StudentController extends Controller
      */
     public function show(Student $student)
     {
-        // Eager load relationships for the student profile view
-        $student->load(['behavioralReports', 'riskAssessments', 'referrals', 'user']);
+        // Eager load relationships for the student profile view. Loads
+        // latestRiskAssessment explicitly rather than reading
+        // riskAssessments->last() — that reads whatever order the
+        // collection happened to load in, while latestRiskAssessment is a
+        // proper hasOne(...)->latestOfMany(), the same relation the
+        // Students index and Counselor dashboard already trust.
+        $student->load(['behavioralReports', 'riskAssessments', 'referrals', 'user', 'latestRiskAssessment']);
         
         $timeline = collect();
 

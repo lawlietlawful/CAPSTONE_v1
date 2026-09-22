@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Course;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreStudentRequest extends FormRequest
 {
@@ -44,5 +46,25 @@ class StoreStudentRequest extends FormRequest
             // User account option (Admin can choose to generate an account)
             'create_account' => ['nullable', 'boolean'],
         ];
+    }
+
+    /**
+     * The Add Student form's course/grade/section dropdowns are cascading
+     * and already constrained to the catalog, so this only ever fires on a
+     * raw/bypassed request — but the CSV importer enforces the exact same
+     * rule on every row, and this form shouldn't be the one path that lets
+     * a student point at a course/section combination that doesn't exist.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            if ($this->filled(['course', 'grade_level', 'section'])
+                && ! Course::comboExists($this->course, $this->grade_level, $this->section)) {
+                $validator->errors()->add(
+                    'course',
+                    'This Course / Year Level / Section combination was not found in the catalog.'
+                );
+            }
+        });
     }
 }

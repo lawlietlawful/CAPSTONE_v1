@@ -23,7 +23,8 @@ class MessageController extends Controller
             ->whereNull('parent_id')
             ->where('deleted_by_receiver', false)
             ->latest()
-            ->paginate(15);
+            ->paginate(15)
+            ->through(fn (Message $message) => $this->shapeMessage($message));
 
         return response()->json($messages);
     }
@@ -40,7 +41,8 @@ class MessageController extends Controller
             ->whereNull('parent_id')
             ->where('deleted_by_sender', false)
             ->latest()
-            ->paginate(15);
+            ->paginate(15)
+            ->through(fn (Message $message) => $this->shapeMessage($message));
 
         return response()->json($messages);
     }
@@ -82,7 +84,43 @@ class MessageController extends Controller
             }
         }
 
-        return response()->json($message);
+        return response()->json($this->shapeMessage($message->fresh([
+            'sender:id,name,role', 'receiver:id,name,role', 'replies.sender:id,name,role', 'replies.receiver:id,name,role',
+        ]), withReplies: true));
+    }
+
+    /**
+     * The client-facing shape of a message: id/subject/content/timestamps
+     * and the other party's public info. Deliberately leaves out
+     * deleted_by_sender/deleted_by_receiver — internal per-side bookkeeping
+     * the mobile client has no use for and shouldn't need to know exists.
+     */
+    protected function shapeMessage(Message $message, bool $withReplies = false): array
+    {
+        $shaped = [
+            'id' => $message->id,
+            'sender_id' => $message->sender_id,
+            'receiver_id' => $message->receiver_id,
+            'subject' => $message->subject,
+            'content' => $message->content,
+            'read_at' => $message->read_at,
+            'parent_id' => $message->parent_id,
+            'created_at' => $message->created_at,
+            'updated_at' => $message->updated_at,
+            'sender' => $message->relationLoaded('sender') ? $this->shapeUser($message->sender) : null,
+            'receiver' => $message->relationLoaded('receiver') ? $this->shapeUser($message->receiver) : null,
+        ];
+
+        if ($withReplies) {
+            $shaped['replies'] = $message->replies->map(fn (Message $reply) => $this->shapeMessage($reply))->all();
+        }
+
+        return $shaped;
+    }
+
+    protected function shapeUser(?User $user): ?array
+    {
+        return $user ? ['id' => $user->id, 'name' => $user->name, 'role' => $user->role] : null;
     }
 
     /**
@@ -123,7 +161,7 @@ class MessageController extends Controller
 
             return response()->json([
                 'message' => 'Message sent successfully.',
-                'data' => $message->load('receiver:id,name,role')
+                'data' => $this->shapeMessage($message->load('receiver:id,name,role')),
             ], 201);
         }
 
@@ -147,7 +185,7 @@ class MessageController extends Controller
 
         return response()->json([
             'message' => 'Reply sent successfully.',
-            'data' => $reply->load('sender:id,name,role')
+            'data' => $this->shapeMessage($reply->load('sender:id,name,role')),
         ], 201);
     }
 }

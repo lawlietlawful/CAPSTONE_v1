@@ -5,35 +5,66 @@ namespace App\Http\Controllers\Counselor;
 use App\Http\Controllers\Controller;
 use App\Models\Message;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 class MessageController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user();
+        $search = $request->string('search')->trim()->value() ?: null;
 
         // Get received top-level messages
         $inbox = Message::with(['sender:id,name,role'])
             ->where('receiver_id', $user->id)
             ->whereNull('parent_id')
             ->where('deleted_by_receiver', false)
+            ->when($search, fn (Builder $q) => $this->applySearch($q, $search, 'sender'))
             ->latest()
-            ->paginate(15);
+            ->paginate(10)
+            ->appends($request->query());
 
         // Get sent top-level messages
         $sent = Message::with(['receiver:id,name,role'])
             ->where('sender_id', $user->id)
             ->whereNull('parent_id')
             ->where('deleted_by_sender', false)
+            ->when($search, fn (Builder $q) => $this->applySearch($q, $search, 'receiver'))
             ->latest()
-            ->paginate(15);
-            
+            ->paginate(10)
+            ->appends($request->query());
+
+        // The Inbox badge used to show $inbox->total() — the number of
+        // threads, read or not, so it never went away even after reading
+        // everything. This counts actually-unread messages instead,
+        // including unread replies to a thread the counselor started
+        // (which lives under "Sent", not "Inbox", but is still something
+        // they haven't seen yet).
+        $unreadCount = Message::where('receiver_id', $user->id)
+            ->where('deleted_by_receiver', false)
+            ->whereNull('read_at')
+            ->count();
+
         // For composing new messages, get a list of students and teachers
         $students = User::where('role', 'student')->get();
         $teachers = User::where('role', 'teacher')->get();
 
-        return view('counselor.messages.index', compact('inbox', 'sent', 'students', 'teachers'));
+        return view('counselor.messages.index', compact('inbox', 'sent', 'unreadCount', 'students', 'teachers', 'search'));
+    }
+
+    /**
+     * Match $search against the other party's name, or the message's own
+     * subject/content — the three things a counselor would actually
+     * remember about a conversation they're trying to find again.
+     */
+    protected function applySearch(Builder $query, string $search, string $otherParty): Builder
+    {
+        return $query->where(function (Builder $q) use ($search, $otherParty) {
+            $q->whereHas($otherParty, fn (Builder $u) => $u->where('name', 'like', "%{$search}%"))
+                ->orWhere('subject', 'like', "%{$search}%")
+                ->orWhere('content', 'like', "%{$search}%");
+        });
     }
 
     public function show($id)

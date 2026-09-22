@@ -9,6 +9,7 @@ use App\Services\ReferralService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\BuildsTeacherScenario;
 use Tests\TestCase;
 
@@ -218,6 +219,55 @@ class BehavioralReportEscalationTest extends TestCase
         $this->assertNull($report->escalatedReferral, 'A surname containing "hit" must not trigger the violence check.');
     }
 
+    #[DataProvider('newlyAddedViolenceKeywords')]
+    public function test_newly_added_violence_keywords_escalate(string $description): void
+    {
+        $this->fakeMlEngine('low');
+
+        $report = $this->fileReport(['description' => $description]);
+
+        $this->assertNotNull($report->escalatedReferral, "\"{$description}\" should escalate.");
+    }
+
+    public static function newlyAddedViolenceKeywords(): array
+    {
+        return [
+            'bullying' => ['He has been bullying a younger student every recess.'],
+            'choking' => ['Witnesses said he choked another student during the argument.'],
+            'blade' => ['A classmate reported seeing a blade in his bag.'],
+            'bomb threat' => ['He said he would bring a bomb to school.'],
+            'harassment' => ['She has been harassing her seatmate for weeks.'],
+            'shove' => ['He shoved another student into the lockers.'],
+            'Cebuano kill threat' => ['Iyang gi-ingnan nga patyon niya ang iyang classmate.'],
+            'Cebuano stab threat' => ['Naay bata nga naghulga nga dunggabon ang iyang kaklase.'],
+        ];
+    }
+
+    #[DataProvider('deliberatelyExcludedPhrases')]
+    public function test_deliberately_excluded_phrases_do_not_falsely_escalate(string $description): void
+    {
+        // These share a word with a real violence keyword but are common,
+        // harmless phrasing in a school context — see the VIOLENCE_KEYWORDS
+        // docblock for why each one was left out on purpose.
+        $this->fakeMlEngine('low');
+
+        $report = $this->fileReport(['description' => $description]);
+
+        $this->assertNull($report->escalatedReferral, "\"{$description}\" must not falsely escalate.");
+    }
+
+    public static function deliberatelyExcludedPhrases(): array
+    {
+        return [
+            'kicked out of class' => ['The student was kicked out of class for disrupting the lesson.'],
+            'gave it a shot' => ['He struggled with the exam but gave it his best shot.'],
+            'a bit of trouble' => ['He was a bit rowdy during group work today.'],
+            'burned out' => ['She seems burned out from back-to-back requirements.'],
+            'substance abuse' => ['Teacher suspects substance abuse based on recent behavior.'],
+            'killing it as praise' => ['She has been killing it in her recent quizzes.'],
+        ];
+    }
+
     public function test_escalated_referral_derives_concern_type_not_other(): void
     {
         // Regression: the escalation path once left concern_type at its 'other'
@@ -395,5 +445,22 @@ class BehavioralReportEscalationTest extends TestCase
             $report->risk_assessment_id,
             'The report must be backfilled with the same assessment now attached to its referral.'
         );
+    }
+
+    // ── Auto-escalation notifies counselors ─────────────────────────────────
+
+    public function test_an_escalated_report_notifies_every_counselor_of_the_new_pending_referral(): void
+    {
+        $counselor = \App\Models\User::factory()->counselor()->create();
+        $this->fakeMlEngine('high');
+
+        $report = $this->fileReport();
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id'        => $counselor->id,
+            'type'           => 'referral_pending',
+            'reference_type' => 'referral',
+            'reference_id'   => $report->escalatedReferral->id,
+        ]);
     }
 }

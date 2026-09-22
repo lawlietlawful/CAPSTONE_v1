@@ -18,8 +18,8 @@
             <div class="p-2 space-y-1">
                 <a href="{{ request()->fullUrlWithQuery(['tab' => 'inbox']) }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors {{ request('tab', 'inbox') === 'inbox' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50' }}">
                     <span class="flex items-center gap-2.5"><i class="ti ti-inbox text-lg"></i> Inbox</span>
-                    @if($inbox->total() > 0)
-                        <span class="bg-blue-100 text-blue-700 py-0.5 px-2 rounded-full text-xs">{{ $inbox->total() }}</span>
+                    @if($unreadCount > 0)
+                        <span class="bg-blue-100 text-blue-700 py-0.5 px-2 rounded-full text-xs">{{ $unreadCount }}</span>
                     @endif
                 </a>
                 <a href="{{ request()->fullUrlWithQuery(['tab' => 'sent']) }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors {{ request('tab') === 'sent' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50' }}">
@@ -34,11 +34,19 @@
         <div class="bg-white rounded-2xl shadow-premium border border-gray-100 overflow-hidden">
             @php $messages = request('tab') === 'sent' ? $sent : $inbox; @endphp
             
-            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                <h3 class="text-[15px] font-semibold text-gray-800 flex items-center gap-2">
-                    <i class="ti ti-{{ request('tab') === 'sent' ? 'send' : 'inbox' }} text-gray-400"></i> 
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center gap-4">
+                <h3 class="text-[15px] font-semibold text-gray-800 flex items-center gap-2 whitespace-nowrap">
+                    <i class="ti ti-{{ request('tab') === 'sent' ? 'send' : 'inbox' }} text-gray-400"></i>
                     {{ request('tab') === 'sent' ? 'Sent Notices' : 'Inbox' }}
                 </h3>
+                <form method="GET" class="relative w-full max-w-xs" id="filterForm">
+                    <input type="hidden" name="tab" value="{{ request('tab', 'inbox') }}">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="ti ti-search text-gray-400 text-sm"></i>
+                    </div>
+                    <input type="text" id="searchInput" name="search" value="{{ $search }}" placeholder="Search name or message..."
+                        class="w-full pl-9 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition text-xs text-gray-900 shadow-sm">
+                </form>
             </div>
 
             <div class="divide-y divide-gray-100">
@@ -60,6 +68,9 @@
                                 <span class="text-[11px] text-gray-400 whitespace-nowrap">{{ $msg->created_at->diffForHumans() }}</span>
                             </div>
 
+                            @if($msg->subject)
+                                <p class="text-xs font-medium text-gray-700 truncate mt-0.5">{{ $msg->subject }}</p>
+                            @endif
                             <p class="text-xs text-gray-500 truncate mt-1">{{ Str::limit($msg->content, 80) }}</p>
                         </div>
                         
@@ -105,7 +116,9 @@
                             <i class="ti ti-inbox text-3xl"></i>
                         </div>
                         <p class="text-gray-900 font-medium">No messages found.</p>
-                        <p class="text-gray-500 text-sm mt-1">Your {{ request('tab', 'inbox') }} is empty.</p>
+                        <p class="text-gray-500 text-sm mt-1">
+                            {{ $search ? 'No results for "' . $search . '".' : 'Your ' . request('tab', 'inbox') . ' is empty.' }}
+                        </p>
                     </div>
                 @endforelse
             </div>
@@ -122,7 +135,42 @@
 {{-- Compose Modal --}}
 <div id="composeModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 backdrop-blur-sm transition-opacity">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all">
-        <form action="{{ request()->has('modal') ? route('counselor.messages.store', ['modal' => 1]) : route('counselor.messages.store') }}" method="POST">
+        <form action="{{ request()->has('modal') ? route('counselor.messages.store', ['modal' => 1]) : route('counselor.messages.store') }}" method="POST"
+              x-data="{
+                    query: '',
+                    open: false,
+                    selectedId: '',
+                    selectedLabel: '',
+                    error: false,
+                    recipients: [
+                        @foreach($teachers as $teacher)
+                            { id: {{ $teacher->id }}, name: @js($teacher->name), role: 'Teacher' },
+                        @endforeach
+                        @foreach($students as $student)
+                            { id: {{ $student->id }}, name: @js($student->name), role: 'Student' },
+                        @endforeach
+                    ],
+                    get filtered() {
+                        if (!this.query || this.query === this.selectedLabel) return this.recipients;
+                        const q = this.query.toLowerCase();
+                        return this.recipients.filter(r => r.name.toLowerCase().includes(q));
+                    },
+                    select(r) {
+                        this.selectedId = r.id;
+                        this.selectedLabel = r.name + ' (' + r.role + ')';
+                        this.query = this.selectedLabel;
+                        this.open = false;
+                        this.error = false;
+                    },
+                    validate(e) {
+                        if (!this.selectedId) {
+                            e.preventDefault();
+                            this.error = true;
+                            this.open = true;
+                        }
+                    }
+              }"
+              @submit="validate">
             @csrf
             <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <h3 class="text-[15px] font-semibold text-gray-900">Compose Notice</h3>
@@ -133,24 +181,33 @@
             <div class="p-6 space-y-4">
                 <div>
                     <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">Recipient</label>
-                    <select name="receiver_id" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
-                        <option value="">Select a student or teacher...</option>
-                        <optgroup label="Teachers">
-                            @foreach($teachers as $teacher)
-                                <option value="{{ $teacher->id }}">{{ $teacher->name }} (Teacher)</option>
-                            @endforeach
-                        </optgroup>
-                        <optgroup label="Students">
-                            @foreach($students as $student)
-                                <option value="{{ $student->id }}">{{ $student->name }} (Student)</option>
-                            @endforeach
-                        </optgroup>
-                    </select>
+                    <input type="hidden" name="receiver_id" :value="selectedId">
+                    <div class="relative" @click.away="open = false">
+                        <input type="text" x-model="query" @focus="open = true" @input="if (query !== selectedLabel) { selectedId = ''; error = false; }"
+                            placeholder="Search a student or teacher..." autocomplete="off"
+                            class="w-full rounded-xl border px-4 py-2.5 text-sm text-gray-900 shadow-sm bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition"
+                            :class="error ? 'border-red-400' : 'border-gray-300'">
+                        <div x-show="open" x-cloak class="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1">
+                            <template x-for="r in filtered" :key="r.id">
+                                <button type="button" @click="select(r)" class="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center justify-between gap-2">
+                                    <span x-text="r.name"></span>
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full" :class="r.role === 'Teacher' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'" x-text="r.role"></span>
+                                </button>
+                            </template>
+                            <div x-show="filtered.length === 0" class="px-4 py-3 text-sm text-gray-400">No matches found.</div>
+                        </div>
+                    </div>
+                    <p x-show="error" x-cloak class="text-xs text-red-500 mt-1">Please pick a recipient from the list.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">Subject <span class="normal-case text-gray-400 font-normal">(optional)</span></label>
+                    <input type="text" name="subject" maxlength="255" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm" placeholder="What is this about?">
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">Message</label>
-                    <textarea name="content" rows="5" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" placeholder="Type your notice here..." required></textarea>
+                    <textarea name="content" rows="5" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm resize-none" placeholder="Type your notice here..." required></textarea>
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
@@ -162,5 +219,32 @@
         </form>
     </div>
 </div>
+
+<script>
+    let searchTimeout = null;
+    const searchInput = document.getElementById('searchInput');
+    const filterForm = document.getElementById('filterForm');
+
+    if (searchInput && filterForm) {
+        searchInput.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            const val = e.target.value.trim();
+
+            // Auto submit if cleared or if length >= 2
+            if (val.length === 0 || val.length >= 2) {
+                searchTimeout = setTimeout(() => {
+                    filterForm.submit();
+                }, 500); // Wait 500ms after user stops typing
+            }
+        });
+
+        // Put cursor at the end of text when page reloads with search value
+        if (searchInput.value) {
+            const length = searchInput.value.length;
+            searchInput.focus();
+            searchInput.setSelectionRange(length, length);
+        }
+    }
+</script>
 
 @endsection

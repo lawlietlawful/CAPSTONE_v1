@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Course;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class UpdateStudentRequest extends FormRequest
 {
@@ -44,5 +46,24 @@ class UpdateStudentRequest extends FormRequest
             'address' => ['required', 'string'],
             'status' => ['required', 'in:active,inactive,transferred,graduated'],
         ];
+    }
+
+    /**
+     * Mirrors StoreStudentRequest's check — the Edit form's dropdowns are
+     * already constrained to the catalog, so this only ever fires on a raw
+     * request, but the CSV importer enforces the exact same rule on every
+     * row and Edit shouldn't be the one path that doesn't.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            if ($this->filled(['course', 'grade_level', 'section'])
+                && ! Course::comboExists($this->course, $this->grade_level, $this->section)) {
+                $validator->errors()->add(
+                    'course',
+                    'This Course / Year Level / Section combination was not found in the catalog.'
+                );
+            }
+        });
     }
 }

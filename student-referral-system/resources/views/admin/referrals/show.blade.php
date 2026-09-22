@@ -117,8 +117,8 @@
                         @foreach($referral->interventions as $intervention)
                             <div class="relative pl-6">
                                 <div class="absolute w-3 h-3 bg-white border-2 border-amber-500 rounded-full -left-[7px] top-1 ring-4 ring-white"></div>
-                                <p class="text-sm font-semibold text-gray-900">{{ $intervention->type }}</p>
-                                <p class="text-xs text-gray-400 mt-0.5"><i class="ti ti-calendar text-[10px]"></i> {{ $intervention->created_at->format('M d, Y') }}</p>
+                                <p class="text-sm font-semibold text-gray-900">{{ $intervention->intervention_type }}</p>
+                                <p class="text-xs text-gray-400 mt-0.5"><i class="ti ti-calendar text-[10px]"></i> {{ \Carbon\Carbon::parse($intervention->intervention_date)->format('M d, Y') }}</p>
                                 <p class="text-sm text-gray-600 mt-2 bg-gray-50 rounded-lg p-3 border border-gray-100">{{ $intervention->description }}</p>
                             </div>
                         @endforeach
