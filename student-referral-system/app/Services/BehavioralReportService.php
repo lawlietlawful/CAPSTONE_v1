@@ -159,12 +159,20 @@ class BehavioralReportService
      */
     public function updateStatus(BehavioralReport $report, string $status, ?string $counselorNotes): BehavioralReport
     {
+        $statusChanged = $report->status !== $status;
+
         $report->update([
             'status'          => $status,
             'counselor_notes' => $counselorNotes,
         ]);
 
-        $this->notificationService->reportStatusChanged($report);
+        // Only when the status actually moved — saving just an internal
+        // note, or bulk-marking a report that's already in that state, used
+        // to re-send "your report was reviewed" every time (ReferralService
+        // has always guarded the same way).
+        if ($statusChanged) {
+            $this->notificationService->reportStatusChanged($report);
+        }
 
         return $report;
     }

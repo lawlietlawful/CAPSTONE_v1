@@ -11,7 +11,13 @@ use App\Models\User;
 
 class ReferralController extends Controller
 {
-    public function index(Request $request)
+    /**
+     * Every index filter, applied in one place. Shared by index() and
+     * export() — export() used to carry its own shorter copy that silently
+     * dropped counselor_id and date_range, so a filtered export contained
+     * rows the screen wasn't showing.
+     */
+    private function filteredQuery(Request $request)
     {
         $query = Referral::with(['student', 'referredBy', 'counselor'])->latest();
 
@@ -39,7 +45,11 @@ class ReferralController extends Controller
                     $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
                     break;
                 case 'last_month':
-                    $query->whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year);
+                    // NoOverflow: plain subMonth() on the 29th-31st lands in the
+                    // *current* month (Oct 31 - 1 month = Oct 1), so "last
+                    // month" silently searched this month instead.
+                    $lastMonth = now()->subMonthNoOverflow();
+                    $query->whereMonth('created_at', $lastMonth->month)->whereYear('created_at', $lastMonth->year);
                     break;
             }
         }
@@ -53,7 +63,12 @@ class ReferralController extends Controller
             });
         }
 
-        $referrals = $query->paginate(10)->appends($request->query());
+        return $query;
+    }
+
+    public function index(Request $request)
+    {
+        $referrals = $this->filteredQuery($request)->paginate(10)->appends($request->query());
 
         $pendingCount    = Referral::where('status', 'pending')->count();
         $inProgressCount = Referral::where('status', 'in_progress')->count();
@@ -134,26 +149,7 @@ class ReferralController extends Controller
     }
     public function export(Request $request)
     {
-        $query = Referral::with(['student', 'referredBy', 'counselor'])->latest();
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->whereHas('student', function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('student_id_number', 'like', "%{$search}%");
-            });
-        }
-
-        $referrals = $query->get();
+        $referrals = $this->filteredQuery($request)->get();
 
         $filename = "referrals_export_" . date('Y-m-d_H-i') . ".csv";
         $headers = [
@@ -265,7 +261,7 @@ class ReferralController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function update(Request $request, Referral $referral)
+    public function update(Request $request, Referral $referral, ReferralService $referralService)
     {
         // Legacy referrals may carry a referral_type from before the fixed
         // option list existed (e.g. "Attendance", "Automated Risk Alert").
@@ -286,15 +282,16 @@ class ReferralController extends Controller
             'counselor_id'        => 'nullable|exists:users,id',
         ]);
 
-        $data = $request->only(['referral_type', 'referral_type_other', 'reason', 'priority', 'status', 'counselor_id']);
-        
-        if ($request->status === 'resolved' && $referral->status !== 'resolved') {
-            $data['resolved_at'] = now();
-        } elseif ($request->status !== 'resolved') {
-            $data['resolved_at'] = null;
-        }
+        // Everything except the status is a plain field edit...
+        $referral->update($request->only(['referral_type', 'referral_type_other', 'reason', 'priority', 'counselor_id']));
 
-        $referral->update($data);
+        // ...but the status goes through the shared service like every other
+        // status change (dropdown, bulk action, Counselor pages). Saving it
+        // directly here skipped the filing teacher's notification, the linked
+        // behavioral report's status sync, and resolving never-evaluated
+        // interventions. counselor_notes is passed through unchanged so it
+        // isn't wiped.
+        $referralService->updateStatus($referral, $request->status, null, $referral->counselor_notes);
 
         return redirect()->route('admin.referrals.index')->with('success', 'Referral updated successfully.');
     }

@@ -93,7 +93,11 @@ class InterventionController extends Controller
                     $query->whereMonth('intervention_date', now()->month)->whereYear('intervention_date', now()->year);
                     break;
                 case 'last_month':
-                    $query->whereMonth('intervention_date', now()->subMonth()->month)->whereYear('intervention_date', now()->subMonth()->year);
+                    // NoOverflow: plain subMonth() on the 29th-31st lands in the
+                    // *current* month (Oct 31 - 1 month = Oct 1), so "last
+                    // month" silently searched this month instead.
+                    $lastMonth = now()->subMonthNoOverflow();
+                    $query->whereMonth('intervention_date', $lastMonth->month)->whereYear('intervention_date', $lastMonth->year);
                     break;
             }
         }
@@ -243,10 +247,11 @@ class InterventionController extends Controller
             $referral = $referralService->updateStatus($referral, 'in_progress', auth()->id(), $referral->counselor_notes);
         }
         if ($request->outcome === 'resolved') {
-            $referral = $referralService->updateStatus($referral, 'resolved', null, $referral->counselor_notes);
+            $referral = $this->resolveReferralUnlessCancelled($referralService, $referral);
         }
 
         // TRIGGER SMS TO PARENT
+        $smsSent = false;
         $student = $referral->student;
         if ($student && !empty($student->parent_contact)) {
             $date = \Carbon\Carbon::parse($request->intervention_date)->format('M d, Y');
@@ -254,7 +259,7 @@ class InterventionController extends Controller
             
             $message = "MU Guidance: A {$request->intervention_type} session was conducted for your child {$student->first_name} on {$date}. Outcome: {$outcomeStr}.";
             
-            $smsService->sendSms(
+            $smsSent = $smsService->sendSms(
                 $student->parent_contact,
                 $message,
                 $student->id,
@@ -264,8 +269,26 @@ class InterventionController extends Controller
             );
         }
 
+        // Only claim the SMS went out if it actually did — this used to say
+        // so unconditionally, even with no parent number on file or SMS
+        // disabled in settings.
         return redirect()->route('counselor.interventions.index')
-            ->with('success', 'Intervention logged successfully. SMS notification sent to parent.');
+            ->with('success', 'Intervention logged successfully.' . ($smsSent ? ' SMS notification sent to parent.' : ''));
+    }
+
+    /**
+     * Cascade an intervention's "Resolved" outcome up to its referral —
+     * except a referral that was Cancelled. A cancelled case was dismissed,
+     * not solved; silently flipping it to Resolved would rewrite its history
+     * (and fire a "resolved" notification for a case that never was).
+     */
+    private function resolveReferralUnlessCancelled(\App\Services\ReferralService $referralService, Referral $referral): Referral
+    {
+        if ($referral->status === 'cancelled') {
+            return $referral;
+        }
+
+        return $referralService->updateStatus($referral, 'resolved', null, $referral->counselor_notes);
     }
 
     /**
@@ -392,8 +415,7 @@ class InterventionController extends Controller
         ]));
 
         if ($request->outcome === 'resolved') {
-            $referral = $intervention->referral;
-            $referralService->updateStatus($referral, 'resolved', null, $referral->counselor_notes);
+            $this->resolveReferralUnlessCancelled($referralService, $intervention->referral);
         }
 
         return redirect()->route('counselor.interventions.show', $intervention->id)
@@ -412,9 +434,21 @@ class InterventionController extends Controller
             abort(403);
         }
 
+        // Same rule store()/update() enforce against the request's
+        // intervention_date — but this form doesn't send that field, so it's
+        // compared against the saved session date instead. Without it the
+        // inline form could schedule a follow-up before the session itself.
+        // Only enforced when the date is actually being changed, so a legacy
+        // row that already has an out-of-order date can still have just its
+        // outcome saved (the form resubmits the untouched date).
+        $followUpRule = ['nullable', 'date'];
+        if ($request->follow_up_date !== $intervention->follow_up_date?->toDateString()) {
+            $followUpRule[] = 'after_or_equal:' . $intervention->intervention_date->toDateString();
+        }
+
         $request->validate([
             'outcome'        => 'nullable|in:improving,no_change,worsening,resolved',
-            'follow_up_date' => 'nullable|date',
+            'follow_up_date' => $followUpRule,
         ]);
 
         $oldFollowUpDate = $intervention->follow_up_date?->format('Y-m-d');
@@ -432,8 +466,7 @@ class InterventionController extends Controller
         }
 
         if ($request->outcome === 'resolved') {
-            $referral = $intervention->referral;
-            $referralService->updateStatus($referral, 'resolved', null, $referral->counselor_notes);
+            $this->resolveReferralUnlessCancelled($referralService, $intervention->referral);
         }
 
         return redirect()->route('counselor.interventions.show', $intervention->id)

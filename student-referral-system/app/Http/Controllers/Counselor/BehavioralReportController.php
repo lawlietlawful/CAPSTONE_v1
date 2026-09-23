@@ -15,26 +15,29 @@ class BehavioralReportController extends Controller
     {
     }
 
-    public function index(Request $request)
+    /**
+     * Every index filter, applied in one place. Shared by index() and
+     * export() — export() used to carry its own shorter copy that never
+     * learned about the search box, so a searched-for export still
+     * contained every report.
+     */
+    private function filteredQuery(Request $request)
     {
         $query = BehavioralReport::with(['student', 'reportedBy'])->latest();
 
-        // Filter by severity
         if ($request->filled('severity')) {
             $query->where('severity', $request->severity);
         }
 
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Filter by incident type
         if ($request->filled('incident_type')) {
             $query->where('incident_type', $request->incident_type);
         }
 
-        // Search by student name
+        // Search by student name / ID
         if ($request->filled('search')) {
             $search = $request->search;
             $query->whereHas('student', function ($q) use ($search) {
@@ -49,7 +52,6 @@ class BehavioralReportController extends Controller
             $query->where('reported_by', $request->reported_by_id);
         }
 
-        // Date range
         if ($request->filled('date_from')) {
             $query->whereDate('incident_date', '>=', $request->date_from);
         }
@@ -57,7 +59,12 @@ class BehavioralReportController extends Controller
             $query->whereDate('incident_date', '<=', $request->date_to);
         }
 
-        $reports = $query->paginate(10)->appends($request->query());
+        return $query;
+    }
+
+    public function index(Request $request)
+    {
+        $reports = $this->filteredQuery($request)->paginate(10)->appends($request->query());
 
         // Summary stats
         $totalReports   = BehavioralReport::count();
@@ -132,16 +139,7 @@ class BehavioralReportController extends Controller
 
     public function export(Request $request)
     {
-        $query = BehavioralReport::with(['student', 'reportedBy'])->latest();
-
-        if ($request->filled('severity')) $query->where('severity', $request->severity);
-        if ($request->filled('status')) $query->where('status', $request->status);
-        if ($request->filled('incident_type')) $query->where('incident_type', $request->incident_type);
-        if ($request->filled('reported_by_id')) $query->where('reported_by', $request->reported_by_id);
-        if ($request->filled('date_from')) $query->whereDate('incident_date', '>=', $request->date_from);
-        if ($request->filled('date_to')) $query->whereDate('incident_date', '<=', $request->date_to);
-
-        $reports = $query->get();
+        $reports = $this->filteredQuery($request)->get();
 
         $filename = 'behavioral_reports_' . date('Y-m-d') . '.csv';
         $headers = [

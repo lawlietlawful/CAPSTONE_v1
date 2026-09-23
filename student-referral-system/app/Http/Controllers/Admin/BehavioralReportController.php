@@ -8,7 +8,6 @@ use App\Models\BehavioralReport;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\BehavioralReportService;
-use Illuminate\Support\Facades\Response;
 
 class BehavioralReportController extends Controller
 {
@@ -16,26 +15,29 @@ class BehavioralReportController extends Controller
     {
     }
 
-    public function index(Request $request)
+    /**
+     * Every index filter, applied in one place. Shared by index() and
+     * export() — export() used to carry its own shorter copy that never
+     * learned about the search box, so a searched-for export still
+     * contained every report.
+     */
+    private function filteredQuery(Request $request)
     {
         $query = BehavioralReport::with(['student', 'reportedBy'])->latest();
 
-        // Filter by severity
         if ($request->filled('severity')) {
             $query->where('severity', $request->severity);
         }
 
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Filter by incident type
         if ($request->filled('incident_type')) {
             $query->where('incident_type', $request->incident_type);
         }
 
-        // Search by student name
+        // Search by student name / ID
         if ($request->filled('search')) {
             $search = $request->search;
             $query->whereHas('student', function ($q) use ($search) {
@@ -45,12 +47,11 @@ class BehavioralReportController extends Controller
             });
         }
 
-        // Filter by reported_by_id (Teacher)
+        // Filter by reported_by (Teacher)
         if ($request->filled('reported_by_id')) {
             $query->where('reported_by', $request->reported_by_id);
         }
 
-        // Date range
         if ($request->filled('date_from')) {
             $query->whereDate('incident_date', '>=', $request->date_from);
         }
@@ -58,7 +59,12 @@ class BehavioralReportController extends Controller
             $query->whereDate('incident_date', '<=', $request->date_to);
         }
 
-        $reports = $query->paginate(10)->appends($request->query());
+        return $query;
+    }
+
+    public function index(Request $request)
+    {
+        $reports = $this->filteredQuery($request)->paginate(10)->appends($request->query());
 
         // Summary stats
         $totalReports   = BehavioralReport::count();
@@ -134,32 +140,42 @@ class BehavioralReportController extends Controller
 
     public function export(Request $request)
     {
-        $query = BehavioralReport::with(['student', 'reportedBy'])->latest();
+        $reports = $this->filteredQuery($request)->get();
 
-        if ($request->filled('severity')) $query->where('severity', $request->severity);
-        if ($request->filled('status')) $query->where('status', $request->status);
-        if ($request->filled('incident_type')) $query->where('incident_type', $request->incident_type);
-        if ($request->filled('reported_by_id')) $query->where('reported_by', $request->reported_by_id);
-        if ($request->filled('date_from')) $query->whereDate('incident_date', '>=', $request->date_from);
-        if ($request->filled('date_to')) $query->whereDate('incident_date', '<=', $request->date_to);
-
-        $reports = $query->get();
-
-        $csvData = "ID,Student Name,Student ID,Incident Type,Severity,Status,Reported By,Incident Date,Description\n";
-        
-        foreach ($reports as $report) {
-            $studentName = $report->student ? $report->student->last_name . ', ' . $report->student->first_name : 'N/A';
-            $studentId = $report->student ? $report->student->student_id_number : 'N/A';
-            $reporterName = $report->reportedBy ? $report->reportedBy->name : 'N/A';
-            
-            $desc = str_replace(["\r", "\n", ","], [" ", " ", ";"], $report->description);
-            
-            $csvData .= "{$report->id},\"{$studentName}\",\"{$studentId}\",\"{$report->incident_type}\",\"{$report->severity}\",\"{$report->status}\",\"{$reporterName}\",\"{$report->incident_date}\",\"{$desc}\"\n";
-        }
-
-        return Response::make($csvData, 200, [
-            'Content-Type' => 'text/csv',
+        $headers = [
+            'Content-Type'        => 'text/csv',
             'Content-Disposition' => 'attachment; filename="behavioral_reports_' . date('Y-m-d') . '.csv"',
-        ]);
+            'Pragma'              => 'no-cache',
+            'Cache-Control'       => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires'             => '0',
+        ];
+
+        $columns = ['ID', 'Student Name', 'Student ID', 'Incident Type', 'Severity', 'Status', 'Reported By', 'Incident Date', 'Description'];
+
+        // fputcsv quotes/escapes properly. The hand-built string this
+        // replaced never escaped embedded double-quotes and rewrote commas
+        // in the description to semicolons, corrupting the text it exported.
+        $callback = function () use ($reports, $columns) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+
+            foreach ($reports as $report) {
+                fputcsv($file, [
+                    $report->id,
+                    $report->student ? $report->student->last_name . ', ' . $report->student->first_name : 'N/A',
+                    $report->student->student_id_number ?? 'N/A',
+                    $report->incident_type,
+                    $report->severity,
+                    $report->status,
+                    $report->reportedBy->name ?? 'N/A',
+                    $report->incident_date,
+                    $report->description,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }
