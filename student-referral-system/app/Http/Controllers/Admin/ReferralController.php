@@ -19,51 +19,10 @@ class ReferralController extends Controller
      */
     private function filteredQuery(Request $request)
     {
-        $query = Referral::with(['student', 'referredBy', 'counselor'])->latest();
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        if ($request->filled('counselor_id')) {
-            $query->where('counselor_id', $request->counselor_id);
-        }
-
-        if ($request->filled('date_range')) {
-            switch ($request->date_range) {
-                case 'today':
-                    $query->whereDate('created_at', today());
-                    break;
-                case 'this_week':
-                    $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
-                    break;
-                case 'this_month':
-                    $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
-                    break;
-                case 'last_month':
-                    // NoOverflow: plain subMonth() on the 29th-31st lands in the
-                    // *current* month (Oct 31 - 1 month = Oct 1), so "last
-                    // month" silently searched this month instead.
-                    $lastMonth = now()->subMonthNoOverflow();
-                    $query->whereMonth('created_at', $lastMonth->month)->whereYear('created_at', $lastMonth->year);
-                    break;
-            }
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->whereHas('student', function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('student_id_number', 'like', "%{$search}%");
-            });
-        }
-
-        return $query;
+        // The filter itself lives on Referral::scopeFiltered, shared with the Counselor list.
+        return Referral::with(['student', 'referredBy', 'counselor'])
+            ->latest()
+            ->filtered($request->only(['status', 'priority', 'counselor_id', 'date_range', 'search']), auth()->id());
     }
 
     public function index(Request $request)

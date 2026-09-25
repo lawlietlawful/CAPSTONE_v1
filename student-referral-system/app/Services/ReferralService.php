@@ -41,6 +41,7 @@ class ReferralService
         $referral = Referral::create([
             'student_id'          => $student->id,
             'referred_by'         => $reporter->id,
+            'behavioral_report_id' => $data['behavioral_report_id'] ?? null,
             'counselor_id'        => $data['counselor_id'] ?? User::soleCounselorId(),
             'referral_type'       => $data['referral_type'],
             'referral_type_other' => $data['referral_type_other'] ?? null,

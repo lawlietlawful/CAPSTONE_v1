@@ -101,6 +101,7 @@
             <label class="block text-xs font-medium text-gray-500 mb-1">Counselor</label>
             <select name="counselor_id" onchange="document.getElementById('filterForm').submit();" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
                 <option value="">All Counselors</option>
+                <option value="unassigned" {{ request('counselor_id') === 'unassigned' ? 'selected' : '' }}>Unassigned (open)</option>
                 @foreach($counselors as $c)
                     <option value="{{ $c->id }}" {{ request('counselor_id') == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
                 @endforeach

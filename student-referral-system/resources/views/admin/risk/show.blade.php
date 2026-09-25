@@ -37,6 +37,8 @@
                     </div>
                 </div>
 
+                @include('partials.case-status', ['caseStatus' => $caseStatus, 'compact' => true])
+
                 <div class="mt-6 pt-5 border-t border-gray-100 flex gap-2">
                     <a href="{{ route('admin.students.show', $student->id) }}" class="flex-1 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 hover:border-gray-300 transition text-center shadow-sm">
                         Full Profile
@@ -88,8 +90,8 @@
                         <span class="font-bold {{ $latestAssessment->behavioral_reports_count > 0 ? 'text-red-600' : 'text-gray-900' }}">{{ $latestAssessment->behavioral_reports_count }}</span>
                     </div>
                     <div class="flex justify-between items-center text-sm group">
-                        <span class="text-gray-500 font-medium flex items-center gap-2.5"><i class="ti ti-tag text-gray-400 group-hover:text-blue-500 transition text-base"></i> Concern Code</span>
-                        <span class="font-bold text-gray-900">{{ $latestAssessment->concern_type_encoded }}</span>
+                        <span class="text-gray-500 font-medium flex items-center gap-2.5"><i class="ti ti-tag text-gray-400 group-hover:text-blue-500 transition text-base"></i> Concern Type</span>
+                        <span class="font-bold text-gray-900">{{ $concernLabel }}</span>
                     </div>
                     <div class="flex justify-between items-center text-sm group">
                         <span class="text-gray-500 font-medium flex items-center gap-2.5"><i class="ti ti-clock text-gray-400 group-hover:text-blue-500 transition text-base"></i> Days Since Last</span>
@@ -100,6 +102,37 @@
             <div class="bg-gray-50 px-6 py-3.5 border-t border-gray-100 text-[11px] text-gray-400 font-medium flex items-center justify-between">
                 <span class="uppercase tracking-wider">Last Evaluated</span>
                 <span>{{ $latestAssessment->assessed_at->format('M d, Y • h:i A') }}</span>
+            </div>
+        </div>
+
+        <!-- Manual review / override -->
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            <div class="p-6">
+                <h4 class="font-bold text-gray-900 flex items-center gap-2 mb-1">
+                    <i class="ti ti-adjustments text-blue-600"></i> Review &amp; Override
+                </h4>
+                <p class="text-xs text-gray-500 mb-4 leading-relaxed">
+                    Disagree with the AI score? Set the level yourself. Your name and reason are saved in the assessment history, the earlier assessments are kept, and the automatic re-check leaves it alone for {{ \App\Services\RiskAssessmentService::OVERRIDE_SHIELD_DAYS }} days (a new incident is still assessed normally).
+                </p>
+                <form action="{{ route('admin.risk.override', $student->id) }}" method="POST" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Risk level</label>
+                        <select name="risk_level" required class="w-full rounded-xl border border-gray-300 text-sm px-3 py-2 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200">
+                            @foreach(['low' => 'Low', 'moderate' => 'Moderate', 'high' => 'High'] as $value => $label)
+                                <option value="{{ $value }}" {{ old('risk_level', $latestAssessment->risk_level) === $value ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Reason <span class="text-red-500">*</span></label>
+                        <textarea name="note" rows="3" required minlength="10" maxlength="1000" placeholder="Why is this the right level? (e.g. met with the student and parent — incident was a misunderstanding)"
+                                  class="w-full rounded-xl border border-gray-300 text-sm px-3 py-2 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200">{{ old('note') }}</textarea>
+                        @error('note') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        @error('risk_level') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                    </div>
+                    <button type="submit" class="w-full py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition">Save review</button>
+                </form>
             </div>
         </div>
 
@@ -121,6 +154,8 @@
             </p>
         </div>
         @endif
+
+        {{-- Who made a manual review and why lives in the Assessment Log below (and the one-time confirmation after saving); a permanent banner here just repeated it. --}}
 
         @if(($tagLabel && strtolower($tagLabel) !== 'general') || $reason)
         <div class="bg-red-50/80 border border-red-100 rounded-2xl shadow-sm p-6 relative overflow-hidden">
@@ -157,114 +192,135 @@
     <!-- Right Column: Detail Breakdowns -->
     <div class="lg:col-span-2 space-y-6">
 
-        <!-- Referral History Summary -->
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <div class="p-6 pb-4 border-b border-gray-100">
+        <!-- Case summary: the risk profile is for deciding; the full record lives on the Student page -->
+        @php
+            $allReferrals = $student->referrals->sortByDesc('id')->values();
+            $openReferralCount = $allReferrals->whereIn('status', ['pending', 'in_progress'])->count();
+            $recentReferrals = $allReferrals->take(3);
+            $latestIncident = $student->behavioralReports->sortByDesc('incident_date')->first();
+            $lastIntervention = $interventions->first();
+        @endphp
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden" data-case-summary>
+            <div class="p-6 pb-4 border-b border-gray-100 flex items-center gap-3">
                 <h4 class="font-bold text-gray-900 flex items-center gap-2">
-                    <i class="ti ti-file-alert text-amber-500"></i> Referral History
+                    <i class="ti ti-folder text-amber-500"></i> Case Summary
                 </h4>
+                <a href="{{ route('admin.students.show', $student->id) }}" class="ml-auto text-xs font-semibold text-blue-600 hover:text-blue-800 whitespace-nowrap">
+                    Open full student record &rarr;
+                </a>
             </div>
-            <div class="p-0">
-                @php
-                    $referrals = $student->referrals->sortByDesc('created_at')->take(5);
-                @endphp
-                @if($referrals->count() > 0)
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="border-b border-gray-100 bg-gray-50/50">
-                                <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider">Date</th>
-                                <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider">Concern Type</th>
-                                <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider text-center">Priority</th>
-                                <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider">Reason</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-50 text-sm">
-                            @foreach($referrals as $referral)
-                                <tr class="hover:bg-gray-50/50 transition">
-                                    <td class="px-6 py-3 text-gray-900 font-medium whitespace-nowrap">{{ $referral->created_at->format('M d, Y') }}</td>
-                                    <td class="px-6 py-3 text-gray-600">{{ ucfirst(str_replace('_', ' ', $referral->concern_type ?? 'other')) }}</td>
-                                    <td class="px-6 py-3 text-center">
-                                        @php
-                                            $priClass = match($referral->priority) {
-                                                'high'     => 'bg-red-50 text-red-700 border-red-100',
-                                                'moderate' => 'bg-amber-50 text-amber-700 border-amber-100',
-                                                default    => 'bg-green-50 text-green-700 border-green-100',
-                                            };
-                                        @endphp
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider {{ $priClass }}">
-                                            {{ $referral->priority ?? 'low' }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-3 text-gray-500 text-xs line-clamp-2" title="{{ $referral->display_reason }}">{{ $referral->display_reason }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                @else
-                    <div class="py-12 flex flex-col items-center justify-center text-center">
-                        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
-                            <i class="ti ti-file-check text-gray-300 text-xl"></i>
+
+            <div class="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100 text-center">
+                <div class="py-4">
+                    <div class="text-2xl font-bold text-gray-900">{{ $allReferrals->count() }}</div>
+                    <div class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mt-0.5">Referrals</div>
+                    <div class="text-[11px] mt-1 {{ $openReferralCount ? 'text-amber-600 font-medium' : 'text-gray-400' }}">{{ $openReferralCount }} open</div>
+                </div>
+                <div class="py-4">
+                    <div class="text-2xl font-bold text-gray-900">{{ $student->behavioralReports->count() }}</div>
+                    <div class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mt-0.5">Incidents</div>
+                </div>
+                <div class="py-4">
+                    <div class="text-2xl font-bold text-gray-900">{{ $interventionCount }}</div>
+                    <div class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mt-0.5">Interventions</div>
+                </div>
+            </div>
+
+            <div class="p-6 space-y-5">
+                <div>
+                    <h5 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Recent referrals</h5>
+                    @forelse($recentReferrals as $referral)
+                        @php
+                            $stClass = match($referral->status) {
+                                'pending'     => 'bg-amber-50 text-amber-700 border-amber-100',
+                                'in_progress' => 'bg-blue-50 text-blue-700 border-blue-100',
+                                'resolved'    => 'bg-green-50 text-green-700 border-green-100',
+                                default       => 'bg-gray-50 text-gray-500 border-gray-200',
+                            };
+                        @endphp
+                        <div class="flex items-center gap-3 py-1.5 text-sm">
+                            <a href="{{ route('admin.referrals.show', $referral->id) }}" class="font-medium text-gray-900 hover:text-blue-600 whitespace-nowrap">{{ $referral->created_at->format('M d, Y') }}</a>
+                            <span class="text-gray-500 truncate flex-1" title="{{ $referral->display_reason }}">{{ $referral->referral_type_label }}</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap {{ $stClass }}">{{ str_replace('_', ' ', $referral->status) }}</span>
                         </div>
-                        <p class="text-sm font-medium text-gray-900">No referrals recorded</p>
-                        <p class="text-xs text-gray-500 mt-1">This student has no referral history on file.</p>
-                    </div>
-                @endif
+                    @empty
+                        <p class="text-sm text-gray-500">No referrals recorded.</p>
+                    @endforelse
+                    @if($allReferrals->count() > $recentReferrals->count())
+                        <p class="text-xs text-gray-400 mt-1">+ {{ $allReferrals->count() - $recentReferrals->count() }} older in the full record</p>
+                    @endif
+                </div>
+
+                <div>
+                    <h5 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Last intervention</h5>
+                    @if($lastIntervention)
+                        <div class="flex items-center gap-3 text-sm">
+                            <span class="font-medium text-gray-900 whitespace-nowrap">{{ $lastIntervention->intervention_date->format('M d, Y') }}</span>
+                            <span class="text-gray-600 truncate flex-1">{{ $lastIntervention->intervention_type }}</span>
+                            <span class="text-xs {{ $lastIntervention->outcome ? 'font-semibold uppercase tracking-wider text-gray-700' : 'text-gray-400' }}">{{ $lastIntervention->outcome ? str_replace('_', ' ', $lastIntervention->outcome) : 'Not yet evaluated' }}</span>
+                        </div>
+                    @else
+                        <p class="text-sm text-gray-500">No interventions recorded yet.</p>
+                    @endif
+                </div>
+
+                <div>
+                    <h5 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Latest incident</h5>
+                    @if($latestIncident)
+                        <div class="flex items-center gap-3 text-sm">
+                            <span class="font-medium text-gray-900 whitespace-nowrap">{{ $latestIncident->incident_date->format('M d, Y') }}</span>
+                            <span class="text-gray-600 truncate flex-1">{{ $latestIncident->incident_type }}</span>
+                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-700">{{ $latestIncident->severity }}</span>
+                        </div>
+                    @else
+                        <p class="text-sm text-gray-500">No behavioral incidents.</p>
+                    @endif
+                </div>
             </div>
         </div>
 
-        <!-- Behavioral Incidents Summary -->
+        <!-- Assessment audit trail -->
         <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div class="p-6 pb-4 border-b border-gray-100">
                 <h4 class="font-bold text-gray-900 flex items-center gap-2">
-                    <i class="ti ti-message-report text-red-500"></i> Behavioral Incidents
+                    <i class="ti ti-history text-gray-500"></i> Assessment Log
+                    <span class="ml-auto text-xs font-normal text-gray-400">how the score got here</span>
                 </h4>
             </div>
-            <div class="p-0">
-                @php
-                    $reports = $student->behavioralReports->sortByDesc('incident_date')->take(5);
-                @endphp
-                @if($reports->count() > 0)
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="border-b border-gray-100 bg-gray-50/50">
-                                <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider">Date</th>
-                                <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider">Type</th>
-                                <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider text-center">Severity</th>
-                                <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider">Description</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-50 text-sm">
-                            @foreach($reports as $report)
-                                <tr class="hover:bg-gray-50/50 transition">
-                                    <td class="px-6 py-3 text-gray-900 font-medium whitespace-nowrap">{{ $report->incident_date->format('M d, Y') }}</td>
-                                    <td class="px-6 py-3 text-gray-600">{{ $report->incident_type }}</td>
-                                    <td class="px-6 py-3 text-center">
-                                        @php
-                                            $sevClass = match($report->severity) {
-                                                'severe', 'Critical', 'High' => 'bg-red-50 text-red-700 border-red-100',
-                                                'moderate', 'Medium'         => 'bg-amber-50 text-amber-700 border-amber-100',
-                                                default                      => 'bg-green-50 text-green-700 border-green-100',
-                                            };
-                                        @endphp
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider {{ $sevClass }}">
-                                            {{ $report->severity }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-3 text-gray-500 text-xs line-clamp-2" title="{{ $report->description }}">{{ $report->description }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                @else
-                    <div class="py-12 flex flex-col items-center justify-center text-center">
-                        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
-                            <i class="ti ti-shield-check text-gray-300 text-xl"></i>
-                        </div>
-                        <p class="text-sm font-medium text-gray-900">No behavioral incidents</p>
-                        <p class="text-xs text-gray-500 mt-1">This student has a clean behavioral record.</p>
-                    </div>
-                @endif
-            </div>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-gray-100 bg-gray-50/50">
+                        <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider">When</th>
+                        <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider text-center">Level</th>
+                        <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider text-center">Score</th>
+                        <th class="px-6 py-3 font-semibold text-gray-500 text-[10px] uppercase tracking-wider">Source</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50 text-sm">
+                    @foreach($assessmentHistory as $entry)
+                        @php
+                            $ef = is_array($entry->risk_factors) ? $entry->risk_factors : [];
+                            $source = match($ef['source'] ?? null) {
+                                'override' => 'Manual review by ' . ($ef['override']['by_name'] ?? 'a counselor'),
+                                'recheck'  => 'Automatic re-check',
+                                'report'   => 'Behavioral report',
+                                'referral' => 'New referral',
+                                default    => 'Assessment',
+                            };
+                        @endphp
+                        <tr>
+                            <td class="px-6 py-3 text-gray-900 font-medium whitespace-nowrap">{{ $entry->assessed_at->format('M d, Y h:i A') }}</td>
+                            <td class="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider {{ $entry->risk_level === 'high' ? 'text-red-600' : ($entry->risk_level === 'moderate' ? 'text-amber-600' : 'text-green-600') }}">{{ $entry->risk_level }}</td>
+                            <td class="px-6 py-3 text-center font-mono text-gray-700">{{ number_format($entry->risk_score, 1) }}</td>
+                            <td class="px-6 py-3 text-xs text-gray-500">
+                                {{ $source }}
+                                @if(!empty($ef['held_by_referral_id']))<span class="text-amber-600"> &middot; held by referral #{{ $ef['held_by_referral_id'] }}</span>@endif
+                                @if(($ef['source'] ?? null) === 'override' && !empty($ef['override']['note']))<div class="text-gray-400 mt-0.5">&ldquo;{{ $ef['override']['note'] }}&rdquo;</div>@endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
 
         <!-- Risk Assessment History Graph (Placeholder for Analytics) -->

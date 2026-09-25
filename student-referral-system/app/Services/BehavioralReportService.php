@@ -468,6 +468,50 @@ class BehavioralReportService
      * Best-guess Referral::REFERRAL_TYPES value for an auto-escalated
      * referral, derived from the behavioral report's incident_type.
      */
+    /**
+     * A counselor's decision to open a case for a report that did NOT
+     * auto-escalate (a Medium report used to be a dead end: no referral, so
+     * nothing to attach interventions to). Goes through ReferralService so it
+     * gets the same ML assessment, parent notice and counselor notification
+     * as any other referral, linked to the report so the two stay in sync.
+     * A still-pending report becomes "reviewed" (the counselor has acted on it).
+     *
+     * @throws \DomainException when the report already has a referral or is resolved
+     */
+    public function referManually(BehavioralReport $report, User $by, ?int $counselorId = null): Referral
+    {
+        $existing = $report->escalatedReferral;
+        if ($existing) {
+            throw new \DomainException("This report is already linked to Referral #{$existing->id}.");
+        }
+        if ($report->status === 'resolved') {
+            throw new \DomainException('This report is already resolved. Reopen it before filing a referral.');
+        }
+
+        $student = $report->student;
+        if (! $student) {
+            throw new \DomainException('This report has no student on file.');
+        }
+
+        $type = $this->referralTypeForIncident($report->incident_type);
+
+        $referral = app(ReferralService::class)->create($by, [
+            'student_id'           => $student->id,
+            'behavioral_report_id' => $report->id,
+            'referral_type'        => $type,
+            'referral_type_other'  => $type === 'Other' ? $report->incident_type : null,
+            'concern_type'         => Referral::concernTypeFor($type),
+            'reason'               => "[From Behavioral Report #{$report->id}] " . $report->description,
+            'counselor_id'         => $counselorId,
+        ]);
+
+        if ($report->status === 'pending') {
+            $this->updateStatus($report, 'reviewed', $report->counselor_notes);
+        }
+
+        return $referral;
+    }
+
     protected function referralTypeForIncident(?string $incidentType): string
     {
         return match ($incidentType) {

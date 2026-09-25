@@ -62,12 +62,7 @@ class InterventionController extends Controller
 
         // Search by student name
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->whereHas('referral.student', function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('student_id_number', 'like', "%{$search}%");
-            });
+            $query->whereHas('referral.student', fn ($q) => $q->matchingSearch($request->search));
         }
 
         // Filter by outcome
@@ -116,12 +111,12 @@ class InterventionController extends Controller
      */
     public function followUps()
     {
-        $base = Intervention::with(['referral.student'])
-            ->where('counselor_id', auth()->id())
-            ->whereNotNull('follow_up_date')
-            ->where(function ($q) {
-                $q->whereNull('outcome')->orWhere('outcome', '!=', 'resolved');
-            });
+        // activeFollowUp: not on a closed case, not a resolved session, not
+        // superseded by a newer session - the same rule the dashboard's
+        // "Overdue follow-ups" tile counts, so the number and this page agree.
+        $base = Intervention::activeFollowUp()
+            ->with(['referral.student'])
+            ->where('interventions.counselor_id', auth()->id());
 
         // Only Overdue is paginated — Due Today and Upcoming are already
         // self-limiting (a single day, and a fixed 30-day window), but a

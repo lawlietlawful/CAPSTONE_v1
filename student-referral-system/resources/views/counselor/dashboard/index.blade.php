@@ -42,8 +42,16 @@
         // shows up in these widgets without a manual refresh — the same
         // reason the header bell polls independently.
         function refreshDashboard() {
-            fetch('{{ route('counselor.dashboard.refresh') }}', { headers: { 'Accept': 'text/html' } })
-                .then(r => r.ok ? r.text() : Promise.reject())
+            fetch('{{ route('counselor.dashboard.refresh') }}', { headers: { 'Accept': 'text/html' }, credentials: 'same-origin' })
+                .then(r => {
+                    // An expired session redirects to the login page, which fetch follows
+                    // and reports as a normal 200 - never paste that into the dashboard.
+                    if (r.redirected || !r.ok) {
+                        if (r.redirected || r.status === 401 || r.status === 419) { window.location.reload(); }
+                        return Promise.reject();
+                    }
+                    return r.text();
+                })
                 .then(html => { container.innerHTML = html; })
                 .catch(() => {});
         }

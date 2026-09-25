@@ -109,6 +109,8 @@ Route::prefix('admin')
          ->name('risk.index');
     Route::get('/risk/{student}', [\App\Http\Controllers\Admin\RiskController::class, 'show'])
          ->name('risk.show');
+    Route::post('/risk/{student}/override', [\App\Http\Controllers\Admin\RiskController::class, 'override'])
+         ->name('risk.override');
 
 
 
@@ -148,6 +150,8 @@ Route::prefix('admin')
          ->name('behavioral-reports.show');
     Route::patch('/behavioral-reports/{behavioral_report}/status', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'updateStatus'])
          ->name('behavioral-reports.updateStatus');
+    Route::post('/behavioral-reports/{behavioral_report}/refer', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'refer'])
+         ->name('behavioral-reports.refer');
 
     // Teachers
     Route::get('/teachers/export', [\App\Http\Controllers\Admin\TeacherController::class, 'export'])
@@ -240,6 +244,8 @@ Route::prefix('counselor')
          ->name('behavioral-reports.show');
     Route::patch('/behavioral-reports/{behavioral_report}/status', [\App\Http\Controllers\Counselor\BehavioralReportController::class, 'updateStatus'])
          ->name('behavioral-reports.updateStatus');
+    Route::post('/behavioral-reports/{behavioral_report}/refer', [\App\Http\Controllers\Counselor\BehavioralReportController::class, 'refer'])
+         ->name('behavioral-reports.refer');
 
     // Seminars
     Route::resource('seminars', \App\Http\Controllers\Counselor\SeminarController::class);

@@ -43,6 +43,75 @@ class Referral extends Model
         };
     }
 
+    /**
+     * Every Referrals-list filter, in one place - the Admin and Counselor
+     * lists used to carry their own copies that drifted apart (different
+     * searches, one missing the date range). Unknown/blank keys are ignored.
+     *
+     * Keys: status, priority, counselor_id (an id or 'unassigned'),
+     * assignment ('mine' | 'unassigned'), date_range, search.
+     *
+     * @param  int|null  $me  The viewing counselor's id, for assignment=mine.
+     */
+    public function scopeFiltered($query, array $f, ?int $me = null)
+    {
+        $has = fn (string $k) => isset($f[$k]) && $f[$k] !== '' && $f[$k] !== null;
+
+        if ($has('status')) {
+            $query->where('status', $f['status']);
+        }
+
+        if ($has('priority')) {
+            $query->where('priority', $f['priority']);
+        }
+
+        if ($has('counselor_id')) {
+            $f['counselor_id'] === 'unassigned'
+                ? $query->unassignedOpen()
+                : $query->where('counselor_id', $f['counselor_id']);
+        }
+
+        if ($has('assignment')) {
+            if ($f['assignment'] === 'unassigned') {
+                $query->unassignedOpen();
+            } elseif ($f['assignment'] === 'mine' && $me !== null) {
+                $query->where('counselor_id', $me);
+            }
+        }
+
+        if ($has('date_range')) {
+            switch ($f['date_range']) {
+                case 'today':
+                    $query->whereDate('created_at', today());
+                    break;
+                case 'this_week':
+                    $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
+                    break;
+                case 'this_month':
+                    $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
+                    break;
+                case 'last_month':
+                    // NoOverflow: plain subMonth() on the 29th-31st lands in the
+                    // current month (Oct 31 - 1 month = Oct 1).
+                    $lastMonth = now()->subMonthNoOverflow();
+                    $query->whereMonth('created_at', $lastMonth->month)->whereYear('created_at', $lastMonth->year);
+                    break;
+            }
+        }
+
+        if ($has('search')) {
+            $query->whereHas('student', fn ($q) => $q->matchingSearch($f['search']));
+        }
+
+        return $query;
+    }
+
+    /** Open cases nobody owns yet. */
+    public function scopeUnassignedOpen($query)
+    {
+        return $query->whereNull('counselor_id')->whereIn('status', ['pending', 'in_progress']);
+    }
+
     protected $fillable = [
         'student_id',
         'referred_by',

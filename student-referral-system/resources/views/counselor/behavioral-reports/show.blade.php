@@ -77,10 +77,14 @@
                         <a href="{{ route('counselor.referrals.show', $behavioral_report->escalatedReferral->id) }}"
                             class="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3.5 hover:bg-red-100 transition shadow-sm">
                             <i class="ti ti-alert-triangle text-lg"></i>
-                            <span>This report was auto-escalated to <span class="font-semibold">Referral #{{ $behavioral_report->escalatedReferral->id }}</span> — click to view the case</span>
+                            <span>{{ str_starts_with($behavioral_report->escalatedReferral->reason, '[AUTO-ESCALATED') ? 'This report was auto-escalated to' : 'A referral was opened from this report:' }} <span class="font-semibold">Referral #{{ $behavioral_report->escalatedReferral->id }}</span> — click to view the case</span>
                         </a>
                     </div>
                 @endif
+
+                @unless($behavioral_report->escalatedReferral)
+                    @include('partials.report-refer-card', ['referRoute' => 'counselor.behavioral-reports.refer'])
+                @endunless
 
                 <div class="pt-4 border-t border-gray-100">
                     <span class="block text-xs text-gray-400 uppercase tracking-wider mb-1.5">Incident Description</span>

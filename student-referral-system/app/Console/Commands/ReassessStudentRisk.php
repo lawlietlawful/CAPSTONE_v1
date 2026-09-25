@@ -54,6 +54,12 @@ class ReassessStudentRisk extends Command
         $failed = 0;
 
         foreach (Student::whereIn('id', $staleStudentIds)->get() as $student) {
+            // A recent manual override by a counselor stands until it expires.
+            if ($riskService->hasActiveOverride($student)) {
+                $this->line("  #{$student->id} {$student->full_name} kept - manual override still active");
+                continue;
+            }
+
             $assessment = $riskService->reassessOverTime($student);
 
             if ($assessment) {

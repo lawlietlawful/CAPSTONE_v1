@@ -99,7 +99,8 @@ class AnalyticsController extends Controller
         $monthlyReferrals = [];
         $months = [];
         for ($i = 5; $i >= 0; $i--) {
-            $date = Carbon::now()->subMonths($i);
+            // startOfMonth first: subMonths() from the 29th-31st overflows into the wrong month.
+            $date = Carbon::now()->startOfMonth()->subMonths($i);
             $monthName = $date->format('M Y');
             $months[] = $monthName;
             $count = Referral::whereYear('created_at', $date->year)

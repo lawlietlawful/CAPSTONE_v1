@@ -74,6 +74,8 @@
 
 </div>
 
+@include('partials.attention-tiles', ['attentionTiles' => $attentionTiles ?? []])
+
 {{-- ── Main Row: Left + Right Columns ────────────────────────── --}}
 <div class="grid grid-cols-3 gap-6 mb-6">
 

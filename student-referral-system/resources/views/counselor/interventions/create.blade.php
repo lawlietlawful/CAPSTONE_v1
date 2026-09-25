@@ -27,7 +27,7 @@
                         class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                     <option value="" disabled selected>Select a pending or active referral...</option>
                     @foreach($referrals as $ref)
-                        <option value="{{ $ref->id }}" {{ old('referral_id') == $ref->id ? 'selected' : '' }}>
+                        <option value="{{ $ref->id }}" {{ old('referral_id', request('referral_id')) == $ref->id ? 'selected' : '' }}>
                             {{ $ref->student->first_name }} {{ $ref->student->last_name }} (Ref #{{ str_pad($ref->id, 4, '0', STR_PAD_LEFT) }} - {{ $ref->referral_type_label }})
                         </option>
                     @endforeach

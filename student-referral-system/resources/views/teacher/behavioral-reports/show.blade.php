@@ -68,7 +68,7 @@
                     <div class="pt-4 border-t border-gray-100">
                         <div class="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
                             <i class="ti ti-alert-triangle text-lg"></i>
-                            <span>This report was auto-escalated to <span class="font-semibold">Referral #{{ $behavioral_report->escalatedReferral->id }}</span>. The Guidance Office is now handling this case.</span>
+                            <span>{{ str_starts_with($behavioral_report->escalatedReferral->reason, '[AUTO-ESCALATED') ? 'This report was auto-escalated to' : 'A referral was opened from this report:' }} <span class="font-semibold">Referral #{{ $behavioral_report->escalatedReferral->id }}</span>. The Guidance Office is now handling this case.</span>
                         </div>
                     </div>
                 @endif

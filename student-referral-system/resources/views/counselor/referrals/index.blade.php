@@ -71,6 +71,14 @@
                 <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
             </select>
         </div>
+        <div class="w-full lg:w-44">
+            <label class="block text-xs font-medium text-gray-500 mb-1">Assignment</label>
+            <select name="assignment" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
+                <option value="">Mine + unassigned</option>
+                <option value="mine" {{ request('assignment') == 'mine' ? 'selected' : '' }}>Assigned to me</option>
+                <option value="unassigned" {{ request('assignment') == 'unassigned' ? 'selected' : '' }}>Unassigned (open)</option>
+            </select>
+        </div>
         <div class="w-full lg:w-40">
             <label class="block text-xs font-medium text-gray-500 mb-1">Priority</label>
             <select name="priority" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">

@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Intervention;
 use App\Models\Referral;
 use App\Models\RiskAssessment;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\NotificationService;
+use App\Services\RiskAssessmentService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -32,20 +34,11 @@ class RiskController extends Controller
      */
     private function latestAssessmentIds(Request $request)
     {
-        $query = DB::table('risk_assessments')
-            ->select(DB::raw('MAX(id) as id'))
-            ->groupBy('student_id');
+        $mine = $request->get('scope') === 'mine' && auth()->user()->role === 'admin';
 
-        if ($request->get('scope') === 'mine' && auth()->user()->role === 'admin') {
-            $query->where(function ($q) {
-                $q->whereNotIn('student_id', Referral::select('student_id'))
-                  ->orWhereIn('student_id', Referral::where(function ($r) {
-                      $r->where('counselor_id', auth()->id())->orWhereNull('counselor_id');
-                  })->select('student_id'));
-            });
-        }
-
-        return $query->pluck('id');
+        // One shared definition (RiskAssessment::latestIds) — also used by
+        // both dashboards and the Students page, so they always agree.
+        return RiskAssessment::latestIds($mine ? auth()->id() : null);
     }
 
     /**
@@ -62,18 +55,11 @@ class RiskController extends Controller
         }
 
         if ($request->filled('search')) {
-            $like = '%' . trim($request->search) . '%';
-            $query->whereHas('student', function ($q) use ($like) {
-                $q->where(function ($w) use ($like) {
-                    $w->where('first_name', 'like', $like)
-                      ->orWhere('last_name', 'like', $like)
-                      ->orWhere('student_id_number', 'like', $like)
-                      // So "Maria Santos" / "Santos, Maria" find the student.
-                      ->orWhereRaw("CONCAT(first_name, ' ', last_name) like ?", [$like])
-                      ->orWhereRaw("CONCAT(last_name, ' ', first_name) like ?", [$like])
-                      ->orWhereRaw("CONCAT(last_name, ', ', first_name) like ?", [$like]);
-                });
-            });
+            $query->whereHas('student', fn ($q) => $q->matchingSearch($request->search));
+        }
+
+        if ($request->filled('attention')) {
+            $query->needsAttention($request->attention);
         }
 
         $sort = in_array($request->input('sort'), self::SORTS, true) ? $request->input('sort') : 'risk_score';
@@ -114,11 +100,22 @@ class RiskController extends Controller
         $moderateRiskCount = RiskAssessment::whereIn('id', $latestRiskIds)->where('risk_level', 'moderate')->count();
         $lowRiskCount = RiskAssessment::whereIn('id', $latestRiskIds)->where('risk_level', 'low')->count();
 
+        // How many students sit in each "needs attention" group (within the
+        // current scope, ignoring the other filters so the numbers are stable).
+        $attentionCounts = [];
+        foreach (array_keys(RiskAssessment::ATTENTION_FILTERS) as $key) {
+            $q = RiskAssessment::whereIn('id', $latestRiskIds);
+            $q->needsAttention($key);
+            $attentionCounts[$key] = $q->count();
+        }
+        $attentionFilters = RiskAssessment::ATTENTION_FILTERS;
+
         $counselors = User::where('role', 'admin')->orderBy('name')->get();
         $scopedToMe = $request->get('scope') === 'mine' && auth()->user()->role === 'admin';
 
         return view('admin.risk.index', compact(
-            'assessments', 'totalAssessed', 'highRiskCount', 'moderateRiskCount', 'lowRiskCount', 'counselors', 'scopedToMe'
+            'assessments', 'totalAssessed', 'highRiskCount', 'moderateRiskCount', 'lowRiskCount', 'counselors', 'scopedToMe',
+            'attentionCounts', 'attentionFilters'
         ));
     }
 
@@ -140,7 +137,48 @@ class RiskController extends Controller
 
         $counselors = User::where('role', 'admin')->orderBy('name')->get();
 
-        return view('admin.risk.show', compact('student', 'latestAssessment', 'counselors'));
+        // What has already been tried with this student, newest first.
+        $interventions = Intervention::with(['counselor', 'referral'])
+            ->whereIn('referral_id', $student->referrals->pluck('id'))
+            ->latest('intervention_date')
+            ->latest('id')
+            ->take(5)
+            ->get();
+        $interventionCount = Intervention::whereIn('referral_id', $student->referrals->pluck('id'))->count();
+
+        $concernLabel = RiskAssessmentService::concernTypeLabel($latestAssessment->concern_type_encoded);
+        $assessmentHistory = $student->riskAssessments->take(15);
+
+        $caseStatus = \App\Support\CaseStatus::for($student);
+
+        return view('admin.risk.show', compact(
+            'student', 'latestAssessment', 'counselors', 'interventions', 'interventionCount', 'concernLabel', 'assessmentHistory', 'caseStatus'
+        ));
+    }
+
+    /**
+     * A counselor's manual review of a student's risk level. Recorded as a
+     * new latest assessment carrying who/why (see
+     * RiskAssessmentService::overrideAssessment), so it is auditable and the
+     * AI's own history is left intact.
+     */
+    public function override(Request $request, $id, RiskAssessmentService $riskService)
+    {
+        $data = $request->validate([
+            'risk_level' => 'required|in:low,moderate,high',
+            'note'       => 'required|string|min:10|max:1000',
+        ]);
+
+        $student = Student::findOrFail($id);
+
+        try {
+            $assessment = $riskService->overrideAssessment($student, $data['risk_level'], trim($data['note']), $request->user());
+        } catch (\DomainException $e) {
+            return redirect()->route('admin.risk.index')->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('admin.risk.show', $student->id)
+            ->with('success', 'Risk level set to ' . ucfirst($assessment->risk_level) . ' (' . number_format($assessment->risk_score, 1) . ') and recorded in the assessment history.');
     }
 
     public function export(Request $request)
@@ -177,7 +215,8 @@ class RiskController extends Controller
      */
     private function assignCounselor(array $ids, int $counselorId)
     {
-        $latestIds = DB::table('risk_assessments')->select(DB::raw('MAX(id) as id'))->groupBy('student_id')->pluck('id');
+        // Stale-tab check is against the true latest, whatever the student's status.
+        $latestIds = RiskAssessment::latestIds(null, false);
 
         $selected = RiskAssessment::whereIn('id', $ids)->get();
         $assessments = $selected->whereIn('id', $latestIds);

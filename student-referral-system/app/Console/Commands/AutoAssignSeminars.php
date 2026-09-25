@@ -49,10 +49,8 @@ class AutoAssignSeminars extends Command
             $trigger = $seminar->trigger_reason ?? 'general';
 
             // Find the latest risk assessment for each student
-            $latestRiskIds = \Illuminate\Support\Facades\DB::table('risk_assessments')
-                ->select(\Illuminate\Support\Facades\DB::raw('MAX(id) as id'))
-                ->groupBy('student_id')
-                ->pluck('id');
+            // Active students only: enrolling a graduated or transferred student in a seminar is wasted.
+            $latestRiskIds = RiskAssessment::latestIds();
 
             // Find high and moderate risk among those latest assessments
             $targetAssessments = RiskAssessment::with('student')

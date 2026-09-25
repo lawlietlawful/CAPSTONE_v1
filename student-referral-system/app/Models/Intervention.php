@@ -64,6 +64,27 @@ class Intervention extends Model
             && $this->outcome !== 'resolved';
     }
 
+    /**
+     * Follow-ups that still call for action — what the dashboards list.
+     * A follow-up is ignored when its case is closed (referral resolved or
+     * cancelled), when the session itself was marked resolved, or when a
+     * NEWER session on the same referral has superseded it (the counselor
+     * followed up; the old due date never changes, but it no longer counts).
+     */
+    public function scopeActiveFollowUp($query)
+    {
+        return $query->whereNotNull('interventions.follow_up_date')
+            ->where(function ($q) {
+                $q->whereNull('interventions.outcome')->orWhere('interventions.outcome', '!=', 'resolved');
+            })
+            ->whereHas('referral', fn ($r) => $r->whereIn('status', ['pending', 'in_progress']))
+            ->whereIn('interventions.id', function ($sub) {
+                $sub->from('interventions as newest')
+                    ->selectRaw('MAX(newest.id)')
+                    ->groupBy('newest.referral_id');
+            });
+    }
+
     public function scopeOverdueFollowUp($query)
     {
         return $query->whereNotNull('follow_up_date')

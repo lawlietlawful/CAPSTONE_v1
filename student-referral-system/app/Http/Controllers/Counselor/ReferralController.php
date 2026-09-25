@@ -21,25 +21,8 @@ class ReferralController extends Controller
             Referral::with(['student', 'referredBy', 'counselor', 'riskAssessment'])
         )->latest();
 
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Filter by priority
-        if ($request->filled('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        // Search by student name
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->whereHas('student', function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('student_id_number', 'like', "%{$search}%");
-            });
-        }
+        // Same filter the Admin list uses (Referral::scopeFiltered), on top of this counselor's own scope.
+        $query->filtered($request->only(['status', 'priority', 'assignment', 'search']), auth()->id());
 
         $referrals = $query->paginate(10)->appends($request->query());
 

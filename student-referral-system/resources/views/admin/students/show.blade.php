@@ -23,6 +23,20 @@
                 <a href="{{ route('admin.referrals.create', ['student_id' => $student->id]) }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
                     <i class="ti ti-file-description text-blue-500 text-lg"></i> Create Referral
                 </a>
+                @if($student->latestRiskAssessment)
+                    <a href="{{ route('admin.risk.show', $student->id) }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
+                        <i class="ti ti-activity text-red-500 text-lg"></i> View Risk Profile
+                    </a>
+                @endif
+                @if($openReferral)
+                    <a href="{{ route('counselor.interventions.create', ['referral_id' => $openReferral->id]) }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
+                        <i class="ti ti-heart-handshake text-emerald-500 text-lg"></i> Log Intervention
+                    </a>
+                @else
+                    <span class="block px-4 py-3 text-sm text-gray-400 flex items-center gap-2 cursor-not-allowed" title="An intervention is logged against an open referral. Create a referral first.">
+                        <i class="ti ti-heart-handshake text-gray-300 text-lg"></i> Log Intervention
+                    </span>
+                @endif
                 <a href="{{ route('counselor.messages.index') }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
                     <i class="ti ti-send text-indigo-500 text-lg"></i> Send Notice
                 </a>
@@ -48,6 +62,8 @@
             
             <h3 class="font-bold text-gray-900 text-xl tracking-tight">{{ $student->first_name }} {{ $student->last_name }}</h3>
             <p class="text-gray-400 text-sm font-medium mt-0.5">{{ $student->student_id_number }}</p>
+
+            @include('partials.case-status', ['caseStatus' => $caseStatus])
 
             <!-- Quick Metrics -->
             <div class="mt-6 pt-5 border-t border-gray-50 w-full grid grid-cols-3 gap-3 text-center">

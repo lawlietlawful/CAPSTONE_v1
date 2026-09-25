@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
+use App\Services\AttentionService;
 use App\Models\Referral;
 use App\Models\RiskAssessment;
 use App\Models\Seminar;
@@ -27,16 +28,21 @@ class AdminDashboardController extends Controller
             ->where('created_at', '>=', now()->startOfWeek())
             ->count();
 
-        $atRiskCount = RiskAssessment::whereIn('id', function ($query) {
-                $query->select(DB::raw('MAX(id)'))
-                      ->from('risk_assessments')
-                      ->groupBy('student_id');
-            })
+        $latestRiskIds = RiskAssessment::latestIds();
+
+        $atRiskCount = RiskAssessment::whereIn('id', $latestRiskIds)
             ->where('risk_level', 'high')
             ->count();
 
-        $newFlagsToday = RiskAssessment::where('risk_level', 'high')
+        // Students NEWLY flagged high today: their current assessment is high
+        // and was made today, and the one before it (if any) wasn't high. This
+        // used to count every high assessment made today, so one student
+        // re-assessed twice was "2 new flags" and one who was already high
+        // yesterday counted again.
+        $newFlagsToday = RiskAssessment::whereIn('id', $latestRiskIds)
+            ->where('risk_level', 'high')
             ->whereDate('assessed_at', today())
+            ->whereRaw("coalesce((select prev.risk_level from risk_assessments prev where prev.student_id = risk_assessments.student_id and prev.id < risk_assessments.id order by prev.id desc limit 1), 'none') <> 'high'")
             ->count();
 
         $pendingReferrals = Referral::where('status', 'pending')->count();
@@ -64,11 +70,6 @@ class AdminDashboardController extends Controller
             ->get();
 
         // ── Risk Distribution ────────────────────────────────────
-
-        $latestRiskIds = DB::table('risk_assessments')
-            ->select(DB::raw('MAX(id) as id'))
-            ->groupBy('student_id')
-            ->pluck('id');
 
         $riskCounts = RiskAssessment::whereIn('id', $latestRiskIds)
             ->select('risk_level', DB::raw('count(*) as total'))
@@ -128,7 +129,8 @@ class AdminDashboardController extends Controller
         $monthlyResolved  = collect();
 
         for ($i = 5; $i >= 0; $i--) {
-            $month = now()->subMonths($i);
+            // startOfMonth first: subMonths() from the 29th-31st overflows into the wrong month.
+            $month = now()->startOfMonth()->subMonths($i);
             $monthLabels->push($month->format('M'));
 
             $monthlyReferrals->push(
@@ -149,7 +151,11 @@ class AdminDashboardController extends Controller
 
         $recentActivities = $this->getRecentActivities();
 
+        // "Needs attention" strip - school-wide (no counselor scope).
+        $attentionTiles = app(AttentionService::class)->tiles(null);
+
         return view('admin.dashboard', compact(
+            'attentionTiles',
             'totalStudents',
             'newStudentsThisWeek',
             'atRiskCount',
@@ -175,8 +181,11 @@ class AdminDashboardController extends Controller
     {
         $activities = [];
 
-        // High-risk flags
+        // High-risk flags — students who are high risk NOW (their latest
+        // assessment). The feed used to list any historical high assessment,
+        // so a student who has since dropped to Low was still "flagged".
         $riskFlags = RiskAssessment::with('student')
+            ->whereIn('id', RiskAssessment::latestIds())
             ->where('risk_level', 'high')
             ->latest('assessed_at')
             ->take(3)
@@ -192,35 +201,42 @@ class AdminDashboardController extends Controller
         }
 
         // SMS sent
+        // sent_at can be missing on a row marked sent; fall back to created_at
+        // rather than letting one bad row take the whole dashboard down.
         $smsLogs = SmsLog::with('student')
             ->where('status', 'sent')
-            ->latest('sent_at')
+            ->orderByRaw('coalesce(sent_at, created_at) desc')
             ->take(2)
             ->get();
 
         foreach ($smsLogs as $sms) {
+            $when = $sms->sent_at ?? $sms->created_at;
             $activities[] = [
                 'type'    => 'sms',
                 'message' => "SMS sent to parent of <strong>" . e($sms->student?->full_name) . "</strong> regarding referral",
-                'time'    => $sms->sent_at->diffForHumans(),
-                'sort'    => $sms->sent_at,
+                'time'    => $when->diffForHumans(),
+                'sort'    => $when,
             ];
         }
 
         // Resolved referrals
+        // A resolved referral can have no resolved_at (resolved by an older
+        // code path that skipped the bookkeeping): use updated_at instead of
+        // crashing the dashboard on ->diffForHumans() of null.
         $resolved = Referral::with(['student', 'counselor'])
             ->where('status', 'resolved')
-            ->latest('resolved_at')
+            ->orderByRaw('coalesce(resolved_at, updated_at) desc')
             ->take(2)
             ->get();
 
         foreach ($resolved as $ref) {
             $counselorName = $ref->counselor?->name ?? 'the counselor';
+            $when = $ref->resolved_at ?? $ref->updated_at;
             $activities[] = [
                 'type'    => 'resolved',
                 'message' => "<strong>" . e($ref->student->full_name) . "</strong> referral marked as <strong>Resolved</strong> by " . e($counselorName),
-                'time'    => $ref->resolved_at->diffForHumans(),
-                'sort'    => $ref->resolved_at,
+                'time'    => $when->diffForHumans(),
+                'sort'    => $when,
             ];
         }
 

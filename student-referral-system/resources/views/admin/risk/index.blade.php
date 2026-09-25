@@ -64,10 +64,29 @@
     </a>
 </div>
 
+{{-- ── Needs attention ──────────────────────────────────────── --}}
+<div class="flex flex-wrap items-center gap-2 mb-4">
+    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-1">Needs attention</span>
+    @foreach($attentionFilters as $key => $label)
+        @php $active = request('attention') === $key; @endphp
+        <a href="{{ route('admin.risk.index', $active ? request()->except('attention', 'page') : array_merge(request()->except('page'), ['attention' => $key])) }}"
+           class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition {{ $active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-700' }}">
+            {{ $label }}
+            <span class="px-1.5 rounded-full text-[10px] {{ $active ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600' }}">{{ $attentionCounts[$key] }}</span>
+        </a>
+    @endforeach
+    @if(request()->filled('attention'))
+        <a href="{{ route('admin.risk.index', request()->except('attention', 'page')) }}" class="text-xs text-gray-400 hover:text-gray-600 underline">clear</a>
+    @endif
+</div>
+
 {{-- ── Filters ───────────────────────────────────────────────── --}}
 <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-4 mb-4">
     <form method="GET" action="{{ route('admin.risk.index') }}" class="flex flex-wrap gap-3 items-end" id="filterForm">
         <input type="hidden" name="scope" value="{{ request('scope') }}">
+        @if(request()->filled('attention'))
+            <input type="hidden" name="attention" value="{{ request('attention') }}">
+        @endif
         {{-- Keep the current sort when searching/filtering — without these, every filter change silently reset it. --}}
         @if(request()->filled('sort'))
             <input type="hidden" name="sort" value="{{ request('sort') }}">
@@ -101,7 +120,7 @@
             <a href="{{ route('admin.risk.index') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-1.5 h-[38px]">
                 <i class="ti ti-x"></i> Clear
             </a>
-            <a href="{{ route('admin.risk.export', request()->only(['scope', 'risk_level', 'search', 'sort', 'dir'])) }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-1.5 h-[38px]" title="Download the students matching the current filters and sort as CSV">
+            <a href="{{ route('admin.risk.export', request()->only(['scope', 'risk_level', 'search', 'attention', 'sort', 'dir'])) }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-1.5 h-[38px]" title="Download the students matching the current filters and sort as CSV">
                 <i class="ti ti-download"></i> Export
             </a>
         </div>
@@ -224,6 +243,10 @@
                                 @if(!empty($rf['held_by_referral_id']))
                                     <span class="text-[10px] px-1 rounded bg-amber-50 text-amber-700 border border-amber-100 cursor-help"
                                           title="Held by open referral #{{ $rf['held_by_referral_id'] }}: the latest incident alone scored {{ number_format($rf['ml_risk_score'] ?? 0, 1) }} ({{ ucfirst($rf['ml_risk_level'] ?? '') }}), but risk can't drop while that case is unresolved.">held</span>
+                                @endif
+                                @if(($rf['source'] ?? null) === 'override')
+                                    <span class="text-[10px] px-1 rounded bg-blue-50 text-blue-700 border border-blue-100 cursor-help"
+                                          title="Set manually by {{ $rf['override']['by_name'] ?? 'a counselor' }}: {{ $rf['override']['note'] ?? '' }}">manual</span>
                                 @endif
                                 @if($assessment->previousAssessment)
                                     @php

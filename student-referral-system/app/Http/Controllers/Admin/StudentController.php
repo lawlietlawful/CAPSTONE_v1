@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Intervention;
 use App\Models\Student;
 use App\Models\User;
 use App\Models\Course;
@@ -45,10 +46,7 @@ class StudentController extends Controller
         // rule already used on the Counselor dashboard's Watchlist and Risk
         // Distribution. Backs both the At-Risk Students count below and the
         // ?risk_level=at_risk filter.
-        $latestRiskIds = DB::table('risk_assessments')
-            ->select(DB::raw('MAX(id) as id'))
-            ->groupBy('student_id')
-            ->pluck('id');
+        $latestRiskIds = RiskAssessment::latestIds();
 
         $atRiskStudentIds = RiskAssessment::whereIn('id', $latestRiskIds)
             ->whereIn('risk_level', ['high', 'moderate'])
@@ -63,13 +61,7 @@ class StudentController extends Controller
             // So the at-risk filter's results can show WHY each student is
             // flagged, not just that they matched.
             ->with('latestRiskAssessment')
-            ->when($search, function ($query, $search) {
-                $query->where(function($q) use ($search) {
-                    $q->where('student_id_number', 'like', "%{$search}%")
-                      ->orWhere('first_name', 'like', "%{$search}%")
-                      ->orWhere('last_name', 'like', "%{$search}%");
-                });
-            })
+            ->when($search, fn ($query, $search) => $query->matchingSearch($search))
             ->when($course, function ($query, $course) {
                 $query->where('course', $course);
             })
@@ -176,7 +168,9 @@ class StudentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error creating student: ' . $e->getMessage())->withInput();
+            // The raw exception (SQL, table names) goes to the log, not the screen.
+            \Log::error('Student create failed: ' . $e->getMessage());
+            return back()->with('error', 'The student could not be created. Please check the details and try again.')->withInput();
         }
     }
 
@@ -251,6 +245,15 @@ class StudentController extends Controller
 
         $existingIds = Student::pluck('student_id_number')->map(fn($id) => strtolower($id))->toArray();
 
+        // Logins already taken by an account that is NOT this student (e.g. a
+        // teacher whose username equals the Student ID). Importing such a row
+        // used to fail silently at commit time.
+        $takenLogins = User::whereNotNull('username')->pluck('username')
+            ->map(fn ($u) => strtolower($u))
+            ->diff($existingIds)
+            ->flip()
+            ->all();
+
         $validRows = [];
         $invalidRows = [];
         $duplicateRows = [];
@@ -299,6 +302,10 @@ class StudentController extends Controller
             
             if ($isDuplicateInFile) {
                 $errors[] = "Student ID \"{$data['student_id_number']}\" is duplicated earlier in this file.";
+            }
+
+            if (! empty($data['student_id_number']) && isset($takenLogins[strtolower($data['student_id_number'])])) {
+                $errors[] = "Student ID \"{$data['student_id_number']}\" is already used as a login by another account.";
             }
             
             if (! empty($data['course']) && ! empty($data['grade_level']) && ! empty($data['section'])) {
@@ -382,16 +389,20 @@ class StudentController extends Controller
         // the error-report download). Plaintext only lives here — the DB
         // only ever stores the hash, same as the single-student flow.
         $generatedCodes = [];
+        $imported = 0;
+        $failedRows = [];
 
         foreach ($chunk as $data) {
             try {
-                DB::transaction(function () use ($data, &$generatedCodes) {
+                $newCode = DB::transaction(function () use ($data) {
+                    $newCode = null;
+
                     $student = Student::where('student_id_number', $data['student_id_number'])->first();
 
                     if ($student) {
-                        // Update existing
+                        // Update existing (a student without a linked login just skips the name sync)
                         $user = $student->user;
-                        $user->update([
+                        $user?->update([
                             'name' => $data['first_name'] . ' ' . $data['last_name'],
                         ]);
                         
@@ -428,7 +439,9 @@ class StudentController extends Controller
                             'activation_code' => Hash::make(User::canonicalActivationCode($plainCode)),
                         ]);
 
-                        $generatedCodes[] = [
+                        // Only recorded once the transaction commits, so a row that
+                        // fails after its login was created can't leave a phantom code.
+                        $newCode = [
                             'student_id_number' => $data['student_id_number'],
                             'name' => $user->name,
                             'activation_code' => $plainCode,
@@ -456,12 +469,29 @@ class StudentController extends Controller
                             'status' => $data['status'],
                         ]);
                     }
+
+                    return $newCode;
                 });
+                if ($newCode) {
+                    $generatedCodes[] = $newCode;
+                }
+                $imported++;
             } catch (\Exception $e) {
-                // Silently log or ignore chunk errors for now to not break the batch
+                // One bad row must not stop the batch, but it must not vanish
+                // either: it is counted, reported and downloadable with a reason.
                 \Log::error('Import error for row ' . $data['_row'] . ': ' . $e->getMessage());
+
+                $reason = $e instanceof \Illuminate\Database\QueryException && str_starts_with((string) $e->getCode(), '23')
+                    ? 'A login or student with this Student ID already exists.'
+                    : 'The row could not be saved.';
+                $data['_errors'] = [$reason];
+                $failedRows[] = $data;
             }
         }
+
+        $cachedData['imported'] = ($cachedData['imported'] ?? 0) + $imported;
+        $cachedData['failed'] = array_merge($cachedData['failed'] ?? [], $failedRows);
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $cachedData, now()->addHours(2));
 
         if (!empty($generatedCodes)) {
             $cachedData['codes'] = array_merge($cachedData['codes'] ?? [], $generatedCodes);
@@ -476,6 +506,13 @@ class StudentController extends Controller
             'total_pages' => max(1, $totalPages),
             'progress' => $totalPages > 0 ? round(($page / $totalPages) * 100) : 100,
             'codes_generated' => count($cachedData['codes'] ?? []),
+            // Running totals for the whole import, so the last chunk's response is the final report.
+            'imported' => $cachedData['imported'],
+            'failed' => count($cachedData['failed']),
+            'failed_preview' => array_map(
+                fn ($r) => ['row' => $r['_row'], 'student_id_number' => $r['student_id_number'], 'reason' => $r['_errors'][0]],
+                array_slice($cachedData['failed'], 0, 5)
+            ),
         ]);
     }
 
@@ -487,7 +524,10 @@ class StudentController extends Controller
         $cacheKey = "import_{$importId}";
         $cachedData = \Illuminate\Support\Facades\Cache::get($cacheKey);
 
-        if (!$cachedData || empty($cachedData['invalid'])) {
+        // Rows rejected at preview PLUS rows that failed when saving.
+        $problemRows = array_merge($cachedData['invalid'] ?? [], $cachedData['failed'] ?? []);
+
+        if (!$cachedData || empty($problemRows)) {
             return redirect()->route('admin.students.index')->with('error', 'No errors found or session expired.');
         }
 
@@ -495,11 +535,11 @@ class StudentController extends Controller
         $header = $cachedData['header'];
         $header[] = 'error_reason'; // Append error reason column
 
-        $callback = function () use ($cachedData, $header) {
+        $callback = function () use ($cachedData, $header, $problemRows) {
             $file = fopen('php://output', 'w');
             fputcsv($file, $header);
             
-            foreach ($cachedData['invalid'] as $invalidRow) {
+            foreach ($problemRows as $invalidRow) {
                 $row = [];
                 // Fill original columns
                 foreach ($cachedData['header'] as $col) {
@@ -621,11 +661,40 @@ class StudentController extends Controller
             ]);
         }
         
+        // Interventions live on the student's referrals; without them the
+        // timeline showed a case opening and closing with nothing in between.
+        $interventions = Intervention::with('counselor')
+            ->whereIn('referral_id', $student->referrals->pluck('id'))
+            ->get();
+
+        foreach ($interventions as $intervention) {
+            $timeline->push([
+                'type' => 'intervention',
+                'title' => 'Intervention: ' . $intervention->intervention_type,
+                'description' => $intervention->description
+                    . ($intervention->counselor ? ' - ' . $intervention->counselor->name : ''),
+                'status' => $intervention->outcome ? str_replace('_', ' ', $intervention->outcome) : 'not yet evaluated',
+                'date' => $intervention->intervention_date,
+                'icon' => 'ti-heart-handshake',
+                'color' => 'green'
+            ]);
+        }
+
         foreach ($student->riskAssessments as $risk) {
+            $factors = is_array($risk->risk_factors) ? $risk->risk_factors : [];
+            $source = match ($factors['source'] ?? null) {
+                'override' => 'Manual review by ' . ($factors['override']['by_name'] ?? 'a counselor')
+                    . (! empty($factors['override']['note']) ? ': "' . $factors['override']['note'] . '"' : ''),
+                'recheck'  => 'Automatic re-check',
+                'report'   => 'From a behavioral report',
+                'referral' => 'From a referral',
+                default    => null,
+            };
+
             $timeline->push([
                 'type' => 'risk',
                 'title' => 'Risk Assessment: ' . ucfirst($risk->risk_level),
-                'description' => 'Score: ' . $risk->risk_score,
+                'description' => 'Score: ' . $risk->risk_score . ($source ? ' - ' . $source : ''),
                 'status' => '',
                 'date' => $risk->created_at,
                 'icon' => 'ti-chart-pie',
@@ -637,7 +706,13 @@ class StudentController extends Controller
 
         $courseCombos = Course::picklist();
 
-        return view('admin.students.show', compact('student', 'timeline', 'courseCombos'))
+        // For the Quick Actions menu: an intervention can only be logged
+        // against an open referral.
+        $openReferral = $student->referrals->whereIn('status', ['pending', 'in_progress'])->sortByDesc('id')->first();
+
+        $caseStatus = \App\Support\CaseStatus::for($student);
+
+        return view('admin.students.show', compact('student', 'timeline', 'courseCombos', 'openReferral', 'caseStatus'))
             ->with($this->gradeLevelLists());
     }
 
@@ -687,7 +762,8 @@ class StudentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error updating student: ' . $e->getMessage())->withInput();
+            \Log::error('Student update failed: ' . $e->getMessage());
+            return back()->with('error', 'The student could not be updated. Please check the details and try again.')->withInput();
         }
     }
 
@@ -696,6 +772,15 @@ class StudentController extends Controller
      */
     public function destroy(Student $student)
     {
+        // Deleting erases every referral, report and assessment for good, so
+        // never do it while a case is still open: resolve/cancel it first, or
+        // mark the student Inactive/Graduated/Transferred to keep the history.
+        $openReferrals = $student->referrals()->whereIn('status', ['pending', 'in_progress'])->count();
+        if ($openReferrals > 0) {
+            return back()->with('error', "{$student->full_name} still has {$openReferrals} open " . ($openReferrals === 1 ? 'referral' : 'referrals')
+                . ". Resolve or cancel " . ($openReferrals === 1 ? 'it' : 'them') . " first, or set the student's status to Inactive, Graduated or Transferred to keep the history.");
+        }
+
         try {
             DB::beginTransaction();
             
@@ -714,7 +799,8 @@ class StudentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error deleting student: ' . $e->getMessage());
+            \Log::error('Student delete failed: ' . $e->getMessage());
+            return back()->with('error', 'The student could not be deleted.');
         }
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Counselor;
 
 use App\Http\Controllers\Controller;
 use App\Models\Referral;
+use App\Services\AttentionService;
 use App\Models\Intervention;
 use App\Models\RiskAssessment;
 use App\Models\Seminar;
@@ -50,11 +51,15 @@ class CounselorDashboardController extends Controller
             ->take(5)
             ->get();
 
-        // 2. Upcoming Follow-ups — interventions always belong to whoever
-        // logged them, so this is scoped strictly to the current counselor.
-        $upcomingInterventionsCount = Intervention::where('counselor_id', $counselorId)
-            ->whereNotNull('follow_up_date')
-            ->whereDate('follow_up_date', '>=', Carbon::today())
+        // 2. Follow-ups — interventions always belong to whoever logged them,
+        // so every follow-up widget is scoped strictly to the current
+        // counselor AND to follow-ups that still call for action (see
+        // Intervention::scopeActiveFollowUp: not on a closed case, not a
+        // resolved session, not superseded by a newer session).
+        $myFollowUps = fn () => Intervention::activeFollowUp()->where('interventions.counselor_id', $counselorId);
+
+        $upcomingInterventionsCount = $myFollowUps()
+            ->whereDate('interventions.follow_up_date', '>=', Carbon::today())
             ->count();
 
         // Strictly AFTER today — today's own follow-ups are covered by the
@@ -62,41 +67,32 @@ class CounselorDashboardController extends Controller
         // otherwise duplicate them. This collection used to be fetched and
         // never rendered anywhere; it now backs the "Upcoming Follow-ups"
         // section below.
-        $upcomingInterventions = Intervention::with('referral.student')
-            ->where('counselor_id', $counselorId)
-            ->whereNotNull('follow_up_date')
-            ->whereDate('follow_up_date', '>', Carbon::today())
-            ->orderBy('follow_up_date')
+        $upcomingInterventions = $myFollowUps()->with('referral.student')
+            ->whereDate('interventions.follow_up_date', '>', Carbon::today())
+            ->orderBy('interventions.follow_up_date')
             ->take(5)
             ->get();
 
-        // 2b. Overdue Follow-ups — a follow_up_date that has already passed.
-        // Only the LATEST intervention per referral is considered: if the
-        // counselor logged a newer session after the old due date, that old
-        // follow-up has effectively been superseded, not dropped. Without
-        // this, a case that was actually followed up on would still show as
-        // overdue forever because its original follow_up_date never changes.
-        $latestInterventionIdsPerReferral = Intervention::where('counselor_id', $counselorId)
-            ->selectRaw('MAX(id) as id')
-            ->groupBy('referral_id')
-            ->pluck('id');
-
-        $overdueInterventionsCount = Intervention::whereIn('id', $latestInterventionIdsPerReferral)
-            ->whereNotNull('follow_up_date')
-            ->whereDate('follow_up_date', '<', Carbon::today())
+        // 2b. Overdue Follow-ups — a follow_up_date that has already passed
+        // and is still active (a newer session on the same referral has NOT
+        // superseded it, the case is still open, the session is not resolved).
+        $overdueInterventionsCount = $myFollowUps()
+            ->whereDate('interventions.follow_up_date', '<', Carbon::today())
             ->count();
 
-        $overdueInterventions = Intervention::with('referral.student')
-            ->whereIn('id', $latestInterventionIdsPerReferral)
-            ->whereNotNull('follow_up_date')
-            ->whereDate('follow_up_date', '<', Carbon::today())
-            ->orderBy('follow_up_date')
+        $overdueInterventions = $myFollowUps()->with('referral.student')
+            ->whereDate('interventions.follow_up_date', '<', Carbon::today())
+            ->orderBy('interventions.follow_up_date')
             ->take(5)
             ->get();
 
-        // 3. Total Students this counselor oversees
-        $totalStudents = Student::count();
-        $newStudentsThisWeek = Student::whereDate('created_at', '>=', Carbon::today()->startOfWeek())->count();
+        // 3. Total Students — ACTIVE students, the same definition the Admin
+        // dashboard uses (graduated/transferred/inactive students are not
+        // someone the office is currently working with).
+        $totalStudents = Student::where('status', 'active')->count();
+        $newStudentsThisWeek = Student::where('status', 'active')
+            ->whereDate('created_at', '>=', Carbon::today()->startOfWeek())
+            ->count();
 
         // 4. Behavioral Reports Today
         $behavioralReportsToday = BehavioralReport::whereDate('created_at', Carbon::today())->count();
@@ -111,9 +107,8 @@ class CounselorDashboardController extends Controller
             ->whereDate('created_at', Carbon::today())
             ->count();
 
-        $interventionsDueThisWeek = Intervention::where('counselor_id', $counselorId)
-            ->whereNotNull('follow_up_date')
-            ->whereBetween('follow_up_date', [Carbon::today(), Carbon::today()->endOfWeek()])
+        $interventionsDueThisWeek = $myFollowUps()
+            ->whereBetween('interventions.follow_up_date', [Carbon::today(), Carbon::today()->endOfWeek()])
             ->count();
 
         $completedLastMonth = Intervention::where('counselor_id', $counselorId)
@@ -125,17 +120,10 @@ class CounselorDashboardController extends Controller
         // ── Risk Distribution — scoped to students this counselor is
         // actually handling (assigned to them, or unclaimed and awaiting
         // assignment), not the whole school like Admin's version.
-        $myStudentIds = Referral::where(function ($q) use ($counselorId) {
-                $q->where('counselor_id', $counselorId)->orWhereNull('counselor_id');
-            })
-            ->distinct()
-            ->pluck('student_id');
-
-        $latestRiskIds = DB::table('risk_assessments')
-            ->whereIn('student_id', $myStudentIds)
-            ->select(DB::raw('MAX(id) as id'))
-            ->groupBy('student_id')
-            ->pluck('id');
+        // Same definition as the At-Risk page's "My Students" view (active
+        // students; assigned to me, unclaimed, or with no referral yet), so
+        // the watchlist's "View all" link lands on a page with the same count.
+        $latestRiskIds = RiskAssessment::latestIds($counselorId);
 
         $riskCounts = RiskAssessment::whereIn('id', $latestRiskIds)
             ->select('risk_level', DB::raw('count(*) as total'))
@@ -155,11 +143,9 @@ class CounselorDashboardController extends Controller
         ];
 
         // ── NEW: Today's Itinerary ───────────────────────────────────────
-        $todaysInterventions = Intervention::with('referral.student')
-            ->where('counselor_id', $counselorId)
-            ->whereNotNull('follow_up_date')
-            ->whereDate('follow_up_date', Carbon::today())
-            ->orderBy('follow_up_date')
+        $todaysInterventions = $myFollowUps()->with('referral.student')
+            ->whereDate('interventions.follow_up_date', Carbon::today())
+            ->orderBy('interventions.follow_up_date')
             ->get();
 
         // ── NEW: High-Risk Watchlist ─────────────────────────────────────
@@ -213,7 +199,11 @@ class CounselorDashboardController extends Controller
             ->take(5)
             ->values();
 
+        // "Needs your attention" strip - each tile counts by the same rule as the page it links to.
+        $attentionTiles = app(AttentionService::class)->tiles($counselorId);
+
         return compact(
+            'attentionTiles',
             'pendingReferralsCount', 'recentPendingReferrals',
             'upcomingInterventionsCount', 'upcomingInterventions',
             'overdueInterventionsCount', 'overdueInterventions',

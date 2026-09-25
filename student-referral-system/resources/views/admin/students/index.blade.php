@@ -475,6 +475,9 @@
         isUploading: false,
         progress: 0,
         codesGenerated: 0,
+        imported: 0,
+        failed: 0,
+        failedPreview: [],
 
         reset() {
             this.step = 1;
@@ -484,6 +487,9 @@
             this.duplicateStrategy = 'skip';
             this.progress = 0;
             this.codesGenerated = 0;
+            this.imported = 0;
+            this.failed = 0;
+            this.failedPreview = [];
             if (this.$refs.csvInput) this.$refs.csvInput.value = '';
         },
 
@@ -544,9 +550,12 @@
                 }
                 this.progress = data.progress;
                 this.codesGenerated = data.codes_generated ?? this.codesGenerated;
+                this.imported = data.imported ?? this.imported;
+                this.failed = data.failed ?? this.failed;
+                this.failedPreview = data.failed_preview ?? this.failedPreview;
                 if(data.current_page < data.total_pages) {
                     this.processChunk(data.current_page + 1);
-                } else if (this.codesGenerated === 0) {
+                } else if (this.codesGenerated === 0 && this.failed === 0) {
                     // Nothing to download — safe to close this out automatically.
                     setTimeout(() => window.location.reload(), 1000);
                 }
@@ -683,8 +692,8 @@
                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 text-blue-600 mb-4">
                     <i class="ti text-3xl" :class="progress === 100 ? 'ti-circle-check text-emerald-500' : 'ti-loader animate-spin'"></i>
                 </div>
-                <h3 class="text-lg font-bold text-gray-900 mb-2" x-text="progress === 100 ? 'Import Complete!' : 'Importing Students...'"></h3>
-                <p class="text-sm text-gray-500 mb-6" x-text="progress < 100 ? 'Please do not close this window.' : (codesGenerated > 0 ? 'Download the activation codes below.' : 'Refreshing page...')"></p>
+                <h3 class="text-lg font-bold text-gray-900 mb-2" x-text="progress === 100 ? (failed > 0 ? 'Import finished with problems' : 'Import Complete!') : 'Importing Students...'"></h3>
+                <p class="text-sm text-gray-500 mb-6" x-text="progress < 100 ? 'Please do not close this window.' : (failed > 0 || codesGenerated > 0 ? imported + ' student(s) imported.' : 'Refreshing page...')"></p>
 
                 <div class="w-full bg-gray-100 rounded-full h-3 mb-2 overflow-hidden border border-gray-200">
                     <div class="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out relative overflow-hidden" :style="'width: ' + progress + '%'">
@@ -692,6 +701,24 @@
                     </div>
                 </div>
                 <div class="text-xs font-semibold text-gray-600" x-text="progress + '%'"></div>
+
+                <div x-show="progress === 100 && failed > 0" x-cloak class="mt-6 text-left bg-red-50 border border-red-100 rounded-xl p-4">
+                    <h4 class="font-medium text-red-900 text-sm flex items-center gap-2">
+                        <i class="ti ti-alert-triangle text-red-600 text-lg"></i>
+                        <span><span x-text="failed"></span> row(s) could not be imported</span>
+                    </h4>
+                    <ul class="mt-2 space-y-1 text-xs text-red-800">
+                        <template x-for="f in failedPreview" :key="f.row">
+                            <li>Row <span x-text="f.row"></span> (<span x-text="f.student_id_number"></span>): <span x-text="f.reason"></span></li>
+                        </template>
+                    </ul>
+                    <div class="mt-3 flex items-center gap-2">
+                        <a :href="`/admin/students/import/errors/${importId}`" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-200 text-red-700 text-xs font-medium rounded-lg hover:bg-red-50 transition shadow-sm">
+                            <i class="ti ti-download"></i> Download error report
+                        </a>
+                        <button x-show="codesGenerated === 0" type="button" @click="window.location.reload()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition">Done</button>
+                    </div>
+                </div>
 
                 <div x-show="progress === 100 && codesGenerated > 0" class="mt-6 pt-5 border-t border-gray-100 text-left bg-indigo-50/50 border border-indigo-100 rounded-xl p-4">
                     <h4 class="font-medium text-indigo-900 text-sm flex items-center gap-2">

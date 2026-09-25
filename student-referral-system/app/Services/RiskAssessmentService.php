@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Student;
+use App\Models\User;
 use App\Models\Referral;
 use App\Models\BehavioralReport;
 use App\Models\RiskAssessment;
@@ -152,7 +153,7 @@ class RiskAssessmentService
         array $mlData,
         bool $syncPriority = true
     ): RiskAssessment {
-        $assessment = $this->persistAssessment($student, $features, $mlData);
+        $assessment = $this->persistAssessment($student, $features, $mlData, 'referral');
 
         $updates = ['risk_assessment_id' => $assessment->id];
 
@@ -183,7 +184,7 @@ class RiskAssessmentService
      */
     public function recordAssessmentForReport(Student $student, array $features, array $mlData): RiskAssessment
     {
-        return $this->persistAssessment($student, $features, $mlData);
+        return $this->persistAssessment($student, $features, $mlData, 'report');
     }
 
     /**
@@ -207,6 +208,12 @@ class RiskAssessmentService
             return null;
         }
 
+        // A counselor's manual review outranks the automated recheck for a
+        // while — otherwise the next scheduled run would silently undo it.
+        if ($this->hasActiveOverride($student)) {
+            return $lastAssessment;
+        }
+
         $features = $this->featuresForPeriodicRecheck($student, $lastAssessment);
 
         $mlData = $this->predict($features);
@@ -216,7 +223,7 @@ class RiskAssessmentService
 
         $mlData = $this->applyPolicyOverride($mlData, $features['previous_referrals_count']);
 
-        return $this->persistAssessment($student, $features, $mlData);
+        return $this->persistAssessment($student, $features, $mlData, 'recheck');
     }
 
     /**
@@ -254,9 +261,10 @@ class RiskAssessmentService
         return str_starts_with($originalReason, $prefix) ? $originalReason : $prefix . $originalReason;
     }
 
-    private function persistAssessment(Student $student, array $features, array $mlData): RiskAssessment
+    private function persistAssessment(Student $student, array $features, array $mlData, string $source): RiskAssessment
     {
         $riskFactors = [
+            'source' => $source,
             'reason' => $features['referral_reason'],
             'recommended_seminar_tag' => $mlData['recommended_seminar_tag'] ?? 'general',
         ];
@@ -307,13 +315,104 @@ class RiskAssessmentService
      */
     private function openCaseAssessment(Student $student): ?RiskAssessment
     {
+        // A manual override is a counselor's later judgement: cases assessed
+        // BEFORE it no longer hold the score up, or the override would be
+        // undone by the very next automated assessment.
+        $overrideId = RiskAssessment::where('student_id', $student->id)
+            ->get(['id', 'risk_factors'])
+            ->filter(fn ($a) => ($a->risk_factors['source'] ?? null) === 'override')
+            ->max('id');
+
         return RiskAssessment::query()
             ->whereHas('referral', fn ($q) => $q
                 ->where('student_id', $student->id)
                 ->whereIn('status', ['pending', 'in_progress']))
+            ->when($overrideId, fn ($q) => $q->where('id', '>', $overrideId))
             ->with('referral')
             ->orderByDesc('risk_score')
             ->first();
+    }
+
+    /** Days a manual override shields a student from the scheduled automated recheck. */
+    public const OVERRIDE_SHIELD_DAYS = 30;
+
+    /** Score band the ML engine uses for each level, and the value an override lands on when the current score is outside it. */
+    private const LEVEL_BANDS = [
+        'low'      => ['min' => 10, 'max' => 30, 'default' => 20.0],
+        'moderate' => ['min' => 40, 'max' => 65, 'default' => 52.5],
+        'high'     => ['min' => 70, 'max' => 95, 'default' => 82.5],
+    ];
+
+    public function hasActiveOverride(Student $student): bool
+    {
+        $latest = $student->latestRiskAssessment;
+
+        return $latest
+            && ($latest->risk_factors['source'] ?? null) === 'override'
+            && $latest->assessed_at->gt(now()->subDays(self::OVERRIDE_SHIELD_DAYS));
+    }
+
+    /**
+     * A counselor's manual judgement of a student's risk, recorded as a new
+     * latest assessment so the change, the reason and who made it stay in the
+     * history — the previous assessments are never edited or deleted.
+     * Throws when the student has never been assessed (nothing to override).
+     */
+    public function overrideAssessment(Student $student, string $level, string $note, User $by): RiskAssessment
+    {
+        $latest = $student->latestRiskAssessment;
+        if (! $latest) {
+            throw new \DomainException('This student has no risk assessment to override.');
+        }
+
+        $band = self::LEVEL_BANDS[$level];
+        $score = ($latest->risk_score >= $band['min'] && $latest->risk_score <= $band['max'])
+            ? (float) $latest->risk_score
+            : $band['default'];
+
+        $tag = $latest->risk_factors['recommended_seminar_tag'] ?? 'general';
+        if ($level === 'low') {
+            $tag = 'orientation';
+        } elseif ($tag === 'orientation') {
+            $tag = 'general';
+        }
+
+        return RiskAssessment::create([
+            'student_id'               => $student->id,
+            'previous_referrals_count' => $latest->previous_referrals_count,
+            'behavioral_reports_count' => $latest->behavioral_reports_count,
+            'concern_type_encoded'     => $latest->concern_type_encoded,
+            'days_since_last_referral' => $latest->days_since_last_referral,
+            'risk_score'               => $score,
+            'risk_level'               => $level,
+            'risk_factors'             => [
+                'source'                  => 'override',
+                'reason'                  => $latest->risk_factors['reason'] ?? null,
+                'recommended_seminar_tag' => $tag,
+                'override'                => [
+                    'by_id'          => $by->id,
+                    'by_name'        => $by->name,
+                    'note'           => $note,
+                    'previous_level' => $latest->risk_level,
+                    'previous_score' => (float) $latest->risk_score,
+                ],
+            ],
+            'assessed_at'              => now(),
+        ]);
+    }
+
+    /** Human label for the integer concern code stored on an assessment (inverse of encodeConcernType). */
+    public static function concernTypeLabel(?int $code): string
+    {
+        return match ($code) {
+            1 => 'Academic',
+            2 => 'Behavioral',
+            3 => 'Emotional',
+            4 => 'Family',
+            5 => 'Peer conflict',
+            6 => 'Attendance',
+            default => 'Other / general',
+        };
     }
 
     /**
