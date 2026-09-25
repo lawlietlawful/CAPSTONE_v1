@@ -64,7 +64,7 @@ class BehavioralReportService
      * usage/spelling for — worth a native speaker's review if more should
      * be added.
      */
-    private const VIOLENCE_KEYWORDS = [
+    public const VIOLENCE_KEYWORDS = [
         // English — physical violence
         'punch', 'punched', 'punching', 'hit', 'stab', 'stabbed', 'stabbing',
         'slap', 'slapped', 'slapping', 'shove', 'shoved', 'shoving',

@@ -1,7 +1,7 @@
 @extends('layouts.counselor')
 
-@section('title', 'Counselor Dashboard')
-@section('page-title', 'Dashboard Overview')
+@section('title', 'Overview')
+@section('page-title', 'Overview')
 @section('page-sub', 'Guidance & Counseling Office')
 
 @section('content')

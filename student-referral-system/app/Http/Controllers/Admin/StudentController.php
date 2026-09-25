@@ -711,8 +711,9 @@ class StudentController extends Controller
         $openReferral = $student->referrals->whereIn('status', ['pending', 'in_progress'])->sortByDesc('id')->first();
 
         $caseStatus = \App\Support\CaseStatus::for($student);
+        $safetyFlag = \App\Support\SafetyFlags::forStudents([$student->id])[$student->id] ?? null;
 
-        return view('admin.students.show', compact('student', 'timeline', 'courseCombos', 'openReferral', 'caseStatus'))
+        return view('admin.students.show', compact('student', 'timeline', 'courseCombos', 'openReferral', 'caseStatus', 'safetyFlag'))
             ->with($this->gradeLevelLists());
     }
 

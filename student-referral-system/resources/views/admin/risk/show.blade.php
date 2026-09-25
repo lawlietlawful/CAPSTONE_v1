@@ -37,6 +37,7 @@
                     </div>
                 </div>
 
+                @include('partials.safety-flag', ['safetyFlag' => $safetyFlag ?? null, 'compact' => true])
                 @include('partials.case-status', ['caseStatus' => $caseStatus, 'compact' => true])
 
                 <div class="mt-6 pt-5 border-t border-gray-100 flex gap-2">

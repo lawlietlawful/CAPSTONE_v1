@@ -1,7 +1,7 @@
 @extends('layouts.counselor')
 
-@section('title', 'Referral Management')
-@section('page-title', 'Referral Management')
+@section('title', 'Referrals')
+@section('page-title', 'Referrals')
 @section('page-sub', 'Track student referrals, assign counselors, and monitor resolution progress')
 
 @section('content')

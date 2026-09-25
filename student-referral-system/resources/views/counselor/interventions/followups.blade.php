@@ -1,7 +1,7 @@
 @extends('layouts.counselor')
 
-@section('title', 'Follow-up Agenda')
-@section('page-title', 'Follow-up Agenda')
+@section('title', 'Follow-ups')
+@section('page-title', 'Follow-ups')
 @section('page-sub', 'Scheduled follow-ups, grouped by when they need attention')
 
 @section('content')

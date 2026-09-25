@@ -27,6 +27,19 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureRateLimiting();
         $this->composeNotificationBell();
+        $this->composeNavBadges();
+    }
+
+    /**
+     * Count pills on the counselor sidebar (see App\Support\NavBadges).
+     * Composed here for the same reason as the bell: it is needed on every
+     * page of the layout, so no single controller can own it.
+     */
+    private function composeNavBadges(): void
+    {
+        View::composer('partials.counselor-nav', function ($view) {
+            $view->with('navBadges', \App\Support\NavBadges::for(Auth::user()));
+        });
     }
 
     /**

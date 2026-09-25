@@ -100,9 +100,10 @@ class AdminRiskScopeTest extends TestCase
         $counselor = User::factory()->counselor()->create();
 
         $highRisk = $this->highRiskStudent();
+        $highRisk->update(['first_name' => 'Zzhighone']); // fixed names: a random fake name can appear elsewhere on the page
         Referral::factory()->create(['student_id' => $highRisk->id, 'counselor_id' => $counselor->id]);
 
-        $moderateStudent = Student::factory()->create();
+        $moderateStudent = Student::factory()->create(['first_name' => 'Zzmodone']);
         RiskAssessment::create(['student_id' => $moderateStudent->id, 'risk_score' => 50, 'risk_level' => 'moderate', 'assessed_at' => now()]);
         Referral::factory()->create(['student_id' => $moderateStudent->id, 'counselor_id' => $counselor->id]);
 

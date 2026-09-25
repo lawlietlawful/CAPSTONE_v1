@@ -73,11 +73,11 @@ class DashboardAttentionTilesTest extends TestCase
         Referral::factory()->create(['student_id' => $theirs->id, 'status' => 'pending', 'counselor_id' => $other->id]);
     }
 
-    public function test_the_counselor_dashboard_shows_the_six_tiles_in_urgency_order(): void
+    public function test_the_counselor_dashboard_offers_the_tiles_in_urgency_order(): void
     {
         $tiles = $this->tiles($this->counselor());
 
-        $this->assertSame(['overdue', 'unassigned', 'reports', 'no_referral', 'rising', 'stale'], array_keys($tiles));
+        $this->assertSame(['safety', 'overdue', 'unassigned', 'reports', 'no_referral', 'rising', 'stale'], array_keys($tiles));
     }
 
     public function test_the_counselor_counts_follow_the_caseload(): void
@@ -131,7 +131,7 @@ class DashboardAttentionTilesTest extends TestCase
 
         $tiles = $this->tiles($this->superAdmin(), 'admin.dashboard');
 
-        $this->assertSame(['unassigned', 'reports', 'no_referral', 'rising', 'stale'], array_keys($tiles));
+        $this->assertSame(['safety', 'unassigned', 'reports', 'no_referral', 'rising', 'stale'], array_keys($tiles));
         $this->assertSame(2, $tiles['stale']['count'], 'both stale students, whoever owns them');
         $this->assertStringNotContainsString('scope=mine', $tiles['stale']['url']);
         $this->assertStringContainsString('counselor_id=unassigned', $tiles['unassigned']['url']);
@@ -259,7 +259,7 @@ class DashboardAttentionTilesTest extends TestCase
         // Hiding happens in the view; the data (and its consistency tests) stay complete.
         $tiles = $this->tiles($this->counselor());
 
-        $this->assertSame(['overdue', 'unassigned', 'reports', 'no_referral', 'rising', 'stale'], array_keys($tiles));
+        $this->assertSame(['safety', 'overdue', 'unassigned', 'reports', 'no_referral', 'rising', 'stale'], array_keys($tiles));
         $this->assertSame(0, array_sum(array_column($tiles, 'count')));
     }
 

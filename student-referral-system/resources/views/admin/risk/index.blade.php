@@ -1,8 +1,8 @@
 @extends('layouts.admin')
 
 @section('title', 'At-Risk Students')
-@section('page-title', 'Early Warning System')
-@section('page-sub', 'Monitor students identified as at-risk by the predictive analytics engine')
+@section('page-title', 'At-Risk Students')
+@section('page-sub', 'Students the early-warning engine rates High or Moderate risk')
 
 @section('content')
 
@@ -31,8 +31,8 @@
             <i class="ti ti-users text-gray-500 text-lg"></i>
         </div>
         <div>
-            <div class="text-lg font-bold text-gray-900 leading-none">{{ number_format($totalAssessed) }}</div>
-            <div class="text-[11px] font-medium text-gray-400 mt-0.5">Total Assessed</div>
+            <div class="text-lg font-bold text-gray-900 leading-none">{{ number_format($highRiskCount + $moderateRiskCount) }}</div>
+            <div class="text-[11px] font-medium text-gray-400 mt-0.5">At Risk <span class="text-gray-300">of {{ number_format($totalAssessed) }} assessed</span></div>
         </div>
     </a>
     <a href="{{ route('admin.risk.index', $scopeParam + ['risk_level' => 'high']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-red-200 transition block cursor-pointer">
@@ -106,12 +106,17 @@
         <div class="w-full lg:w-48">
             <label class="block text-xs font-medium text-gray-500 mb-1">Risk Level</label>
             <select name="risk_level" onchange="document.getElementById('filterForm').submit();" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
-                <option value="">All Levels</option>
+                <option value="">High + Moderate</option>
                 <option value="high" {{ request('risk_level') == 'high' ? 'selected' : '' }}>High Risk</option>
                 <option value="moderate" {{ request('risk_level') == 'moderate' ? 'selected' : '' }}>Moderate Risk</option>
                 <option value="low" {{ request('risk_level') == 'low' ? 'selected' : '' }}>Low Risk</option>
             </select>
         </div>
+        <label class="flex items-center gap-2 text-xs text-gray-600 pb-2.5 cursor-pointer select-none" title="Also list students rated Low risk">
+            <input type="checkbox" name="include_low" value="1" {{ request()->boolean('include_low') ? 'checked' : '' }}
+                   onchange="document.getElementById('filterForm').submit();" class="rounded border-gray-300 text-blue-600">
+            Include low risk
+        </label>
         
         <div class="flex gap-2">
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center gap-1.5 h-[38px]">
@@ -120,7 +125,7 @@
             <a href="{{ route('admin.risk.index') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-1.5 h-[38px]">
                 <i class="ti ti-x"></i> Clear
             </a>
-            <a href="{{ route('admin.risk.export', request()->only(['scope', 'risk_level', 'search', 'attention', 'sort', 'dir'])) }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-1.5 h-[38px]" title="Download the students matching the current filters and sort as CSV">
+            <a href="{{ route('admin.risk.export', request()->only(['scope', 'risk_level', 'include_low', 'search', 'attention', 'sort', 'dir'])) }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-1.5 h-[38px]" title="Download the students matching the current filters and sort as CSV">
                 <i class="ti ti-download"></i> Export
             </a>
         </div>
@@ -128,7 +133,15 @@
 </div>
 
 {{-- ── Risk Assessment Table ─────────────────────────────────── --}}
-<form action="{{ route('admin.risk.bulkAction') }}" method="POST" x-data="{ selected: [], selectAll: false, showAssignModal: false, assignCounselorId: '' }" class="relative">
+<form action="{{ route('admin.risk.bulkAction') }}" method="POST" x-data="{ selected: [], selectAll: false, showAssignModal: false, assignCounselorId: '',
+        // One click from a row: select just that student, assign to the signed-in counselor, submit the same bulk action.
+        quickRefer(id, name) {
+            if (! confirm('Open a referral for ' + name + ' and assign it to you?')) return;
+            this.selected = [id];
+            this.assignCounselorId = '{{ auth()->id() }}';
+            this.$nextTick(() => { this.$refs.quickAction.disabled = false; this.$root.submit(); });
+        } }" class="relative">
+    <input type="hidden" name="action" value="assign_counselor" x-ref="quickAction" disabled>
     @csrf
     
     <!-- Floating Action Bar -->
@@ -185,11 +198,11 @@
         <table class="w-full text-left border-collapse">
             <thead>
                 <tr class="bg-gray-50/50 border-b border-gray-100">
-                    <th class="px-5 py-3 w-10 text-center">
+                    <th class="px-4 py-3 w-10 text-center">
                         <input type="checkbox" x-model="selectAll" @change="selected = selectAll ? {{ json_encode($assessments->pluck('id')) }} : []" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 shadow-sm cursor-pointer">
                     </th>
-                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider">Student</th>
-                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider">Student</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">
                         <a href="{{ request()->fullUrlWithQuery(['sort' => 'risk_score', 'dir' => request('sort', 'risk_score') === 'risk_score' && request('dir', 'desc') === 'desc' ? 'asc' : 'desc']) }}" class="hover:text-blue-600 flex items-center justify-center gap-1 transition">
                             Risk Score
                             @if(request('sort', 'risk_score') === 'risk_score')
@@ -197,8 +210,8 @@
                             @endif
                         </a>
                     </th>
-                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">Risk Level</th>
-                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center whitespace-nowrap">Risk Level</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">
                         <a href="{{ request()->fullUrlWithQuery(['sort' => 'previous_referrals_count', 'dir' => request('sort') === 'previous_referrals_count' && request('dir', 'desc') === 'desc' ? 'asc' : 'desc']) }}" class="hover:text-blue-600 flex items-center justify-center gap-1 transition">
                             Referrals
                             @if(request('sort') === 'previous_referrals_count')
@@ -206,7 +219,7 @@
                             @endif
                         </a>
                     </th>
-                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">
                         <a href="{{ request()->fullUrlWithQuery(['sort' => 'behavioral_reports_count', 'dir' => request('sort') === 'behavioral_reports_count' && request('dir', 'desc') === 'desc' ? 'asc' : 'desc']) }}" class="hover:text-blue-600 flex items-center justify-center gap-1 transition">
                             Incidents
                             @if(request('sort') === 'behavioral_reports_count')
@@ -214,29 +227,41 @@
                             @endif
                         </a>
                     </th>
-                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider" title="The seminar the risk engine suggests for this student. Hover the info icon to see the incident text it read.">Recommended Seminar</th>
-                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider">Last Assessed</th>
-                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">Action</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider" title="The seminar the risk engine suggests for this student. Hover the info icon to see the incident text it read.">Recommended Seminar</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider whitespace-nowrap">Last Assessed</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">Action</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 text-sm">
                 @forelse($assessments as $assessment)
                     <tr class="hover:bg-gray-50/50 transition">
-                        <td class="px-5 py-3 text-center">
+                        <td class="px-4 py-3 text-center">
                             <input type="checkbox" name="assessment_ids[]" value="{{ $assessment->id }}" x-model="selected" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 shadow-sm cursor-pointer">
                         </td>
-                        <td class="px-5 py-3">
+                        <td class="px-4 py-3">
                             <a href="{{ route('admin.risk.show', $assessment->student->id) }}" class="font-medium text-gray-900 hover:text-blue-600 transition block">{{ $assessment->student->last_name }}, {{ $assessment->student->first_name }}</a>
-                            <div class="flex items-center gap-2 mt-0.5">
-                                <p class="text-xs text-gray-500">{{ $assessment->student->student_id_number }}</p>
-                                @if($assessment->student->referrals->count() > 0)
-                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 shrink-0" title="Active Referral/Action Taken">
-                                        <i class="ti ti-shield-check"></i> Action Taken
-                                    </span>
-                                @endif
-                            </div>
+                            <p class="text-xs text-gray-500 mt-0.5">{{ $assessment->student->student_id_number }}</p>
+                            @php
+                                $hasSafetyFlag = isset($safetyFlags[$assessment->student_id]);
+                                $hasOpenCase = $assessment->student->referrals->count() > 0;
+                            @endphp
+                            @if($hasSafetyFlag || $hasOpenCase)
+                                <div class="flex flex-wrap items-center gap-1.5 mt-1.5" data-student-badges>
+                                    @if($hasSafetyFlag)
+                                        <span class="inline-flex items-center gap-1 h-5 px-2 rounded-full border border-red-300 bg-red-50 text-red-700 text-[10px] font-bold whitespace-nowrap cursor-help" data-safety-chip
+                                              title="{{ \App\Support\SafetyFlags::describe($safetyFlags[$assessment->student_id]) }}">
+                                            <i class="ti ti-alert-octagon"></i> Safety flag
+                                        </span>
+                                    @endif
+                                    @if($hasOpenCase)
+                                        <span class="inline-flex items-center gap-1 h-5 px-2 rounded-full border border-blue-200 bg-blue-50 text-blue-700 text-[10px] font-semibold whitespace-nowrap" title="This student has an open referral">
+                                            <i class="ti ti-shield-check"></i> Action taken
+                                        </span>
+                                    @endif
+                                </div>
+                            @endif
                         </td>
-                        <td class="px-5 py-3 text-center">
+                        <td class="px-4 py-3 text-center">
                             <div class="flex items-center justify-center gap-1.5">
                                 <span class="font-mono font-medium text-gray-900">{{ number_format($assessment->risk_score, 1) }}</span>
                                 @php $rf = is_array($assessment->risk_factors) ? $assessment->risk_factors : []; @endphp
@@ -268,7 +293,7 @@
                                 @endif
                             </div>
                         </td>
-                        <td class="px-5 py-3 text-center">
+                        <td class="px-4 py-3 text-center">
                             @php
                                 $levelClass = match($assessment->risk_level) {
                                     'high'     => 'bg-red-50 text-red-700',
@@ -281,13 +306,13 @@
                                 {{ ucfirst($assessment->risk_level) }}
                             </span>
                         </td>
-                        <td class="px-5 py-3 text-center text-gray-600">
+                        <td class="px-4 py-3 text-center text-gray-600">
                             {{ $assessment->previous_referrals_count }}
                         </td>
-                        <td class="px-5 py-3 text-center text-gray-600">
+                        <td class="px-4 py-3 text-center text-gray-600">
                             {{ $assessment->behavioral_reports_count }}
                         </td>
-                        <td class="px-5 py-3">
+                        <td class="px-4 py-3">
                             @php
                                 $factors = is_array($assessment->risk_factors) ? $assessment->risk_factors : [];
                                 $seminarTag = $factors['recommended_seminar_tag'] ?? null;
@@ -329,13 +354,23 @@
                                 <span class="text-xs text-gray-400">—</span>
                             @endif
                         </td>
-                        <td class="px-5 py-3 text-xs text-gray-500">
+                        <td class="px-4 py-3 text-xs text-gray-500">
                             {{ $assessment->assessed_at->diffForHumans() }}
                         </td>
-                        <td class="px-5 py-3 text-center">
-                            <a href="{{ route('admin.risk.show', $assessment->student->id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                                Details
-                            </a>
+                        <td class="px-4 py-3">
+                            <div class="flex flex-col items-center gap-1.5">
+                                <a href="{{ route('admin.risk.show', $assessment->student->id) }}"
+                                   class="inline-flex items-center justify-center gap-1.5 w-28 h-8 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-medium hover:bg-gray-50 hover:border-gray-300 transition">
+                                    <i class="ti ti-eye"></i> Details
+                                </a>
+                                @if(auth()->user()->role === 'admin' && in_array($assessment->risk_level, ['high', 'moderate']) && $assessment->student->referrals->isEmpty())
+                                    <button type="button" data-quick-refer @click="quickRefer({{ $assessment->id }}, @js($assessment->student->last_name . ', ' . $assessment->student->first_name))"
+                                            class="inline-flex items-center justify-center gap-1.5 w-28 h-8 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition"
+                                            title="Open a referral for this student and assign it to you">
+                                        <i class="ti ti-file-plus"></i> Open referral
+                                    </button>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                 @empty

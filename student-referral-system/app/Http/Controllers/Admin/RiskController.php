@@ -52,6 +52,12 @@ class RiskController extends Controller
 
         if ($request->filled('risk_level')) {
             $query->where('risk_level', $request->risk_level);
+        } elseif (! $request->filled('attention') && ! $request->boolean('include_low')) {
+            // "At-Risk Students" means High + Moderate. Low-risk students stay one
+            // click away (the Low card, or "Include low risk"), but they no longer
+            // fill a list whose name says "at risk". An attention group defines
+            // its own population, so its list always matches the dashboard count.
+            $query->whereIn('risk_level', ['high', 'moderate']);
         }
 
         if ($request->filled('search')) {
@@ -110,12 +116,15 @@ class RiskController extends Controller
         }
         $attentionFilters = RiskAssessment::ATTENTION_FILTERS;
 
+        // Students on this page whose open case names violence/a weapon/a threat.
+        $safetyFlags = \App\Support\SafetyFlags::forStudents($assessments->pluck('student_id'));
+
         $counselors = User::where('role', 'admin')->orderBy('name')->get();
         $scopedToMe = $request->get('scope') === 'mine' && auth()->user()->role === 'admin';
 
         return view('admin.risk.index', compact(
             'assessments', 'totalAssessed', 'highRiskCount', 'moderateRiskCount', 'lowRiskCount', 'counselors', 'scopedToMe',
-            'attentionCounts', 'attentionFilters'
+            'attentionCounts', 'attentionFilters', 'safetyFlags'
         ));
     }
 
@@ -150,9 +159,10 @@ class RiskController extends Controller
         $assessmentHistory = $student->riskAssessments->take(15);
 
         $caseStatus = \App\Support\CaseStatus::for($student);
+        $safetyFlag = \App\Support\SafetyFlags::forStudents([$student->id])[$student->id] ?? null;
 
         return view('admin.risk.show', compact(
-            'student', 'latestAssessment', 'counselors', 'interventions', 'interventionCount', 'concernLabel', 'assessmentHistory', 'caseStatus'
+            'student', 'latestAssessment', 'counselors', 'interventions', 'interventionCount', 'concernLabel', 'assessmentHistory', 'caseStatus', 'safetyFlag'
         ));
     }
 

@@ -117,7 +117,7 @@ class BehavioralReportStatusUpdateTest extends TestCase
         // </div>, which browsers "fix" via mismatched-tag recovery in ways
         // that can bleed the clickable/hover area into unrelated markup.
         $this->assertMatchesRegularExpression(
-            '/<a href="[^"]*behavioral-reports\/' . $report->id . '"[^>]*title="View Report">\s*<i class="ti ti-eye"><\/i>\s*<\/a>\s*<\/div>/',
+            '/<a href="[^"]*behavioral-reports\/' . $report->id . '"[^>]*title="View Report">\s*<i class="ti ti-eye"><\/i>\s*<\/a>\s*(<\/div>|<a |<form |@)/',
             $response->getContent()
         );
     }

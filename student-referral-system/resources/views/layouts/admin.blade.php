@@ -62,6 +62,9 @@
 
         {{-- Nav --}}
         <nav class="flex-1 overflow-y-auto py-2">
+            @if(auth()->user()->role === 'admin')
+                @include('partials.counselor-nav')
+            @else
 
             <p class="px-5 pt-4 pb-1 text-white/30 text-[10px] uppercase tracking-widest">Main</p>
 
@@ -150,6 +153,8 @@
                       {{ request()->routeIs('admin.settings.*') ? 'active text-white' : 'text-white/60' }}">
                 <i class="ti ti-settings text-base w-5"></i> Settings
             </a>
+            @endif
+
             @endif
 
         </nav>

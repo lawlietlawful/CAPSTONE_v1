@@ -30,7 +30,7 @@ abstract class AbstractBehavioralReportController extends Controller
      */
     private function filteredQuery(Request $request)
     {
-        $query = BehavioralReport::with(['student', 'reportedBy'])->latest();
+        $query = BehavioralReport::with(['student', 'reportedBy', 'escalatedReferral'])->latest();
 
         if ($request->filled('severity')) {
             $query->where('severity', $request->severity);

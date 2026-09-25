@@ -127,6 +127,7 @@
                     <th class="px-5 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Incident Type</th>
                     <th class="px-5 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Severity</th>
                     <th class="px-5 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Status</th>
+                    <th class="px-5 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Referral</th>
                     <th class="px-5 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Reported By</th>
                     <th class="px-5 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Date</th>
                     <th class="px-5 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Action</th>
@@ -175,19 +176,18 @@
                             {{ ucfirst($report->status) }}
                         </span>
                     </td>
+                    <td class="px-5 py-3 text-center">
+                        @include('partials.report-referral-cell', ['report' => $report, 'area' => 'counselor'])
+                    </td>
                     <td class="px-5 py-3 text-gray-600 text-xs">{{ $report->reportedBy->name ?? '—' }}</td>
                     <td class="px-5 py-3 text-xs text-gray-500">{{ $report->incident_date->format('M d, Y') }}</td>
                     <td class="px-5 py-3 text-center">
-                        <div class="flex items-center justify-center gap-2">
-                            <a href="{{ route('counselor.behavioral-reports.show', $report->id) }}" class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="View Report">
-                                <i class="ti ti-eye"></i>
-                            </a>
-                        </div>
+                        @include('partials.report-row-actions', ['report' => $report, 'area' => 'counselor'])
                     </td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="py-16 text-center">
+                    <td colspan="9" class="py-16 text-center">
                         <div class="flex flex-col items-center">
                             <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-3">
                                 <i class="ti ti-mood-check text-2xl"></i>

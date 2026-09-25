@@ -27,6 +27,7 @@ class RiskAssessment extends Model
 
     /** "Needs attention" groups: what a counselor should look at first, not just the highest score. */
     public const ATTENTION_FILTERS = [
+        'safety'      => 'Safety flag',
         'rising'      => 'Rising risk',
         'stale'       => 'Not reassessed in 30+ days',
         'no_referral' => 'No open referral',
@@ -48,6 +49,8 @@ class RiskAssessment extends Model
         $open = fn ($r) => $r->whereIn('status', ['pending', 'in_progress']);
 
         match ($key) {
+            // Unresolved cases whose own words name violence, a weapon or a threat (App\Support\SafetyFlags).
+            'safety' => $query->whereIn('student_id', \App\Support\SafetyFlags::studentIds()),
             'rising' => $query->whereRaw(
                 'risk_score >= (select prev.risk_score from risk_assessments prev'
                 . ' where prev.student_id = risk_assessments.student_id and prev.id < risk_assessments.id'

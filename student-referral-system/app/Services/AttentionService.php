@@ -30,6 +30,18 @@ class AttentionService
         $latest = RiskAssessment::latestIds($counselorId);
         $risk = fn (string $key) => RiskAssessment::whereIn('id', $latest)->needsAttention($key)->count();
 
+        // Most urgent of all: an open case where the student's own words name
+        // violence, a weapon or a threat. Never buried under a Moderate score.
+        $tiles[] = [
+            'key'   => 'safety',
+            'label' => 'Safety flags',
+            'hint'  => 'Open cases mentioning violence, a weapon or a threat',
+            'count' => $risk('safety'),
+            'icon'  => 'ti-alert-octagon',
+            'tone'  => 'red',
+            'url'   => route('admin.risk.index', $scope + ['attention' => 'safety']),
+        ];
+
         if ($counselorId !== null) {
             $tiles[] = [
                 'key'   => 'overdue',

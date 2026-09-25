@@ -63,6 +63,7 @@
             <h3 class="font-bold text-gray-900 text-xl tracking-tight">{{ $student->first_name }} {{ $student->last_name }}</h3>
             <p class="text-gray-400 text-sm font-medium mt-0.5">{{ $student->student_id_number }}</p>
 
+            @include('partials.safety-flag', ['safetyFlag' => $safetyFlag ?? null])
             @include('partials.case-status', ['caseStatus' => $caseStatus])
 
             <!-- Quick Metrics -->

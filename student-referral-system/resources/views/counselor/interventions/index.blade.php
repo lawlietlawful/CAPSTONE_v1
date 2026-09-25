@@ -1,7 +1,7 @@
 @extends('layouts.counselor')
 
-@section('title', 'Intervention Logs')
-@section('page-title', 'Intervention Logs')
+@section('title', 'Interventions')
+@section('page-title', 'Interventions')
 @section('page-sub', 'Track counseling sessions, disciplinary actions, and outcomes')
 
 @section('content')
@@ -106,7 +106,7 @@
                 <i class="ti ti-download"></i> Export
             </a>
             <a href="{{ route('counselor.interventions.followups') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap">
-                <i class="ti ti-calendar-event"></i> Follow-up Agenda
+                <i class="ti ti-calendar-event"></i> Follow-ups
             </a>
             <button type="button" @click="activeModal = 'create'" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap">
                 <i class="ti ti-plus"></i> Log New Intervention
@@ -115,7 +115,7 @@
     </form>
 </div>
 
-{{-- ── Intervention Logs Table ──────────────────────────────────── --}}
+{{-- ── Interventions Table ──────────────────────────────────── --}}
 <form method="GET" action="{{ route('counselor.interventions.export') }}" x-data="{ selected: [], selectAll: false }">
     {{-- Floating bulk action bar --}}
     <div x-cloak x-show="selected.length > 0"

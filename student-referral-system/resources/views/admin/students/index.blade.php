@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Students Management')
+@section('title', 'Students')
 @section('page-title', 'Students')
 @section('page-sub', 'Manage student records and profiles')
 

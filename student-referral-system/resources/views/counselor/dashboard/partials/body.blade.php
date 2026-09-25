@@ -8,24 +8,25 @@
 --}}
 
 {{-- ── Stat Cards ──────────────────────────────────────────── --}}
+{{-- In the order the work flows: reports -> referrals -> follow-ups -> risk. Each links to the list its number counts. --}}
 <div class="grid grid-cols-4 gap-4 mb-6">
 
-    {{-- Total Students --}}
-    <a href="{{ route('admin.students.index') }}" class="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2 shadow-premium transition-all duration-300 hover:-translate-y-1 hover:shadow-hover focus:outline-none cursor-pointer group">
-        <div class="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center transition-colors group-hover:bg-blue-500/20">
-            <i class="ti ti-users text-blue-600 text-lg"></i>
+    {{-- Reports to review --}}
+    <a href="{{ route('counselor.behavioral-reports.index', ['status' => 'pending']) }}" data-stat="reports" class="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2 shadow-premium transition-all duration-300 hover:-translate-y-1 hover:shadow-hover focus:outline-none cursor-pointer group">
+        <div class="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center transition-colors group-hover:bg-amber-500/20">
+            <i class="ti ti-message-report text-amber-600 text-lg"></i>
         </div>
         <div>
-            <div class="text-2xl font-bold text-gray-900 tracking-tight">{{ number_format($totalStudents) }}</div>
-            <div class="text-[13px] font-medium text-gray-500 mt-0.5">Total Students</div>
+            <div class="text-2xl font-bold text-gray-900 tracking-tight">{{ number_format($reportsToReviewCount ?? 0) }}</div>
+            <div class="text-[13px] font-medium text-gray-500 mt-0.5">Reports to Review</div>
         </div>
-        <div class="text-[11px] font-semibold text-emerald-600 flex items-center gap-1.5 bg-emerald-50 w-max px-2 py-1 rounded-md mt-1">
-            <i class="ti ti-trending-up"></i> {{ $newStudentsThisWeek }} enrolled this week
+        <div class="text-[11px] font-semibold text-amber-600 flex items-center gap-1.5 bg-amber-50 w-max px-2 py-1 rounded-md mt-1">
+            <i class="ti ti-clock"></i> {{ $reportsNewToday ?? 0 }} new today
         </div>
     </a>
 
     {{-- Pending Referrals --}}
-    <a href="{{ route('counselor.referrals.index') }}" class="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2 shadow-premium transition-all duration-300 hover:-translate-y-1 hover:shadow-hover focus:outline-none cursor-pointer group">
+    <a href="{{ route('counselor.referrals.index', ['status' => 'pending']) }}" data-stat="referrals" class="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2 shadow-premium transition-all duration-300 hover:-translate-y-1 hover:shadow-hover focus:outline-none cursor-pointer group">
         <div class="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center transition-colors group-hover:bg-red-500/20">
             <i class="ti ti-alert-triangle text-red-600 text-lg"></i>
         </div>
@@ -38,38 +39,44 @@
         </div>
     </a>
 
-    {{-- Upcoming Interventions --}}
-    <a href="{{ route('counselor.interventions.index') }}" class="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2 shadow-premium transition-all duration-300 hover:-translate-y-1 hover:shadow-hover focus:outline-none cursor-pointer group">
-        <div class="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center transition-colors group-hover:bg-amber-500/20">
-            <i class="ti ti-heart-handshake text-amber-600 text-lg"></i>
+    {{-- Follow-ups due (today + overdue) --}}
+    <a href="{{ route('counselor.interventions.followups') }}" data-stat="followups" class="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2 shadow-premium transition-all duration-300 hover:-translate-y-1 hover:shadow-hover focus:outline-none cursor-pointer group">
+        <div class="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center transition-colors group-hover:bg-blue-500/20">
+            <i class="ti ti-calendar-time text-blue-600 text-lg"></i>
         </div>
         <div>
-            <div class="text-2xl font-bold text-gray-900 tracking-tight">{{ number_format($upcomingInterventionsCount) }}</div>
-            <div class="text-[13px] font-medium text-gray-500 mt-0.5">Upcoming Interventions</div>
+            <div class="text-2xl font-bold text-gray-900 tracking-tight">{{ number_format($followUpsDueCount ?? 0) }}</div>
+            <div class="text-[13px] font-medium text-gray-500 mt-0.5">Follow-ups Due</div>
         </div>
-        @if($overdueInterventionsCount > 0)
+        @if(($overdueInterventionsCount ?? 0) > 0)
             <div class="text-[11px] font-semibold text-red-600 flex items-center gap-1.5 bg-red-50 w-max px-2 py-1 rounded-md mt-1">
                 <i class="ti ti-alert-circle"></i> {{ $overdueInterventionsCount }} overdue
             </div>
         @else
-            <div class="text-[11px] font-semibold text-amber-600 flex items-center gap-1.5 bg-amber-50 w-max px-2 py-1 rounded-md mt-1">
-                <i class="ti ti-calendar-event"></i> {{ $interventionsDueThisWeek }} due this week
+            <div class="text-[11px] font-semibold text-blue-600 flex items-center gap-1.5 bg-blue-50 w-max px-2 py-1 rounded-md mt-1">
+                <i class="ti ti-calendar-event"></i> {{ $interventionsDueThisWeek ?? 0 }} more this week
             </div>
         @endif
     </a>
 
-    {{-- Behavioral Reports Today --}}
-    <a href="{{ route('counselor.behavioral-reports.index') }}" class="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2 shadow-premium transition-all duration-300 hover:-translate-y-1 hover:shadow-hover focus:outline-none cursor-pointer group">
+    {{-- Students at risk (High + Moderate, in my scope) --}}
+    <a href="{{ route('admin.risk.index', ['scope' => 'mine']) }}" data-stat="at-risk" class="bg-white border border-gray-100 rounded-xl p-4 flex flex-col gap-2 shadow-premium transition-all duration-300 hover:-translate-y-1 hover:shadow-hover focus:outline-none cursor-pointer group">
         <div class="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center transition-colors group-hover:bg-emerald-500/20">
-            <i class="ti ti-message-report text-emerald-600 text-lg"></i>
+            <i class="ti ti-radar text-emerald-600 text-lg"></i>
         </div>
         <div>
-            <div class="text-2xl font-bold text-gray-900 tracking-tight">{{ number_format($behavioralReportsToday) }}</div>
-            <div class="text-[13px] font-medium text-gray-500 mt-0.5">Reports Today</div>
+            <div class="text-2xl font-bold text-gray-900 tracking-tight">{{ number_format($atRiskCount ?? 0) }}</div>
+            <div class="text-[13px] font-medium text-gray-500 mt-0.5">Students at Risk</div>
         </div>
-        <div class="text-[11px] font-semibold text-emerald-600 flex items-center gap-1.5 bg-emerald-50 w-max px-2 py-1 rounded-md mt-1">
-            <i class="ti ti-chart-dots"></i> {{ $behavioralReportsThisWeek }} this week
-        </div>
+        @if(($safetyFlagCount ?? 0) > 0)
+            <div class="text-[11px] font-semibold text-red-600 flex items-center gap-1.5 bg-red-50 w-max px-2 py-1 rounded-md mt-1">
+                <i class="ti ti-alert-octagon"></i> {{ $safetyFlagCount }} safety {{ ($safetyFlagCount ?? 0) === 1 ? 'flag' : 'flags' }}
+            </div>
+        @else
+            <div class="text-[11px] font-semibold text-emerald-600 flex items-center gap-1.5 bg-emerald-50 w-max px-2 py-1 rounded-md mt-1">
+                <i class="ti ti-shield-check"></i> {{ $riskDistribution['high'] ?? 0 }} high risk
+            </div>
+        @endif
     </a>
 
 </div>
@@ -241,6 +248,12 @@
                                 <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 flex-shrink-0">
                                     <i class="ti ti-brain text-[10px]"></i> {{ number_format($assessment->risk_score, 0) }}
                                 </span>
+                                @if(isset($safetyFlags[$assessment->student_id]))
+                                    <span class="inline-flex items-center gap-1 h-5 px-2 rounded-full border border-red-300 bg-red-50 text-red-700 text-[10px] font-bold whitespace-nowrap flex-shrink-0" data-safety-chip
+                                          title="{{ \App\Support\SafetyFlags::describe($safetyFlags[$assessment->student_id]) }}">
+                                        <i class="ti ti-alert-octagon text-[10px]"></i> Safety flag
+                                    </span>
+                                @endif
                             </div>
                             <p class="text-xs text-gray-500 mt-0.5 truncate">{{ $assessment->student->course }} - {{ $assessment->student->grade_level }}</p>
                             @if(!empty($assessment->risk_factors['reason']))

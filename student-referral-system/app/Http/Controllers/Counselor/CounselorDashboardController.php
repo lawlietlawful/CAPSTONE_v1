@@ -154,12 +154,17 @@ class CounselorDashboardController extends Controller
         // already exactly this scope — no need to recompute it). Keeps the
         // full assessment (not just the student) so the widget can show the
         // score, when it was flagged, and why — not just a bare name.
+        // A student with a safety flag (an open case naming violence, a weapon
+        // or a threat) belongs here even when the model scored them Moderate,
+        // and goes first; the rest are high-risk students by score.
+        $safetyFlags = \App\Support\SafetyFlags::forStudents();
         $watchlistAssessments = RiskAssessment::with('student')
             ->whereIn('id', $latestRiskIds)
-            ->where('risk_level', 'high')
-            ->orderByDesc('assessed_at')
+            ->where(fn ($q) => $q->where('risk_level', 'high')->orWhereIn('student_id', array_keys($safetyFlags)))
+            ->get()
+            ->sortByDesc(fn ($a) => (isset($safetyFlags[$a->student_id]) ? 1000 : 0) + (float) $a->risk_score)
             ->take(5)
-            ->get();
+            ->values();
 
         // ── NEW: Recent Activity Stream ──────────────────────────────────
         // Combine the most recent referrals and behavioral reports
@@ -199,11 +204,24 @@ class CounselorDashboardController extends Controller
             ->take(5)
             ->values();
 
-        // "Needs your attention" strip - each tile counts by the same rule as the page it links to.
+        // "Needs your attention" - each row counts by the same rule as the page it links to.
         $attentionTiles = app(AttentionService::class)->tiles($counselorId);
 
+        // Stat cards, in the order the work flows: reports -> referrals -> follow-ups -> risk.
+        $reportsToReviewCount = BehavioralReport::where('status', 'pending')->count();
+        $reportsNewToday = BehavioralReport::where('status', 'pending')->whereDate('created_at', Carbon::today())->count();
+
+        // Follow-ups due = today's plus anything overdue (same "still needs action" rule as the lists).
+        $followUpsDueCount = $myFollowUps()
+            ->whereDate('interventions.follow_up_date', '<=', Carbon::today())
+            ->count();
+
+        $atRiskCount = ($riskCounts['high'] ?? 0) + ($riskCounts['moderate'] ?? 0);
+        $safetyFlagCount = collect($attentionTiles)->firstWhere('key', 'safety')['count'] ?? 0;
+
         return compact(
-            'attentionTiles',
+            'attentionTiles', 'safetyFlags',
+            'reportsToReviewCount', 'reportsNewToday', 'followUpsDueCount', 'atRiskCount', 'safetyFlagCount',
             'pendingReferralsCount', 'recentPendingReferrals',
             'upcomingInterventionsCount', 'upcomingInterventions',
             'overdueInterventionsCount', 'overdueInterventions',
