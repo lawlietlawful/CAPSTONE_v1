@@ -256,23 +256,64 @@ class RiskAssessmentService
 
     private function persistAssessment(Student $student, array $features, array $mlData): RiskAssessment
     {
+        $riskFactors = [
+            'reason' => $features['referral_reason'],
+            'recommended_seminar_tag' => $mlData['recommended_seminar_tag'] ?? 'general',
+        ];
+
+        $level = $mlData['risk_level'];
+        $score = $mlData['risk_score'];
+
+        // Only the LATEST assessment is ever displayed, so without this a
+        // mild new incident silently replaced a serious open case: the score
+        // dropped, the recommended seminar changed, and the trend arrow
+        // turned green while a knife-threat referral was still unresolved.
+        $held = $this->openCaseAssessment($student);
+        if ($held && (float) $held->risk_score > (float) $score) {
+            $riskFactors['held_by_referral_id'] = $held->referral?->id;
+            $riskFactors['ml_risk_level'] = $level;
+            $riskFactors['ml_risk_score'] = $score;
+            $riskFactors['recommended_seminar_tag'] = $held->risk_factors['recommended_seminar_tag'] ?? $riskFactors['recommended_seminar_tag'];
+
+            $level = $held->risk_level;
+            $score = $held->risk_score;
+        }
+
         return RiskAssessment::create([
             'student_id'               => $student->id,
             'previous_referrals_count' => $features['previous_referrals_count'],
             'behavioral_reports_count' => $features['behavioral_reports_count'],
             'concern_type_encoded'     => $features['concern_type_encoded'],
             'days_since_last_referral' => $features['days_since_last_referral'],
-            'risk_score'               => $mlData['risk_score'],
-            'risk_level'               => $mlData['risk_level'],
+            'risk_score'               => $score,
+            'risk_level'               => $level,
             // Model casts risk_factors as 'array' — Eloquent handles the JSON
             // encoding on save. Passing a pre-encoded string here would
             // double-encode it, corrupting every future read.
-            'risk_factors' => [
-                'reason' => $features['referral_reason'],
-                'recommended_seminar_tag' => $mlData['recommended_seminar_tag'] ?? 'general',
-            ],
+            'risk_factors' => $riskFactors,
             'assessed_at' => now(),
         ]);
+    }
+
+    /**
+     * The highest-scoring assessment behind one of this student's still-open
+     * (pending / in-progress) referrals, or null. While such a case is open,
+     * the student's risk can't read lower than it did when it was filed; once
+     * the referral is resolved or cancelled it stops holding the score up
+     * and the next assessment reflects the student's actual situation.
+     *
+     * Called before the referral being assessed is linked to its own
+     * assessment, so it never holds itself up.
+     */
+    private function openCaseAssessment(Student $student): ?RiskAssessment
+    {
+        return RiskAssessment::query()
+            ->whereHas('referral', fn ($q) => $q
+                ->where('student_id', $student->id)
+                ->whereIn('status', ['pending', 'in_progress']))
+            ->with('referral')
+            ->orderByDesc('risk_score')
+            ->first();
     }
 
     /**

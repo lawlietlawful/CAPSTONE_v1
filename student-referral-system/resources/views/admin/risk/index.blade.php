@@ -68,6 +68,11 @@
 <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-4 mb-4">
     <form method="GET" action="{{ route('admin.risk.index') }}" class="flex flex-wrap gap-3 items-end" id="filterForm">
         <input type="hidden" name="scope" value="{{ request('scope') }}">
+        {{-- Keep the current sort when searching/filtering — without these, every filter change silently reset it. --}}
+        @if(request()->filled('sort'))
+            <input type="hidden" name="sort" value="{{ request('sort') }}">
+            <input type="hidden" name="dir" value="{{ request('dir') }}">
+        @endif
         <div class="flex-1 min-w-[250px] w-full relative">
             <label class="block text-xs font-medium text-gray-500 mb-1">Search Student</label>
             <div class="relative">
@@ -95,6 +100,9 @@
             </button>
             <a href="{{ route('admin.risk.index') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-1.5 h-[38px]">
                 <i class="ti ti-x"></i> Clear
+            </a>
+            <a href="{{ route('admin.risk.export', request()->only(['scope', 'risk_level', 'search', 'sort', 'dir'])) }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-1.5 h-[38px]" title="Download the students matching the current filters and sort as CSV">
+                <i class="ti ti-download"></i> Export
             </a>
         </div>
     </form>
@@ -187,7 +195,7 @@
                             @endif
                         </a>
                     </th>
-                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider">Factors</th>
+                    <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider" title="The seminar the risk engine suggests for this student. Hover the info icon to see the incident text it read.">Recommended Seminar</th>
                     <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider">Last Assessed</th>
                     <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">Action</th>
                 </tr>
@@ -212,6 +220,11 @@
                         <td class="px-5 py-3 text-center">
                             <div class="flex items-center justify-center gap-1.5">
                                 <span class="font-mono font-medium text-gray-900">{{ number_format($assessment->risk_score, 1) }}</span>
+                                @php $rf = is_array($assessment->risk_factors) ? $assessment->risk_factors : []; @endphp
+                                @if(!empty($rf['held_by_referral_id']))
+                                    <span class="text-[10px] px-1 rounded bg-amber-50 text-amber-700 border border-amber-100 cursor-help"
+                                          title="Held by open referral #{{ $rf['held_by_referral_id'] }}: the latest incident alone scored {{ number_format($rf['ml_risk_score'] ?? 0, 1) }} ({{ ucfirst($rf['ml_risk_level'] ?? '') }}), but risk can't drop while that case is unresolved.">held</span>
+                                @endif
                                 @if($assessment->previousAssessment)
                                     @php
                                         $diff = $assessment->risk_score - $assessment->previousAssessment->risk_score;
@@ -257,6 +270,8 @@
                                 $seminarTag = $factors['recommended_seminar_tag'] ?? null;
                                 $tagLabel = $seminarTag ? ucwords(str_replace('_', ' ', $seminarTag)) : null;
                                 $reason = $factors['reason'] ?? null;
+                                // Values Formation is the engine's catch-all: no attendance, academic or bullying signal matched.
+                                $isDefaultTag = $seminarTag === 'values_formation';
                             @endphp
                             @if($tagLabel || $reason)
                                 <div class="flex items-center gap-1.5">
@@ -264,6 +279,9 @@
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[11px] font-medium whitespace-nowrap">
                                             <i class="ti ti-target-arrow"></i> {{ $tagLabel }}
                                         </span>
+                                        @if($isDefaultTag)
+                                            <span class="text-[10px] text-gray-400 whitespace-nowrap" title="No specific concern (attendance, academic, bullying) was detected, so the general character-building seminar is suggested.">default</span>
+                                        @endif
                                     @else
                                         <span class="text-xs text-gray-400">—</span>
                                     @endif
@@ -325,7 +343,7 @@
 @endsection
 
 @push('scripts')
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script defer src="{{ asset('vendor/alpine.min.js') }}"></script>
 <style>
     [x-cloak] { display: none !important; }
 </style>

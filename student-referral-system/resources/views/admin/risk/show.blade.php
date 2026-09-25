@@ -110,6 +110,18 @@
             $tagLabel = $seminarTag ? ucwords(str_replace('_', ' ', $seminarTag)) : null;
             $reason = $factors['reason'] ?? null;
         @endphp
+        @php $heldBy = $factors['held_by_referral_id'] ?? null; @endphp
+        @if($heldBy)
+        <div class="bg-amber-50 border border-amber-100 rounded-2xl p-5 text-sm text-amber-900">
+            <p class="font-bold flex items-center gap-2 mb-1"><i class="ti ti-lock"></i> Score held by an open case</p>
+            <p class="text-xs leading-relaxed">
+                The latest incident alone scored <strong>{{ number_format($factors['ml_risk_score'] ?? 0, 1) }}</strong>
+                ({{ ucfirst($factors['ml_risk_level'] ?? '') }}), but referral <strong>#{{ $heldBy }}</strong> is still unresolved,
+                so this student's risk is kept at the level it had when that case was filed. It updates once the referral is resolved or cancelled.
+            </p>
+        </div>
+        @endif
+
         @if(($tagLabel && strtolower($tagLabel) !== 'general') || $reason)
         <div class="bg-red-50/80 border border-red-100 rounded-2xl shadow-sm p-6 relative overflow-hidden">
             <div class="absolute -right-4 -top-4 opacity-[0.03]">
@@ -121,10 +133,13 @@
             <div class="space-y-4 relative z-10">
                 @if($tagLabel && strtolower($tagLabel) !== 'general')
                     <div>
-                        <span class="block text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-1.5">Recommended Focus</span>
+                        <span class="block text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-1.5">Recommended Seminar</span>
                         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white text-red-800 border border-red-200 text-sm font-semibold">
                             <i class="ti ti-target-arrow"></i> {{ $tagLabel }}
                         </span>
+                        @if($seminarTag === 'values_formation')
+                            <p class="text-[11px] text-red-400 mt-1.5">Default suggestion — no attendance, academic or bullying concern was detected, so the general character-building seminar is recommended.</p>
+                        @endif
                     </div>
                 @endif
                 @if($reason)
@@ -260,7 +275,8 @@
             
             <div class="relative h-48 w-full flex items-end gap-2 pb-6 border-b border-l border-gray-200 pl-4">
                 @php
-                    $history = $student->riskAssessments->sortBy('assessed_at')->take(10);
+                    // The 10 MOST RECENT assessments, oldest first — sortBy()->take(10) kept the oldest 10, freezing the chart once a student passed 10 assessments.
+                    $history = $student->riskAssessments->sortByDesc('id')->take(10)->sortBy('id');
                     $maxScore = 100; // Assuming 100 is max possible, adjust if different
                 @endphp
                 
@@ -312,8 +328,29 @@
                     <form action="{{ route('admin.referrals.store') }}" method="POST">
                         @csrf
                         <input type="hidden" name="student_id" value="{{ $student->id }}">
+                        {{-- Tells the server to refuse a second open referral unless the counselor explicitly confirms it. --}}
+                        <input type="hidden" name="guard_duplicate" value="1">
+                        @php $openReferrals = $student->referrals->whereIn('status', ['pending', 'in_progress']); @endphp
                         <!-- Modal Content -->
                         <div class="space-y-5">
+                            @if($openReferrals->isNotEmpty())
+                                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-left">
+                                    <p class="text-sm font-semibold text-amber-900 flex items-center gap-2"><i class="ti ti-alert-triangle"></i> This student already has {{ $openReferrals->count() }} open {{ Str::plural('referral', $openReferrals->count()) }}</p>
+                                    <ul class="mt-2 space-y-1 text-xs text-amber-800">
+                                        @foreach($openReferrals as $open)
+                                            <li>
+                                                <a href="{{ route('admin.referrals.show', $open->id) }}" class="underline font-medium">#{{ $open->id }}</a>
+                                                &middot; {{ $open->referral_type_label }} &middot; {{ ucwords(str_replace('_', ' ', $open->status)) }}
+                                                &middot; {{ $open->counselor?->name ?? 'Unassigned' }}
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                    <label class="mt-3 flex items-start gap-2 text-xs text-amber-900 cursor-pointer">
+                                        <input type="checkbox" name="confirm_duplicate" value="1" required class="mt-0.5 rounded border-amber-300 text-blue-600">
+                                        <span>File a separate referral anyway. To hand the existing case to a counselor instead, use <strong>Assign Counselor</strong> on the At-Risk list.</span>
+                                    </label>
+                                </div>
+                            @endif
                             <div class="grid grid-cols-2 gap-5">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Referral Type <span class="text-red-500">*</span></label>
@@ -329,25 +366,18 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Priority Level <span class="text-red-500">*</span></label>
-                                    <select name="priority" required class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                        <option value="low">Low</option>
-                                        <option value="moderate">Moderate</option>
-                                        <option value="high">High</option>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Assign to Counselor</label>
+                                    <select name="counselor_id" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
+                                        <option value="">Unassigned (Counselor will pick up)</option>
+                                        @isset($counselors)
+                                            @foreach($counselors as $c)
+                                                <option value="{{ $c->id }}">{{ $c->name }}</option>
+                                            @endforeach
+                                        @endisset
                                     </select>
                                 </div>
                             </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Assign to Counselor</label>
-                                <select name="counselor_id" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                    <option value="">Unassigned (Counselor will pick up)</option>
-                                    @isset($counselors)
-                                        @foreach($counselors as $c)
-                                            <option value="{{ $c->id }}">{{ $c->name }}</option>
-                                        @endforeach
-                                    @endisset
-                                </select>
-                            </div>
+                            <p class="text-[11px] text-gray-400 text-left -mt-2">Priority is set automatically from the AI risk assessment of the reason below.</p>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Reason for Referral <span class="text-red-500">*</span></label>
                                 <textarea name="reason" rows="3" required placeholder="Describe the concern or reason for referring this student..." class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm"></textarea>

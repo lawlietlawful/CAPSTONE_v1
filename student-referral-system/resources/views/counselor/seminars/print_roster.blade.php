@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Print Roster - {{ $seminar->title }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{{ asset('vendor/tailwind.play.js') }}"></script>
     <style>
         @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white; }

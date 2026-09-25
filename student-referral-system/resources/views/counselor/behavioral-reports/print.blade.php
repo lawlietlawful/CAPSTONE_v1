@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Behavioral Report - {{ $behavioral_report->student->last_name }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{{ asset('vendor/tailwind.play.js') }}"></script>
     <style>
         @media print {
             body { font-size: 12pt; color: black; background: white; }

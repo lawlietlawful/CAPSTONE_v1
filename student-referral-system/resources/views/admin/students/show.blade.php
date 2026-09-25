@@ -612,7 +612,7 @@
 @endsection
 
 @push('scripts')
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script defer src="{{ asset('vendor/alpine.min.js') }}"></script>
 <style>
     [x-cloak] { display: none !important; }
     @media print {

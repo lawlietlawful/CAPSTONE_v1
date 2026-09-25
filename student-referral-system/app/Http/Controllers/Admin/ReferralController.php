@@ -110,6 +110,16 @@ class ReferralController extends Controller
             'counselor_id'        => 'nullable|exists:users,id',
         ]);
 
+        // The At-Risk profile's Refer form sends guard_duplicate so a second
+        // open referral is never filed by accident — the counselor must tick
+        // the explicit confirmation. Other callers are unaffected.
+        if ($request->boolean('guard_duplicate')
+            && ! $request->boolean('confirm_duplicate')
+            && Referral::where('student_id', $request->student_id)->whereIn('status', ['pending', 'in_progress'])->exists()) {
+            return redirect()->back()->withInput()
+                ->with('error', 'This student already has an open referral. Tick the confirmation to file another, or assign the existing one to a counselor instead.');
+        }
+
         // Goes through the same service the teacher-filed flow uses, so a
         // referral an admin files by hand gets the same ML risk assessment
         // and seminar recommendation instead of silently skipping both (the

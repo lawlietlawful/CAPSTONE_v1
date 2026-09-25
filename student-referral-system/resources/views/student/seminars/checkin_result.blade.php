@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Seminar Check-in</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <script src="{{ asset('vendor/tailwind.play.js') }}"></script>
+    <link rel="stylesheet" href="{{ asset('vendor/tabler/tabler-icons.min.css') }}">
 </head>
 <body class="bg-gray-50 flex items-center justify-center min-h-screen p-4">
     <div class="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
