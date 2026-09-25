@@ -74,8 +74,6 @@
 
 </div>
 
-@include('partials.attention-tiles', ['attentionTiles' => $attentionTiles ?? []])
-
 {{-- ── Main Row: Left + Right Columns ────────────────────────── --}}
 <div class="grid grid-cols-3 gap-6 mb-6">
 
@@ -220,50 +218,6 @@
             </div>
         </div>
 
-        <!-- Upcoming Follow-ups (after today) -->
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden">
-            <div class="px-6 py-5 border-b border-gray-100/60 bg-gray-50/50 flex justify-between items-center">
-                <h3 class="text-[15px] font-semibold text-gray-800 flex items-center gap-2">
-                    <i class="ti ti-calendar-time text-gray-400"></i> Upcoming Follow-ups
-                </h3>
-                <a href="{{ route('counselor.interventions.index') }}" class="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">View All</a>
-            </div>
-            <div class="divide-y divide-gray-100">
-                @forelse($upcomingInterventions as $intervention)
-                    <div class="p-4 hover:bg-gray-50 transition flex items-center justify-between">
-                        <div class="flex items-center gap-4">
-                            <div class="bg-blue-50 border border-blue-100 rounded-lg p-2 text-center min-w-[3.5rem]">
-                                <span class="block text-[10px] uppercase font-bold text-blue-600 tracking-wider">
-                                    {{ \Carbon\Carbon::parse($intervention->follow_up_date)->format('M') }}
-                                </span>
-                                <span class="block text-lg font-black text-blue-900 leading-none">
-                                    {{ \Carbon\Carbon::parse($intervention->follow_up_date)->format('d') }}
-                                </span>
-                            </div>
-                            <div>
-                                <h4 class="font-semibold text-gray-900 text-sm">
-                                    {{ $intervention->referral->student->first_name ?? 'Unknown' }} {{ $intervention->referral->student->last_name ?? 'Student' }}
-                                </h4>
-                                <p class="text-xs text-gray-500 mt-0.5">{{ $intervention->intervention_type }}</p>
-                            </div>
-                        </div>
-                        <a href="{{ route('counselor.interventions.show', $intervention->id) }}"
-                           class="text-xs font-medium text-gray-500 hover:text-blue-600 transition">
-                            Details <i class="ti ti-chevron-right align-[-2px]"></i>
-                        </a>
-                    </div>
-                @empty
-                    <div class="p-8 text-center">
-                        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-3">
-                            <i class="ti ti-calendar-off text-xl"></i>
-                        </div>
-                        <p class="text-sm font-medium text-gray-900">Nothing else scheduled</p>
-                        <p class="text-xs text-gray-500">No upcoming follow-ups beyond today.</p>
-                    </div>
-                @endforelse
-            </div>
-        </div>
-
     </div>
 
     {{-- ── Right Column (1/3): Widgets ────────────────────────── --}}
@@ -378,5 +332,57 @@
             </div>
         </div>
 
+    </div>
+</div>
+
+{{-- ── Bottom Row: Upcoming Follow-ups + Needs your attention, side by side at equal height ── --}}
+<div class="grid grid-cols-3 gap-6 mb-6 items-stretch">
+    <div class="col-span-2">
+        <!-- Upcoming Follow-ups (after today) -->
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden h-full">
+            <div class="px-6 py-5 border-b border-gray-100/60 bg-gray-50/50 flex justify-between items-center">
+                <h3 class="text-[15px] font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="ti ti-calendar-time text-gray-400"></i> Upcoming Follow-ups
+                </h3>
+                <a href="{{ route('counselor.interventions.index') }}" class="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">View All</a>
+            </div>
+            <div class="divide-y divide-gray-100">
+                @forelse($upcomingInterventions as $intervention)
+                    <div class="p-4 hover:bg-gray-50 transition flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-blue-50 border border-blue-100 rounded-lg p-2 text-center min-w-[3.5rem]">
+                                <span class="block text-[10px] uppercase font-bold text-blue-600 tracking-wider">
+                                    {{ \Carbon\Carbon::parse($intervention->follow_up_date)->format('M') }}
+                                </span>
+                                <span class="block text-lg font-black text-blue-900 leading-none">
+                                    {{ \Carbon\Carbon::parse($intervention->follow_up_date)->format('d') }}
+                                </span>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-900 text-sm">
+                                    {{ $intervention->referral->student->first_name ?? 'Unknown' }} {{ $intervention->referral->student->last_name ?? 'Student' }}
+                                </h4>
+                                <p class="text-xs text-gray-500 mt-0.5">{{ $intervention->intervention_type }}</p>
+                            </div>
+                        </div>
+                        <a href="{{ route('counselor.interventions.show', $intervention->id) }}"
+                           class="text-xs font-medium text-gray-500 hover:text-blue-600 transition">
+                            Details <i class="ti ti-chevron-right align-[-2px]"></i>
+                        </a>
+                    </div>
+                @empty
+                    <div class="p-8 text-center">
+                        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-3">
+                            <i class="ti ti-calendar-off text-xl"></i>
+                        </div>
+                        <p class="text-sm font-medium text-gray-900">Nothing else scheduled</p>
+                        <p class="text-xs text-gray-500">No upcoming follow-ups beyond today.</p>
+                    </div>
+                @endforelse
+            </div>
+        </div>
+    </div>
+    <div class="col-span-1">
+        @include('partials.attention-card', ['attentionTiles' => $attentionTiles ?? []])
     </div>
 </div>

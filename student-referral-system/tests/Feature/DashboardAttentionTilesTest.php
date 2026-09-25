@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BehavioralReport;
 use App\Models\Intervention;
 use App\Models\Referral;
 use App\Models\RiskAssessment;
@@ -148,26 +149,118 @@ class DashboardAttentionTilesTest extends TestCase
         }
     }
 
-    public function test_the_strip_renders_on_both_dashboards_and_says_all_clear_when_empty(): void
+    public function test_with_nothing_to_do_the_card_says_all_clear_and_lists_no_rows_on_both_dashboards(): void
     {
-        $html = $this->actingAs($this->counselor())->get(route('counselor.dashboard'))->getContent();
-        $this->assertStringContainsString('Needs your attention', $html);
-        $this->assertStringContainsString('All clear', $html);
-        foreach (['overdue', 'unassigned', 'reports', 'no_referral', 'rising', 'stale'] as $key) {
-            $this->assertStringContainsString('data-attention="' . $key . '"', $html);
+        foreach ([
+            $this->actingAs($this->counselor())->get(route('counselor.dashboard'))->getContent(),
+            $this->actingAs($this->superAdmin())->get(route('admin.dashboard'))->getContent(),
+        ] as $html) {
+            $this->assertStringContainsString('data-attention-clear', $html);
+            $this->assertStringContainsString('All clear', $html);
+            $this->assertStringContainsString('data-attention-card', $html, 'the card stays so the layout does not jump');
+            $this->assertStringNotContainsString('data-attention="', $html, 'no grey zero rows');
         }
-
-        $admin = $this->actingAs($this->superAdmin())->get(route('admin.dashboard'))->getContent();
-        $this->assertStringContainsString('Needs your attention', $admin);
     }
 
-    public function test_the_strip_does_not_say_all_clear_when_something_needs_attention(): void
+    public function test_only_tiles_with_something_to_do_are_shown_most_urgent_first(): void
+    {
+        $me = $this->counselor();
+        Referral::factory()->create(['status' => 'pending', 'counselor_id' => null]);           // unassigned
+        $this->assess(Student::factory()->create(), 'high', 90);                                 // no open referral
+        $html = $this->actingAs($me)->get(route('counselor.dashboard'))->getContent();
+
+        $this->assertStringContainsString('Needs your attention', $html);
+        $this->assertStringNotContainsString('All clear', $html);
+        foreach (['unassigned', 'no_referral'] as $key) {
+            $this->assertStringContainsString('data-attention="' . $key . '"', $html);
+        }
+        foreach (['overdue', 'reports', 'rising', 'stale'] as $key) {
+            $this->assertStringNotContainsString('data-attention="' . $key . '"', $html, "{$key} is 0, so it is hidden");
+        }
+        $this->assertLessThan(strpos($html, 'data-attention="no_referral"'), strpos($html, 'data-attention="unassigned"'), 'urgency order is kept');
+    }
+
+    public function test_a_tile_appears_the_moment_its_count_goes_above_zero_and_disappears_at_zero(): void
+    {
+        $me = $this->counselor();
+        $report = BehavioralReport::factory()->create(['status' => 'pending']);
+
+        $this->assertStringContainsString('data-attention="reports"', $this->actingAs($me)->get(route('counselor.dashboard'))->getContent());
+
+        $report->update(['status' => 'reviewed']);
+
+        $html = $this->actingAs($me)->get(route('counselor.dashboard'))->getContent();
+        $this->assertStringNotContainsString('data-attention="reports"', $html);
+        $this->assertStringContainsString('All clear', $html);
+    }
+
+    public function test_the_admin_strip_shows_its_tiles_when_there_is_work(): void
+    {
+        Referral::factory()->create(['status' => 'pending', 'counselor_id' => null]);
+
+        $html = $this->actingAs($this->superAdmin())->get(route('admin.dashboard'))->getContent();
+
+        $this->assertStringContainsString('Needs your attention', $html);
+        $this->assertStringContainsString('data-attention="unassigned"', $html);
+    }
+
+    public function test_the_counselor_attention_card_is_its_own_card_beside_upcoming_follow_ups(): void
     {
         Referral::factory()->create(['status' => 'pending', 'counselor_id' => null]);
 
         $html = $this->actingAs($this->counselor())->get(route('counselor.dashboard'))->getContent();
 
-        $this->assertStringNotContainsString('All clear', $html);
+        $this->assertSame(1, substr_count($html, 'data-attention-card'));
+        $this->assertStringNotContainsString('data-attention-strip', $html);
+        $upcoming = strpos($html, 'Upcoming Follow-ups');
+        $card = strpos($html, 'data-attention-card');
+        $this->assertGreaterThan($upcoming, $card, 'the card follows Upcoming Follow-ups in the same row');
+        $this->assertGreaterThan(strpos($html, 'Risk Distribution'), $upcoming, 'and both sit below the widgets column');
+
+        // Same grid row: nothing but the wrapper div between the follow-ups card's end and this card.
+        $between = substr($html, $upcoming, $card - $upcoming);
+        $this->assertStringNotContainsString('<!-- ', $between);
+        $this->assertStringNotContainsString('Risk Distribution', $between);
+    }
+
+    public function test_the_attention_card_is_not_inside_the_risk_distribution_card(): void
+    {
+        Referral::factory()->create(['status' => 'pending', 'counselor_id' => null]);
+
+        foreach ([
+            $this->actingAs($this->counselor())->get(route('counselor.dashboard'))->getContent(),
+            $this->actingAs($this->superAdmin())->get(route('admin.dashboard'))->getContent(),
+        ] as $html) {
+            $distribution = strpos($html, 'Risk Distribution');
+            $card = strpos($html, 'data-attention-card');
+            $this->assertNotFalse($distribution);
+            $this->assertNotFalse($card);
+            $this->assertGreaterThan($distribution, $card);
+            // The distribution card's closing markup comes before the attention card opens.
+            $this->assertStringContainsString('HIGH', substr($html, $distribution, 2500));
+            $segment = substr($html, $distribution, $card - $distribution);
+            $this->assertGreaterThan(0, substr_count($segment, '</div>'));
+        }
+    }
+
+    public function test_the_admin_attention_card_sits_under_risk_distribution_before_seminars(): void
+    {
+        Referral::factory()->create(['status' => 'pending', 'counselor_id' => null]);
+
+        $html = $this->actingAs($this->superAdmin())->get(route('admin.dashboard'))->getContent();
+
+        $this->assertSame(1, substr_count($html, 'data-attention-card'));
+        $this->assertGreaterThan(strpos($html, 'Risk Distribution'), strpos($html, 'data-attention-card'));
+        $this->assertLessThan(strpos($html, 'Upcoming Seminars'), strpos($html, 'data-attention-card'));
+    }
+
+    public function test_the_service_still_reports_every_tile_including_zeros(): void
+    {
+        // Hiding happens in the view; the data (and its consistency tests) stay complete.
+        $tiles = $this->tiles($this->counselor());
+
+        $this->assertSame(['overdue', 'unassigned', 'reports', 'no_referral', 'rising', 'stale'], array_keys($tiles));
+        $this->assertSame(0, array_sum(array_column($tiles, 'count')));
     }
 
     public function test_the_strip_is_part_of_the_polled_refresh_partial(): void

@@ -67,8 +67,6 @@
 
 </div>
 
-@include('partials.attention-tiles', ['attentionTiles' => $attentionTiles ?? []])
-
 {{-- ── Main Row: Referrals Table + Right Column ────────────── --}}
 <div class="grid grid-cols-3 gap-6 mb-6">
 
@@ -199,6 +197,8 @@
                 </div>
             </div>
         </div>
+
+        @include('partials.attention-card', ['attentionTiles' => $attentionTiles ?? []])
 
         {{-- Upcoming Seminars --}}
         <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-6 flex-1 flex flex-col">
