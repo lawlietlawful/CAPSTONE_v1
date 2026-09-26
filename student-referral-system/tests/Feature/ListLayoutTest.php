@@ -86,20 +86,24 @@ class ListLayoutTest extends TestCase
         }
     }
 
-    public function test_the_referral_cell_shows_a_status_pill_a_create_button_or_a_dash(): void
+    public function test_the_referral_cell_shows_a_status_pill_or_a_quiet_no_referral(): void
     {
         $this->mixedReports();
 
         $rows = $this->rows($this->actingAs($this->counselor())->get(route('counselor.behavioral-reports.index'))->getContent());
         $cells = array_map(fn ($r) => $r[5], $rows); // checkbox, student, incident, severity, status, REFERRAL
 
-        $pill = collect($cells)->first(fn ($c) => str_contains($c, 'data-linked-referral'));
-        $create = collect($cells)->first(fn ($c) => str_contains($c, 'data-quick-refer'));
-        $dash = collect($cells)->first(fn ($c) => ! str_contains($c, 'data-linked-referral') && ! str_contains($c, 'data-quick-refer'));
+        $pills = array_values(array_filter($cells, fn ($c) => str_contains($c, 'data-linked-referral')));
+        $none = array_values(array_filter($cells, fn ($c) => str_contains($c, 'data-no-referral')));
 
-        $this->assertMatchesRegularExpression('/#\d+\s*<span[^>]*>&middot;<\/span>\s*In Progress/', $pill);
-        $this->assertStringContainsString('Create referral', $create);
-        $this->assertStringContainsString('&mdash;', $dash);
+        $this->assertCount(1, $pills);
+        $this->assertCount(2, $none);
+        $this->assertMatchesRegularExpression('/#\d+\s*<span[^>]*>&middot;<\/span>\s*In Progress/', $pills[0]);
+        foreach ($none as $cell) {
+            $this->assertStringContainsString('No referral', $cell);
+            $this->assertStringNotContainsString('<button', $cell, 'nothing to click in a row that has no referral');
+            $this->assertStringNotContainsString('<form', $cell);
+        }
     }
 
     public function test_the_empty_reports_table_spans_every_column(): void
@@ -177,23 +181,21 @@ class ListLayoutTest extends TestCase
         $this->assertStringNotContainsString('Safety flag', $cell);
     }
 
-    public function test_the_action_buttons_share_one_size_and_stack_centered(): void
+    public function test_every_row_has_one_details_button_of_the_same_size(): void
     {
-        $this->riskRow('high', false, false);                // Details + Open referral
-        $this->riskRow('moderate', false, true, 'Covered');  // Details only
+        $this->riskRow('high', false, false);
+        $this->riskRow('moderate', false, true, 'Covered');
 
         $rows = $this->rows($this->actingAs($this->counselor())->get(route('admin.risk.index'))->getContent());
 
+        $this->assertCount(2, $rows);
         foreach ($rows as $cells) {
             $action = end($cells);
-            $this->assertStringContainsString('flex flex-col items-center', $action);
+            $this->assertSame(1, substr_count($action, '<a '), 'a single control');
+            $this->assertSame(0, substr_count($action, '<button'));
+            $this->assertStringContainsString('w-28 h-8', $action);
             $this->assertStringContainsString('Details', $action);
-            $this->assertSame(substr_count($action, 'w-28 h-8'), substr_count($action, '<a ') + substr_count($action, '<button'), 'every action control is the same size');
         }
-
-        $both = collect($rows)->first(fn ($c) => str_contains(end($c), 'data-quick-refer'));
-        $this->assertSame(2, substr_count(end($both), 'w-28 h-8'));
-        $this->assertStringContainsString('Open referral', end($both));
     }
 
     public function test_the_dashboard_watchlist_uses_the_same_pill(): void

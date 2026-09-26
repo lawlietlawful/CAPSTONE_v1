@@ -148,8 +148,8 @@
     </div>
 
     <!-- Right Column: Tabs -->
-    <div class="lg:col-span-2 space-y-6">
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover print:shadow-none print:border-transparent print:col-span-full flex flex-col self-start">
+    <div class="lg:col-span-2 flex flex-col gap-6">
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover print:shadow-none print:border-transparent print:col-span-full flex flex-col flex-1">
             <div class="px-6 pt-6 print:hidden">
                 <div class="bg-gray-50/80 p-1.5 rounded-xl inline-flex flex-wrap gap-1 border border-gray-100/50" id="profile-tabs">
                     <button @click="tab = 'demographics'" :class="{'bg-white text-blue-600 shadow-sm ring-1 ring-gray-900/5': tab === 'demographics', 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50': tab !== 'demographics'}" class="px-5 py-2.5 text-sm font-semibold rounded-lg focus:outline-none transition-all flex items-center gap-2">

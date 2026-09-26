@@ -133,15 +133,7 @@
 </div>
 
 {{-- ── Risk Assessment Table ─────────────────────────────────── --}}
-<form action="{{ route('admin.risk.bulkAction') }}" method="POST" x-data="{ selected: [], selectAll: false, showAssignModal: false, assignCounselorId: '',
-        // One click from a row: select just that student, assign to the signed-in counselor, submit the same bulk action.
-        quickRefer(id, name) {
-            if (! confirm('Open a referral for ' + name + ' and assign it to you?')) return;
-            this.selected = [id];
-            this.assignCounselorId = '{{ auth()->id() }}';
-            this.$nextTick(() => { this.$refs.quickAction.disabled = false; this.$root.submit(); });
-        } }" class="relative">
-    <input type="hidden" name="action" value="assign_counselor" x-ref="quickAction" disabled>
+<form action="{{ route('admin.risk.bulkAction') }}" method="POST" x-data="{ selected: [], selectAll: false, showAssignModal: false, assignCounselorId: '' }" class="relative">
     @csrf
     
     <!-- Floating Action Bar -->
@@ -262,34 +254,42 @@
                             @endif
                         </td>
                         <td class="px-4 py-3 text-center">
-                            <div class="flex items-center justify-center gap-1.5">
-                                <span class="font-mono font-medium text-gray-900">{{ number_format($assessment->risk_score, 1) }}</span>
-                                @php $rf = is_array($assessment->risk_factors) ? $assessment->risk_factors : []; @endphp
-                                @if(!empty($rf['held_by_referral_id']))
-                                    <span class="text-[10px] px-1 rounded bg-amber-50 text-amber-700 border border-amber-100 cursor-help"
-                                          title="Held by open referral #{{ $rf['held_by_referral_id'] }}: the latest incident alone scored {{ number_format($rf['ml_risk_score'] ?? 0, 1) }} ({{ ucfirst($rf['ml_risk_level'] ?? '') }}), but risk can't drop while that case is unresolved.">held</span>
-                                @endif
-                                @if(($rf['source'] ?? null) === 'override')
-                                    <span class="text-[10px] px-1 rounded bg-blue-50 text-blue-700 border border-blue-100 cursor-help"
-                                          title="Set manually by {{ $rf['override']['by_name'] ?? 'a counselor' }}: {{ $rf['override']['note'] ?? '' }}">manual</span>
-                                @endif
-                                @if($assessment->previousAssessment)
-                                    @php
-                                        $diff = $assessment->risk_score - $assessment->previousAssessment->risk_score;
-                                    @endphp
-                                    @if($diff > 0)
-                                        <div class="flex items-center text-red-500 bg-red-50 px-1 rounded" title="+{{ number_format($diff, 1) }} since last assessment">
-                                            <i class="ti ti-trending-up text-[10px]"></i>
-                                        </div>
-                                    @elseif($diff < 0)
-                                        <div class="flex items-center text-green-500 bg-green-50 px-1 rounded" title="{{ number_format($diff, 1) }} since last assessment">
-                                            <i class="ti ti-trending-down text-[10px]"></i>
-                                        </div>
-                                    @else
-                                        <div class="flex items-center text-gray-400 bg-gray-50 px-1 rounded" title="No change">
-                                            <i class="ti ti-minus text-[10px]"></i>
-                                        </div>
-                                    @endif
+                            @php
+                                $rf = is_array($assessment->risk_factors) ? $assessment->risk_factors : [];
+                                $heldBy = $rf['held_by_referral_id'] ?? null;
+                                $manual = ($rf['source'] ?? null) === 'override';
+                                // Trend only when the score actually moved; "no change" is not worth a mark.
+                                $diff = $assessment->previousAssessment ? $assessment->risk_score - $assessment->previousAssessment->risk_score : 0;
+                                $trend = abs($diff) >= 0.05 ? ($diff > 0 ? 'up' : 'down') : null;
+                            @endphp
+                            <div class="flex flex-col items-center gap-1" data-score-cell>
+                                {{-- The number stays centred on every row: equal-width slots either side hold the trend arrow. --}}
+                                <div class="inline-flex items-center" data-score-line>
+                                    <span class="w-5" aria-hidden="true"></span>
+                                    <span class="font-mono font-medium text-gray-900">{{ number_format($assessment->risk_score, 1) }}</span>
+                                    <span class="w-5 inline-flex items-center justify-end">
+                                        @if($trend === 'up')
+                                            <i class="ti ti-trending-up text-sm text-red-500" data-trend="up" title="+{{ number_format($diff, 1) }} since last assessment"></i>
+                                        @elseif($trend === 'down')
+                                            <i class="ti ti-trending-down text-sm text-green-600" data-trend="down" title="{{ number_format($diff, 1) }} since last assessment"></i>
+                                        @endif
+                                    </span>
+                                </div>
+                                @if($heldBy || $manual)
+                                    <div class="flex flex-col items-center gap-1" data-score-notes>
+                                        @if($heldBy)
+                                            <span class="inline-flex items-center gap-1 h-5 px-2 rounded-full border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-semibold whitespace-nowrap cursor-help" data-held-chip
+                                                  title="Held by open referral #{{ $heldBy }}: the latest incident alone scored {{ number_format($rf['ml_risk_score'] ?? 0, 1) }} ({{ ucfirst($rf['ml_risk_level'] ?? '') }}), but risk can't drop while that case is unresolved.">
+                                                <i class="ti ti-lock"></i> Held &middot; #{{ $heldBy }}
+                                            </span>
+                                        @endif
+                                        @if($manual)
+                                            <span class="inline-flex items-center gap-1 h-5 px-2 rounded-full border border-blue-200 bg-blue-50 text-blue-700 text-[10px] font-semibold whitespace-nowrap cursor-help" data-manual-chip
+                                                  title="Set manually by {{ $rf['override']['by_name'] ?? 'a counselor' }}: {{ $rf['override']['note'] ?? '' }}">
+                                                <i class="ti ti-user-check"></i> Manual review
+                                            </span>
+                                        @endif
+                                    </div>
                                 @endif
                             </div>
                         </td>
@@ -358,18 +358,11 @@
                             {{ $assessment->assessed_at->diffForHumans() }}
                         </td>
                         <td class="px-4 py-3">
-                            <div class="flex flex-col items-center gap-1.5">
+                            <div class="flex justify-center">
                                 <a href="{{ route('admin.risk.show', $assessment->student->id) }}"
                                    class="inline-flex items-center justify-center gap-1.5 w-28 h-8 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-medium hover:bg-gray-50 hover:border-gray-300 transition">
                                     <i class="ti ti-eye"></i> Details
                                 </a>
-                                @if(auth()->user()->role === 'admin' && in_array($assessment->risk_level, ['high', 'moderate']) && $assessment->student->referrals->isEmpty())
-                                    <button type="button" data-quick-refer @click="quickRefer({{ $assessment->id }}, @js($assessment->student->last_name . ', ' . $assessment->student->first_name))"
-                                            class="inline-flex items-center justify-center gap-1.5 w-28 h-8 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition"
-                                            title="Open a referral for this student and assign it to you">
-                                        <i class="ti ti-file-plus"></i> Open referral
-                                    </button>
-                                @endif
                             </div>
                         </td>
                     </tr>

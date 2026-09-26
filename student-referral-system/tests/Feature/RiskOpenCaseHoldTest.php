@@ -141,7 +141,7 @@ class RiskOpenCaseHoldTest extends TestCase
         $counselor = User::factory()->counselor()->create();
 
         $list = $this->actingAs($counselor)->get(route('admin.risk.index'))->getContent();
-        $this->assertStringContainsString('>held<', $list);
+        $this->assertStringContainsString('data-held-chip', $list);
         $this->assertStringContainsString("Held by open referral #{$serious->id}", $list);
 
         $detail = $this->actingAs($counselor)->get(route('admin.risk.show', $student->id))->getContent();
@@ -156,7 +156,7 @@ class RiskOpenCaseHoldTest extends TestCase
         $this->file($student);
         $counselor = User::factory()->counselor()->create();
 
-        $this->assertStringNotContainsString('>held<', $this->actingAs($counselor)->get(route('admin.risk.index'))->getContent());
+        $this->assertStringNotContainsString('data-held-chip', $this->actingAs($counselor)->get(route('admin.risk.index'))->getContent());
         $this->assertStringNotContainsString('Score held by an open case', $this->actingAs($counselor)->get(route('admin.risk.show', $student->id))->getContent());
     }
 }

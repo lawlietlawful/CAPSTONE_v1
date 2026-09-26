@@ -1,6 +1,7 @@
 {{--
-    A student's single case status (see App\Support\CaseStatus). Expects
-    $caseStatus. Optional $compact = true for the tighter At-Risk profile card.
+    A student's single case status strip (see App\Support\CaseStatus). Expects
+    $caseStatus. Slim like the safety flag: one heading line with the referral
+    link on the right, one line of detail.
 --}}
 @php
     $tones = [
@@ -12,14 +13,15 @@
     ];
     $toneClass = $tones[$caseStatus['tone']] ?? $tones['gray'];
 @endphp
-<div class="w-full rounded-xl border {{ $toneClass }} px-3 py-2.5 text-left {{ ($compact ?? false) ? 'mt-3' : 'mt-4' }}" data-case-status="{{ $caseStatus['key'] }}">
-    <div class="flex items-center gap-2 text-sm font-bold">
-        <i class="ti {{ $caseStatus['icon'] }} text-base"></i> {{ $caseStatus['label'] }}
+<div class="w-full rounded-lg border {{ $toneClass }} px-2.5 py-1.5 text-left mt-2" data-case-status="{{ $caseStatus['key'] }}">
+    <div class="flex items-center gap-1.5">
+        <i class="ti {{ $caseStatus['icon'] }} text-sm"></i>
+        <span class="text-xs font-bold">{{ $caseStatus['label'] }}</span>
+        @if($caseStatus['referral_id'])
+            <a href="{{ route('admin.referrals.show', $caseStatus['referral_id']) }}" class="ml-auto text-[10px] font-semibold underline underline-offset-2 opacity-90 hover:opacity-100 whitespace-nowrap">
+                View referral #{{ $caseStatus['referral_id'] }}
+            </a>
+        @endif
     </div>
-    <p class="text-xs mt-0.5 opacity-90 leading-snug">{{ $caseStatus['detail'] }}</p>
-    @if($caseStatus['referral_id'])
-        <a href="{{ route('admin.referrals.show', $caseStatus['referral_id']) }}" class="inline-block mt-1.5 text-[11px] font-semibold underline underline-offset-2 opacity-90 hover:opacity-100">
-            View referral #{{ $caseStatus['referral_id'] }}
-        </a>
-    @endif
+    <p class="text-[11px] mt-0.5 opacity-90 leading-snug">{{ $caseStatus['detail'] }}</p>
 </div>

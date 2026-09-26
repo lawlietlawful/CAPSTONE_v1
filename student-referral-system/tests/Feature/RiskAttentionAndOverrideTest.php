@@ -449,6 +449,7 @@ class RiskAttentionAndOverrideTest extends TestCase
         $this->assertStringContainsString('Manual review by', $detail);
 
         $list = $this->actingAs($by)->get(route('admin.risk.index', ['include_low' => 1]))->getContent();
-        $this->assertStringContainsString('>manual<', $list);
+        $this->assertStringContainsString('data-manual-chip', $list);
+        $this->assertStringContainsString('Manual review', $list);
     }
 }

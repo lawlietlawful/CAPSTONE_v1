@@ -36,14 +36,17 @@ class RowActionsTest extends TestCase
 
     // ── Reports list ─────────────────────────────────────────────────────
 
-    public function test_an_open_report_without_a_referral_offers_one_click_create(): void
+    public function test_an_open_report_without_a_referral_says_so_and_offers_no_button(): void
     {
         $report = BehavioralReport::factory()->create(['status' => 'pending']);
 
         $html = $this->reportsPage($this->counselor())->getContent();
 
-        $this->assertSame(1, substr_count($html, 'data-quick-refer'));
-        $this->assertStringContainsString(route('counselor.behavioral-reports.refer', $report->id), $html);
+        $this->assertSame(1, substr_count($html, 'data-no-referral'));
+        $this->assertStringContainsString('No referral', $html);
+        $this->assertStringNotContainsString('data-quick-refer', $html);
+        $this->assertStringNotContainsString('Create referral', $html, 'creating one is done on the report page');
+        $this->assertStringNotContainsString(route('counselor.behavioral-reports.refer', $report->id), $html, 'no form posts to the refer route from the list');
         $this->assertStringNotContainsString('data-linked-referral', $html);
     }
 
@@ -59,9 +62,10 @@ class RowActionsTest extends TestCase
         $this->assertStringContainsString('#' . $referral->id, $html);
         $this->assertStringContainsString('In Progress', $html);
         $this->assertStringNotContainsString('data-quick-refer', $html);
+        $this->assertStringNotContainsString('data-no-referral', $html);
     }
 
-    public function test_a_resolved_report_without_a_referral_offers_neither(): void
+    public function test_a_resolved_report_without_a_referral_just_says_no_referral(): void
     {
         BehavioralReport::factory()->create(['status' => 'resolved']);
 
@@ -69,6 +73,7 @@ class RowActionsTest extends TestCase
 
         $this->assertStringNotContainsString('data-quick-refer', $html);
         $this->assertStringNotContainsString('data-linked-referral', $html);
+        $this->assertSame(1, substr_count($html, 'data-no-referral'));
     }
 
     public function test_the_list_marks_each_row_correctly_when_reports_differ(): void
@@ -81,7 +86,8 @@ class RowActionsTest extends TestCase
         $html = $this->reportsPage($this->counselor())->getContent();
 
         $this->assertSame(1, substr_count($html, 'data-linked-referral'));
-        $this->assertSame(1, substr_count($html, 'data-quick-refer'));
+        $this->assertSame(2, substr_count($html, 'data-no-referral'));
+        $this->assertSame(0, substr_count($html, 'data-quick-refer'));
     }
 
     public function test_the_list_loads_the_linked_referral_up_front_not_one_query_per_row(): void
@@ -96,7 +102,7 @@ class RowActionsTest extends TestCase
         $this->assertTrue($page->viewData('reports')->first()->relationLoaded('escalatedReferral'));
     }
 
-    public function test_the_row_form_creates_a_referral_for_that_report(): void
+    public function test_a_referral_is_still_created_from_the_report_page_and_then_shows_in_the_list(): void
     {
         \Illuminate\Support\Facades\Http::fake(['*/predict' => \Illuminate\Support\Facades\Http::response(['risk_level' => 'moderate', 'risk_score' => 55, 'recommended_seminar_tag' => 'general'], 200), '*' => \Illuminate\Support\Facades\Http::response([], 200)]);
         $c = $this->counselor();
@@ -106,6 +112,19 @@ class RowActionsTest extends TestCase
 
         $this->assertSame($c->id, Referral::where('behavioral_report_id', $report->id)->sole()->counselor_id);
         $this->assertStringContainsString('data-linked-referral', $this->reportsPage($c)->getContent());
+    }
+
+    public function test_the_report_page_is_where_a_referral_is_created(): void
+    {
+        $c = $this->counselor();
+        $report = BehavioralReport::factory()->create(['status' => 'pending']);
+
+        $list = $this->reportsPage($c)->getContent();
+        $page = $this->actingAs($c)->get(route('counselor.behavioral-reports.show', $report->id))->getContent();
+
+        $this->assertStringNotContainsString('Create referral', $list);
+        $this->assertStringContainsString('Create referral from this report', $page);
+        $this->assertStringContainsString('name="counselor_id"', $page, 'with a choice of who it is assigned to');
     }
 
     public function test_the_admin_report_list_keeps_its_own_issue_referral_link(): void
@@ -120,62 +139,31 @@ class RowActionsTest extends TestCase
 
     // ── At-Risk rows ─────────────────────────────────────────────────────
 
-    public function test_high_and_moderate_students_without_an_open_referral_get_the_button(): void
+    public function test_at_risk_rows_offer_only_details_no_one_click_referral(): void
     {
+        // A referral is opened deliberately from the profile's Refer form (which warns about an
+        // open case) or the bulk Assign Counselor action - not by a stray click in a list row.
         $high = Student::factory()->create();
         $this->assess($high, 'high', 90);
         $moderate = Student::factory()->create();
         $this->assess($moderate, 'moderate', 55);
 
-        $html = $this->actingAs($this->counselor())->get(route('admin.risk.index'))->getContent();
+        foreach ([$this->counselor(), User::factory()->create(['role' => 'super_admin'])] as $viewer) {
+            $html = $this->actingAs($viewer)->get(route('admin.risk.index'))->getContent();
 
-        $this->assertSame(2, substr_count($html, 'data-quick-refer'));
-        $this->assertStringContainsString('quickRefer(', $html);
-        $this->assertStringContainsString('x-ref="quickAction"', $html);
+            $this->assertStringNotContainsString('data-quick-refer', $html);
+            $this->assertStringNotContainsString('quickRefer', $html);
+            $this->assertStringNotContainsString('x-ref="quickAction"', $html);
+            $this->assertSame(2, substr_count($html, '</i> Details'), 'each row still has its Details button');
+        }
     }
 
-    public function test_the_button_is_absent_when_a_referral_is_open_or_the_student_is_low_risk(): void
-    {
-        $covered = Student::factory()->create();
-        $this->assess($covered, 'high', 90);
-        Referral::factory()->create(['student_id' => $covered->id, 'status' => 'pending']);
-        $low = Student::factory()->create();
-        $this->assess($low, 'low', 15);
-        $closed = Student::factory()->create();
-        $this->assess($closed, 'moderate', 55);
-        Referral::factory()->create(['student_id' => $closed->id, 'status' => 'resolved']);
-
-        $html = $this->actingAs($this->counselor())->get(route('admin.risk.index'))->getContent();
-
-        $this->assertSame(1, substr_count($html, 'data-quick-refer'), 'only the student whose referral is closed still lacks an open one');
-    }
-
-    public function test_the_button_is_not_offered_to_the_super_admin(): void
-    {
-        $this->assess(Student::factory()->create(), 'high', 90);
-        $super = User::factory()->create(['role' => 'super_admin']);
-
-        $this->assertStringNotContainsString('data-quick-refer', $this->actingAs($super)->get(route('admin.risk.index'))->getContent());
-    }
-
-    public function test_a_name_with_an_apostrophe_cannot_break_the_row_script(): void
-    {
-        $this->assess(Student::factory()->create(['first_name' => 'Ana', 'last_name' => "O'Brien"]), 'high', 90);
-
-        $html = $this->actingAs($this->counselor())->get(route('admin.risk.index'))->getContent();
-
-        // The name reaches the script as escaped JSON, never as a raw quote inside the handler.
-        $needle = 'O' . chr(92) . 'u0027Brien, Ana';
-        $this->assertMatchesRegularExpression('/@click="quickRefer' . chr(92) . '(' . chr(92) . 'd+, ' . preg_quote("'" . $needle . "'", '/') . chr(92) . ')"/', $html);
-    }
-
-    public function test_the_click_sends_exactly_what_the_bulk_action_needs_and_opens_a_referral_for_me(): void
+    public function test_the_bulk_assign_action_still_opens_referrals_for_selected_students(): void
     {
         $c = $this->counselor();
         $s = Student::factory()->create();
         $a = $this->assess($s, 'high', 88.5);
 
-        // What the row's JavaScript submits: the one selected id, the action, and the signed-in counselor.
         $this->actingAs($c)->post(route('admin.risk.bulkAction'), [
             'assessment_ids' => [$a->id], 'action' => 'assign_counselor', 'assign_counselor_id' => $c->id,
         ])->assertSessionHas('success');
@@ -183,8 +171,15 @@ class RowActionsTest extends TestCase
         $referral = Referral::where('student_id', $s->id)->sole();
         $this->assertSame($c->id, $referral->counselor_id);
         $this->assertSame('high', $referral->priority);
+    }
 
-        // ...and the row no longer offers the button.
-        $this->assertStringNotContainsString('data-quick-refer', $this->actingAs($c)->get(route('admin.risk.index'))->getContent());
+    public function test_the_at_risk_page_still_offers_bulk_assign_and_the_profile_refer_form(): void
+    {
+        $s = Student::factory()->create();
+        $this->assess($s, 'high', 90);
+        $c = $this->counselor();
+
+        $this->assertStringContainsString('Assign Counselor', $this->actingAs($c)->get(route('admin.risk.index'))->getContent());
+        $this->assertStringContainsString('Refer Student to Guidance', $this->actingAs($c)->get(route('admin.risk.show', $s->id))->getContent());
     }
 }

@@ -186,6 +186,7 @@
                     </div>
                 @endforelse
             </div>
+            @include('partials.card-pager', ['paginator' => $recentPendingReferrals, 'name' => 'Pending referrals'])
         </div>
 
         <!-- Today's Itinerary -->
@@ -225,6 +226,41 @@
             </div>
         </div>
 
+
+        <!-- Risk Distribution -->
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-6">
+            <h2 class="text-[15px] font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <i class="ti ti-chart-pie text-gray-400"></i> Risk Distribution
+            </h2>
+            <div class="flex h-3 rounded-full overflow-hidden gap-1 mb-5 bg-gray-100">
+                <div class="risk-bar-low h-full rounded-full transition-all duration-1000 ease-out"
+                     style="width: {{ $riskDistribution['low_pct'] }}%" data-width="{{ $riskDistribution['low_pct'] }}%"></div>
+                <div class="risk-bar-mod h-full rounded-full transition-all duration-1000 ease-out"
+                     style="width: {{ $riskDistribution['moderate_pct'] }}%" data-width="{{ $riskDistribution['moderate_pct'] }}%"></div>
+                <div class="risk-bar-high h-full rounded-full transition-all duration-1000 ease-out"
+                     style="width: {{ $riskDistribution['high_pct'] }}%" data-width="{{ $riskDistribution['high_pct'] }}%"></div>
+            </div>
+            <div class="flex justify-between items-center px-1">
+                <div class="flex flex-col items-center gap-1">
+                    <div class="flex items-center gap-1.5 text-xs text-gray-500 font-medium uppercase tracking-wider">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> LOW
+                    </div>
+                    <span class="text-xl font-bold text-gray-900">{{ $riskDistribution['low'] }}</span>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                    <div class="flex items-center gap-1.5 text-xs text-gray-500 font-medium uppercase tracking-wider">
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span> MOD
+                    </div>
+                    <span class="text-xl font-bold text-gray-900">{{ $riskDistribution['moderate'] }}</span>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                    <div class="flex items-center gap-1.5 text-xs text-gray-500 font-medium uppercase tracking-wider">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span> HIGH
+                    </div>
+                    <span class="text-xl font-bold text-gray-900">{{ $riskDistribution['high'] }}</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- ── Right Column (1/3): Widgets ────────────────────────── --}}
@@ -273,6 +309,7 @@
                     </div>
                 @endforelse
             </div>
+            @include('partials.card-pager', ['paginator' => $watchlistAssessments, 'name' => 'Watchlist'])
         </div>
 
         <!-- Recent Activity Stream -->
@@ -307,41 +344,6 @@
                         <p class="text-xs text-gray-500">No recent activity.</p>
                     </div>
                 @endforelse
-            </div>
-        </div>
-
-        <!-- Risk Distribution -->
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-6">
-            <h2 class="text-[15px] font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <i class="ti ti-chart-pie text-gray-400"></i> Risk Distribution
-            </h2>
-            <div class="flex h-3 rounded-full overflow-hidden gap-1 mb-5 bg-gray-100">
-                <div class="risk-bar-low h-full rounded-full transition-all duration-1000 ease-out"
-                     style="width: {{ $riskDistribution['low_pct'] }}%" data-width="{{ $riskDistribution['low_pct'] }}%"></div>
-                <div class="risk-bar-mod h-full rounded-full transition-all duration-1000 ease-out"
-                     style="width: {{ $riskDistribution['moderate_pct'] }}%" data-width="{{ $riskDistribution['moderate_pct'] }}%"></div>
-                <div class="risk-bar-high h-full rounded-full transition-all duration-1000 ease-out"
-                     style="width: {{ $riskDistribution['high_pct'] }}%" data-width="{{ $riskDistribution['high_pct'] }}%"></div>
-            </div>
-            <div class="flex justify-between items-center px-1">
-                <div class="flex flex-col items-center gap-1">
-                    <div class="flex items-center gap-1.5 text-xs text-gray-500 font-medium uppercase tracking-wider">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> LOW
-                    </div>
-                    <span class="text-xl font-bold text-gray-900">{{ $riskDistribution['low'] }}</span>
-                </div>
-                <div class="flex flex-col items-center gap-1">
-                    <div class="flex items-center gap-1.5 text-xs text-gray-500 font-medium uppercase tracking-wider">
-                        <span class="w-2 h-2 rounded-full bg-amber-500"></span> MOD
-                    </div>
-                    <span class="text-xl font-bold text-gray-900">{{ $riskDistribution['moderate'] }}</span>
-                </div>
-                <div class="flex flex-col items-center gap-1">
-                    <div class="flex items-center gap-1.5 text-xs text-gray-500 font-medium uppercase tracking-wider">
-                        <span class="w-2 h-2 rounded-full bg-red-500"></span> HIGH
-                    </div>
-                    <span class="text-xl font-bold text-gray-900">{{ $riskDistribution['high'] }}</span>
-                </div>
             </div>
         </div>
 

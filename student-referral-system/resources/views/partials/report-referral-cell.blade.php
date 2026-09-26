@@ -2,11 +2,12 @@
     "Referral" cell for a row in the Behavioral Reports list. Expects $report
     (with escalatedReferral loaded) and $area ('admin'|'counselor').
 
-    Exactly one of three things, so every row lines up the same way:
+    Read-only, one of two things, so every row lines up the same way:
       - the linked referral as a status-coloured pill (a report that escalated,
-        or one a counselor already opened a case for),
-      - a "Create referral" button while the report is open and has none,
-      - a dash once the report is resolved without a referral.
+        or one a counselor already opened a case for), or
+      - a quiet "No referral".
+    Opening a referral is deliberate and happens on the report's own page,
+    where the counselor chooses who it is assigned to - not by a click in a list row.
 --}}
 @php $linked = $report->escalatedReferral; @endphp
 <div class="flex items-center justify-center min-h-[1.75rem]">
@@ -24,16 +25,7 @@
            title="Open referral #{{ $linked->id }}">
             <i class="ti ti-file-text"></i> #{{ $linked->id }} <span class="opacity-40">&middot;</span> {{ ucwords(str_replace('_', ' ', $linked->status)) }}
         </a>
-    @elseif($report->status !== 'resolved')
-        <form action="{{ route($area . '.behavioral-reports.refer', $report->id) }}" method="POST" class="m-0"
-              onsubmit="return confirm('Create a referral from this report?')" data-quick-refer>
-            @csrf
-            <button type="submit" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-200 bg-white text-emerald-700 text-[11px] font-medium whitespace-nowrap hover:bg-emerald-50 transition"
-                    title="Create a referral from this report">
-                <i class="ti ti-plus"></i> Create referral
-            </button>
-        </form>
     @else
-        <span class="text-xs text-gray-300">&mdash;</span>
+        <span class="text-xs text-gray-400" data-no-referral>No referral</span>
     @endif
 </div>

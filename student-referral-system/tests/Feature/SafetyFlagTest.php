@@ -231,7 +231,7 @@ class SafetyFlagTest extends TestCase
         $this->assertSame(1, substr_count($page->getContent(), 'data-safety-chip'));
     }
 
-    public function test_the_watchlist_keeps_at_most_five_with_flagged_students_never_pushed_out(): void
+    public function test_the_watchlist_pages_three_at_a_time_with_flagged_students_first_across_pages(): void
     {
         for ($i = 0; $i < 6; $i++) {
             $s = Student::factory()->create();
@@ -239,11 +239,17 @@ class SafetyFlagTest extends TestCase
             $this->referralFor($s, 'Repeated absences.');
         }
         $flagged = $this->stabber();
+        $c = $this->counselor();
 
-        $ids = $this->actingAs($this->counselor())->get(route('counselor.dashboard'))->viewData('watchlistAssessments')->pluck('student_id')->all();
+        $first = $this->actingAs($c)->get(route('counselor.dashboard'))->viewData('watchlistAssessments');
 
-        $this->assertCount(5, $ids);
-        $this->assertSame($flagged->id, $ids[0]);
+        $this->assertCount(3, $first);
+        $this->assertSame(7, $first->total());
+        $this->assertSame($flagged->id, $first->first()->student_id, 'the flagged student leads page one');
+
+        $last = $this->actingAs($c)->get(route('counselor.dashboard', ['watch_page' => 3]))->viewData('watchlistAssessments');
+        $this->assertCount(1, $last);
+        $this->assertNotContains($flagged->id, $last->pluck('student_id')->all(), 'and is not repeated on a later page');
     }
 
     // ── Profile pages ────────────────────────────────────────────────────

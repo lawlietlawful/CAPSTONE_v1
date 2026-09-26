@@ -17,7 +17,7 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
     <!-- Left Column: Student Info & Overall Risk -->
-    <div class="lg:col-span-1 space-y-6">
+    <div class="lg:col-span-1 flex flex-col gap-6">
 
         <!-- Student Profile Card -->
         <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden relative group">
@@ -106,16 +106,16 @@
             </div>
         </div>
 
-        <!-- Manual review / override -->
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <div class="p-6">
+        <!-- Manual review / override (grows to the bottom edge of the row) -->
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col">
+            <div class="p-6 flex flex-col flex-1">
                 <h4 class="font-bold text-gray-900 flex items-center gap-2 mb-1">
                     <i class="ti ti-adjustments text-blue-600"></i> Review &amp; Override
                 </h4>
                 <p class="text-xs text-gray-500 mb-4 leading-relaxed">
                     Disagree with the AI score? Set the level yourself. Your name and reason are saved in the assessment history, the earlier assessments are kept, and the automatic re-check leaves it alone for {{ \App\Services\RiskAssessmentService::OVERRIDE_SHIELD_DAYS }} days (a new incident is still assessed normally).
                 </p>
-                <form action="{{ route('admin.risk.override', $student->id) }}" method="POST" class="space-y-3">
+                <form action="{{ route('admin.risk.override', $student->id) }}" method="POST" class="flex flex-col gap-3 flex-1">
                     @csrf
                     <div>
                         <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Risk level</label>
@@ -125,17 +125,21 @@
                             @endforeach
                         </select>
                     </div>
-                    <div>
+                    <div class="flex flex-col flex-1">
                         <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Reason <span class="text-red-500">*</span></label>
                         <textarea name="note" rows="3" required minlength="10" maxlength="1000" placeholder="Why is this the right level? (e.g. met with the student and parent — incident was a misunderstanding)"
-                                  class="w-full rounded-xl border border-gray-300 text-sm px-3 py-2 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200">{{ old('note') }}</textarea>
+                                  class="flex-1 min-h-[5.5rem] w-full rounded-xl border border-gray-300 text-sm px-3 py-2 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200">{{ old('note') }}</textarea>
                         @error('note') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         @error('risk_level') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                     </div>
-                    <button type="submit" class="w-full py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition">Save review</button>
+                    <button type="submit" class="w-full py-2 mt-auto bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition">Save review</button>
                 </form>
             </div>
         </div>
+    </div>
+
+    <!-- Right Column: Detail Breakdowns -->
+    <div class="lg:col-span-2 flex flex-col gap-6">
 
         <!-- Risk Factors -->
         @php
@@ -187,11 +191,6 @@
             </div>
         </div>
         @endif
-
-    </div>
-
-    <!-- Right Column: Detail Breakdowns -->
-    <div class="lg:col-span-2 space-y-6">
 
         <!-- Case summary: the risk profile is for deciding; the full record lives on the Student page -->
         @php
@@ -325,12 +324,14 @@
         </div>
 
         <!-- Risk Assessment History Graph (Placeholder for Analytics) -->
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 flex-1 flex flex-col">
             <h4 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <i class="ti ti-chart-line text-blue-600"></i> Risk Assessment History
             </h4>
             
-            <div class="relative h-48 w-full flex items-end gap-2 pb-6 border-b border-l border-gray-200 pl-4">
+            {{-- The plot area has a definite height (flex-1, min 12rem) and the bars sit in an absolutely-filled layer, so their percentage heights resolve. They used to render at 0px. --}}
+            <div class="relative flex-1 min-h-[12rem] w-full border-b border-l border-gray-200" data-history-chart>
+              <div class="absolute inset-0 pl-4 pb-6 flex items-end justify-around gap-2">
                 @php
                     // The 10 MOST RECENT assessments, oldest first — sortBy()->take(10) kept the oldest 10, freezing the chart once a student passed 10 assessments.
                     $history = $student->riskAssessments->sortByDesc('id')->take(10)->sortBy('id');
@@ -347,7 +348,7 @@
                                 default    => 'bg-green-500',
                             };
                         @endphp
-                        <div class="flex-1 flex flex-col items-center group relative">
+                        <div class="flex-1 max-w-[4.5rem] h-full flex flex-col justify-end items-center group relative">
                             <div class="w-full mx-1 rounded-t-sm {{ $barColor }} transition-all opacity-80 group-hover:opacity-100" style="height: {{ $heightPercentage }}%;"></div>
                             <div class="absolute -bottom-6 text-[10px] text-gray-500 rotate-45 origin-left whitespace-nowrap">{{ $hist->assessed_at->format('M d') }}</div>
                             <!-- Tooltip -->
@@ -361,6 +362,7 @@
                         Not enough historical data to generate trend chart.
                     </div>
                 @endif
+              </div>
             </div>
         </div>
 

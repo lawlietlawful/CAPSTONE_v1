@@ -45,7 +45,7 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
     {{-- Left: Session Details --}}
-    <div class="lg:col-span-2 space-y-6">
+    <div class="lg:col-span-2 flex flex-col gap-6">
         <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div class="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                 <h3 class="font-semibold text-gray-800 text-lg flex items-center gap-2">
@@ -109,6 +109,60 @@
             </div>
         </div>
 
+        @if($intervention->counselor_id === auth()->id())
+            <div x-data="{
+                    confirmIfResolving() {
+                        const form = document.getElementById('quick-update-form');
+                        if (form.outcome.value === 'resolved' && form.dataset.originalOutcome !== 'resolved') {
+                            this.$dispatch('open-confirm-modal', {
+                                formId: 'quick-update-form',
+                                title: 'Mark as Resolved?',
+                                message: 'This will mark the outcome as Resolved and close the linked referral. Are you sure?',
+                                confirmText: 'Yes, Resolve',
+                                buttonClass: 'bg-blue-600 hover:bg-blue-700 shadow-blue-200',
+                                iconClass: 'ti-circle-check text-blue-600',
+                                iconBgClass: 'bg-blue-50',
+                            });
+                        } else {
+                            form.submit();
+                        }
+                    }
+                }" class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex flex-col" data-update-session>
+                <div class="bg-gray-50/50 px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+                    <i class="ti ti-edit text-amber-600"></i>
+                    <h4 class="font-semibold text-gray-800">Update Session</h4>
+                </div>
+                <div class="p-5">
+                    <form id="quick-update-form" data-original-outcome="{{ $intervention->outcome }}" action="{{ route('counselor.interventions.quickUpdate', $intervention->id) }}" method="POST">
+                        @csrf
+                        @method('PATCH')
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                            <div>
+                                <label for="quick_outcome" class="block text-sm font-medium text-gray-700 mb-1">Outcome</label>
+                                <select name="outcome" id="quick_outcome"
+                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
+                                    <option value="" {{ $intervention->outcome ? '' : 'selected' }}>-- Not yet evaluated --</option>
+                                    <option value="improving" {{ $intervention->outcome == 'improving' ? 'selected' : '' }}>Improving</option>
+                                    <option value="no_change" {{ $intervention->outcome == 'no_change' ? 'selected' : '' }}>No Change</option>
+                                    <option value="worsening" {{ $intervention->outcome == 'worsening' ? 'selected' : '' }}>Worsening</option>
+                                    <option value="resolved" {{ $intervention->outcome == 'resolved' ? 'selected' : '' }}>Resolved (Closes Referral)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="quick_follow_up_date" class="block text-sm font-medium text-gray-700 mb-1">Follow-up Date</label>
+                                <input type="date" name="follow_up_date" id="quick_follow_up_date"
+                                    value="{{ $intervention->follow_up_date?->format('Y-m-d') }}"
+                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
+                            </div>
+                            <button type="button" @click="confirmIfResolving()" class="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center justify-center gap-2">
+                                <i class="ti ti-check"></i> Update Session
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
         @if($otherInterventions->isNotEmpty())
             <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
@@ -148,31 +202,35 @@
     </div>
 
     {{-- Right: Student & Referral Context --}}
-    <div class="lg:col-span-1 space-y-6">
+    <div class="lg:col-span-1 flex flex-col gap-6">
         <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
                 <h3 class="font-semibold text-gray-800 flex items-center gap-2">
                     <i class="ti ti-user text-blue-500"></i> Student Profile
                 </h3>
             </div>
-            <div class="p-5 text-center">
-                <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-100 to-indigo-50 text-blue-700 flex items-center justify-center text-xl font-bold mx-auto mb-3 ring-4 ring-white shadow-md">
-                    {{ strtoupper(substr($intervention->referral->student->first_name ?? 'X', 0, 1)) }}{{ strtoupper(substr($intervention->referral->student->last_name ?? '', 0, 1)) }}
-                </div>
-                @if($intervention->referral->student)
-                    <a href="{{ route('admin.students.show', $intervention->referral->student->id) }}" class="font-bold text-gray-900 hover:text-blue-600 hover:underline transition">
-                        {{ $intervention->referral->student->first_name }} {{ $intervention->referral->student->last_name }}
-                    </a>
-                @else
-                    <h4 class="font-bold text-gray-900">Unknown Student</h4>
-                @endif
-                <p class="text-xs text-gray-500 mt-1">ID: {{ $intervention->referral->student->student_id_number ?? 'N/A' }}</p>
-                <div class="mt-4 pt-4 border-t border-gray-100 flex justify-center gap-4 text-sm">
-                    <div class="text-center min-w-0">
-                        <div class="text-xs text-gray-400">Course</div>
-                        <div class="font-medium text-gray-900">{{ $intervention->referral->student->course ?? 'N/A' }}</div>
+            <div class="p-5">
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-100 to-indigo-50 text-blue-700 flex items-center justify-center text-lg font-bold shrink-0 ring-4 ring-white shadow-sm">
+                        {{ strtoupper(substr($intervention->referral->student->first_name ?? 'X', 0, 1)) }}{{ strtoupper(substr($intervention->referral->student->last_name ?? 'X', 0, 1)) }}
                     </div>
-                    <div class="text-center shrink-0">
+                    <div class="min-w-0">
+                        @if($intervention->referral->student)
+                            <a href="{{ route('admin.students.show', $intervention->referral->student->id) }}" class="font-bold text-gray-900 hover:text-blue-600 hover:underline transition block truncate">
+                                {{ $intervention->referral->student->first_name }} {{ $intervention->referral->student->last_name }}
+                            </a>
+                        @else
+                            <h4 class="font-bold text-gray-900">Unknown Student</h4>
+                        @endif
+                        <p class="text-xs text-gray-500 mt-0.5">ID: {{ $intervention->referral->student->student_id_number ?? 'N/A' }}</p>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-4 text-sm">
+                    <div class="min-w-0">
+                        <div class="text-xs text-gray-400">Course</div>
+                        <div class="font-medium text-gray-900 leading-snug">{{ $intervention->referral->student->course ?? 'N/A' }}</div>
+                    </div>
+                    <div class="text-right">
                         <div class="text-xs text-gray-400">Year</div>
                         <div class="font-medium text-gray-900 whitespace-nowrap">{{ $intervention->referral->student->grade_level ?? 'N/A' }}</div>
                     </div>
@@ -180,123 +238,68 @@
             </div>
         </div>
 
-        @if($riskTrend)
-            <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
-                    <h3 class="font-semibold text-gray-800 flex items-center gap-2">
-                        <i class="ti ti-chart-line text-purple-500"></i> Risk Trend
-                    </h3>
-                </div>
-                <div class="p-5">
-                    @if($riskTrend['status'] === 'no_new_assessment')
-                        <div class="text-sm text-gray-700">
-                            <span class="font-semibold">{{ $riskTrend['referral_score'] }}%</span> risk score at the time of this referral.
-                        </div>
-                        <p class="text-xs text-gray-400 mt-1.5">No newer AI assessment yet — check back after the student's next referral or scheduled reassessment.</p>
-                    @else
-                        @php
-                            $trendClass = match($riskTrend['status']) {
-                                'improved' => 'text-emerald-600',
-                                'worsened' => 'text-red-600',
-                                default    => 'text-gray-600',
-                            };
-                            $trendIcon = match($riskTrend['status']) {
-                                'improved' => 'ti-trending-down',
-                                'worsened' => 'ti-trending-up',
-                                default    => 'ti-minus',
-                            };
-                            $trendLabel = match($riskTrend['status']) {
-                                'improved' => 'Risk Improved',
-                                'worsened' => 'Risk Worsened',
-                                default    => 'Risk Unchanged',
-                            };
-                        @endphp
-                        <div class="flex items-center gap-2 font-semibold {{ $trendClass }}">
-                            <i class="ti {{ $trendIcon }} text-lg"></i> {{ $trendLabel }}
-                        </div>
-                        <div class="text-sm text-gray-700 mt-2 flex items-center gap-2">
-                            <span>{{ $riskTrend['referral_score'] }}%</span>
-                            <i class="ti ti-arrow-right text-gray-400 text-xs"></i>
-                            <span class="font-semibold">{{ $riskTrend['latest_score'] }}%</span>
-                        </div>
-                        <p class="text-xs text-gray-400 mt-1.5">Latest assessment: {{ \Carbon\Carbon::parse($riskTrend['latest_assessed_at'])->format('M d, Y') }}</p>
-                    @endif
-                </div>
-            </div>
-        @endif
-
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col">
             <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
                 <h3 class="font-semibold text-gray-800 flex items-center gap-2">
                     <i class="ti ti-file-text text-amber-500"></i> Linked Referral
                 </h3>
             </div>
-            <div class="p-5">
+            <div class="p-5 flex flex-col flex-1">
                 <div class="text-xs text-gray-500 mb-1">Referral #{{ str_pad($intervention->referral_id, 4, '0', STR_PAD_LEFT) }}</div>
                 <div class="font-medium text-gray-900 text-sm mb-2">{{ $intervention->referral->referral_type_label }}</div>
                 <div class="text-xs text-gray-600 line-clamp-3 italic">"{{ $intervention->referral->display_reason }}"</div>
                 
-                <div class="mt-4 pt-4 border-t border-gray-100 text-center">
+                <div class="mt-auto pt-4 border-t border-gray-100 text-center">
                     <a href="{{ route('counselor.referrals.show', $intervention->referral_id) }}" class="text-xs font-medium text-blue-600 hover:text-blue-800 transition">View Full Referral →</a>
                 </div>
             </div>
         </div>
-
-        @if($intervention->counselor_id === auth()->id())
-            <div x-data="{
-                    confirmIfResolving() {
-                        const form = document.getElementById('quick-update-form');
-                        if (form.outcome.value === 'resolved' && form.dataset.originalOutcome !== 'resolved') {
-                            this.$dispatch('open-confirm-modal', {
-                                formId: 'quick-update-form',
-                                title: 'Mark as Resolved?',
-                                message: 'This will mark the outcome as Resolved and close the linked referral. Are you sure?',
-                                confirmText: 'Yes, Resolve',
-                                buttonClass: 'bg-blue-600 hover:bg-blue-700 shadow-blue-200',
-                                iconClass: 'ti-circle-check text-blue-600',
-                                iconBgClass: 'bg-blue-50',
-                            });
-                        } else {
-                            form.submit();
-                        }
-                    }
-                }" class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-                <div class="bg-gray-50/50 px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                    <i class="ti ti-edit text-amber-600"></i>
-                    <h4 class="font-semibold text-gray-800">Update Session</h4>
-                </div>
-                <div class="p-5">
-                    <form id="quick-update-form" data-original-outcome="{{ $intervention->outcome }}" action="{{ route('counselor.interventions.quickUpdate', $intervention->id) }}" method="POST">
-                        @csrf
-                        @method('PATCH')
-                        <div class="space-y-4">
-                            <div>
-                                <label for="quick_outcome" class="block text-sm font-medium text-gray-700 mb-1">Outcome</label>
-                                <select name="outcome" id="quick_outcome"
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                    <option value="" {{ $intervention->outcome ? '' : 'selected' }}>-- Not yet evaluated --</option>
-                                    <option value="improving" {{ $intervention->outcome == 'improving' ? 'selected' : '' }}>Improving</option>
-                                    <option value="no_change" {{ $intervention->outcome == 'no_change' ? 'selected' : '' }}>No Change</option>
-                                    <option value="worsening" {{ $intervention->outcome == 'worsening' ? 'selected' : '' }}>Worsening</option>
-                                    <option value="resolved" {{ $intervention->outcome == 'resolved' ? 'selected' : '' }}>Resolved (Closes Referral)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="quick_follow_up_date" class="block text-sm font-medium text-gray-700 mb-1">Follow-up Date</label>
-                                <input type="date" name="follow_up_date" id="quick_follow_up_date"
-                                    value="{{ $intervention->follow_up_date?->format('Y-m-d') }}"
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                            </div>
-                            <button type="button" @click="confirmIfResolving()" class="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center justify-center gap-2">
-                                <i class="ti ti-check"></i> Update Session
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        @endif
     </div>
 </div>
+
+{{-- Risk trend: secondary context, so a slim strip under the two columns instead of a tall card in one of them. --}}
+@if($riskTrend)
+    <div class="mt-6 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden" data-risk-trend>
+        <div class="px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <h3 class="font-semibold text-gray-800 flex items-center gap-2 shrink-0">
+                <i class="ti ti-chart-line text-purple-500"></i> Risk Trend
+            </h3>
+            @if($riskTrend['status'] === 'no_new_assessment')
+                <div class="text-sm text-gray-700">
+                    <span class="font-semibold">{{ $riskTrend['referral_score'] }}%</span> risk score at the time of this referral.
+                </div>
+                <p class="text-xs text-gray-400">No newer AI assessment yet &mdash; check back after the student's next referral or scheduled reassessment.</p>
+            @else
+                @php
+                    $trendClass = match($riskTrend['status']) {
+                        'improved' => 'text-emerald-600',
+                        'worsened' => 'text-red-600',
+                        default    => 'text-gray-600',
+                    };
+                    $trendIcon = match($riskTrend['status']) {
+                        'improved' => 'ti-trending-down',
+                        'worsened' => 'ti-trending-up',
+                        default    => 'ti-minus',
+                    };
+                    $trendLabel = match($riskTrend['status']) {
+                        'improved' => 'Risk Improved',
+                        'worsened' => 'Risk Worsened',
+                        default    => 'Risk Unchanged',
+                    };
+                @endphp
+                <div class="flex items-center gap-2 font-semibold {{ $trendClass }}">
+                    <i class="ti {{ $trendIcon }} text-lg"></i> {{ $trendLabel }}
+                </div>
+                <div class="text-sm text-gray-700 flex items-center gap-2">
+                    <span>{{ $riskTrend['referral_score'] }}%</span>
+                    <i class="ti ti-arrow-right text-gray-400 text-xs"></i>
+                    <span class="font-semibold">{{ $riskTrend['latest_score'] }}%</span>
+                </div>
+                <p class="text-xs text-gray-400">Latest assessment: {{ \Carbon\Carbon::parse($riskTrend['latest_assessed_at'])->format('M d, Y') }}</p>
+            @endif
+        </div>
+    </div>
+@endif
 
 @if($intervention->counselor_id === auth()->id())
     {{-- Edit Details Modal --}}

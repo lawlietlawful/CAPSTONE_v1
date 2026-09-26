@@ -11,10 +11,22 @@ use App\Models\Seminar;
 use App\Models\Student;
 use App\Models\BehavioralReport;
 use Carbon\Carbon;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class CounselorDashboardController extends Controller
 {
+    /** Rows per page on the two paged cards (Pending Referrals, High-Risk Watchlist). */
+    public const CARD_PAGE_SIZE = 3;
+
+    /** A requested page clamped into 1..last, so a page that emptied since the last visit falls back to the last real one. */
+    private function clampPage(int $page, int $total): int
+    {
+        $last = max(1, (int) ceil($total / self::CARD_PAGE_SIZE));
+
+        return max(1, min($page, $last));
+    }
+
     public function index()
     {
         return view('counselor.dashboard.index', $this->dashboardData());
@@ -42,14 +54,23 @@ class CounselorDashboardController extends Controller
                 $q->where('counselor_id', $counselorId)->orWhereNull('counselor_id');
             })
             ->count();
+        // Paged 3 at a time (?pending_page=N). The path is the dashboard itself, not the
+        // 20-second refresh endpoint, and the other card's page is carried along.
         $recentPendingReferrals = Referral::with(['student', 'referredBy', 'riskAssessment'])
             ->where('status', 'pending')
             ->where(function ($q) use ($counselorId) {
                 $q->where('counselor_id', $counselorId)->orWhereNull('counselor_id');
             })
             ->latest()
-            ->take(5)
-            ->get();
+            ->latest('id')
+            ->paginate(
+                self::CARD_PAGE_SIZE,
+                ['*'],
+                'pending_page',
+                $this->clampPage(request()->integer('pending_page', 1), $pendingReferralsCount)
+            )
+            ->withPath(route('counselor.dashboard'))
+            ->appends(request()->only('watch_page'));
 
         // 2. Follow-ups — interventions always belong to whoever logged them,
         // so every follow-up widget is scoped strictly to the current
@@ -163,8 +184,17 @@ class CounselorDashboardController extends Controller
             ->where(fn ($q) => $q->where('risk_level', 'high')->orWhereIn('student_id', array_keys($safetyFlags)))
             ->get()
             ->sortByDesc(fn ($a) => (isset($safetyFlags[$a->student_id]) ? 1000 : 0) + (float) $a->risk_score)
-            ->take(5)
             ->values();
+
+        // Paged 3 at a time (?watch_page=N), flagged students first across pages.
+        $watchPage = $this->clampPage(request()->integer('watch_page', 1), $watchlistAssessments->count());
+        $watchlistAssessments = (new LengthAwarePaginator(
+            $watchlistAssessments->forPage($watchPage, self::CARD_PAGE_SIZE)->values(),
+            $watchlistAssessments->count(),
+            self::CARD_PAGE_SIZE,
+            $watchPage,
+            ['path' => route('counselor.dashboard'), 'pageName' => 'watch_page']
+        ))->appends(request()->only('pending_page'));
 
         // ── NEW: Recent Activity Stream ──────────────────────────────────
         // Combine the most recent referrals and behavioral reports
