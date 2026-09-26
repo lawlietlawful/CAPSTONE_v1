@@ -34,7 +34,7 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Left Column: Referral Details -->
-    <div class="lg:col-span-2 space-y-6">
+    <div class="lg:col-span-2 flex flex-col gap-6">
 
         <!-- Main Info Card -->
         <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
@@ -262,7 +262,7 @@
     </div>
 
     <!-- Right Column: Student Info + Status Update -->
-    <div class="lg:col-span-1 space-y-6">
+    <div class="lg:col-span-1 flex flex-col gap-6">
 
         <!-- Student Information -->
         <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
@@ -333,17 +333,17 @@
         </div>
 
         <!-- Update Status Form -->
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col" data-update-referral>
             <div class="bg-gray-50/50 px-5 py-4 border-b border-gray-100 flex items-center gap-2">
                 <i class="ti ti-edit text-amber-600"></i>
                 <h4 class="font-semibold text-gray-800">Update Referral</h4>
             </div>
-            <div class="p-5">
-                <form action="{{ route('counselor.referrals.updateStatus', $referral->id) }}" method="POST">
+            <div class="p-5 flex flex-col flex-1">
+                <form action="{{ route('counselor.referrals.updateStatus', $referral->id) }}" method="POST" class="flex flex-col flex-1">
                     @csrf
                     @method('PATCH')
 
-                    <div class="space-y-4">
+                    <div class="flex flex-col flex-1 gap-4">
                         <div>
                             <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                             <select name="status" id="status" required
@@ -367,10 +367,10 @@
                             </select>
                         </div>
 
-                        <div>
+                        <div class="flex flex-col flex-1">
                             <label for="counselor_notes" class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                             <textarea name="counselor_notes" id="counselor_notes" rows="3" placeholder="Add notes about progress, actions taken..."
-                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ $referral->counselor_notes }}</textarea>
+                                class="flex-1 min-h-[5rem] w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ $referral->counselor_notes }}</textarea>
                         </div>
 
                         <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center justify-center gap-2">
