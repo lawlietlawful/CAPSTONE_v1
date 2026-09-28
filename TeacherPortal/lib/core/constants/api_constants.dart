@@ -36,10 +36,16 @@ class ApiConstants {
   static const String notificationsReadAll = '/teacher/notifications/read-all';
   static const String changePassword = '/teacher/change-password';
 
+  // Messaging — shared routes, not under /teacher: any authenticated portal
+  // user (student or teacher) uses the same endpoints.
+  static const String messages = '/messages';
+  static const String counselors = '/counselors';
+
   static String report(int id) => '/teacher/behavioral-reports/$id';
   static String referral(int id) => '/teacher/referrals/$id';
   static String studentDetail(int id) => '/teacher/students/$id';
   static String notificationRead(int id) => '/teacher/notifications/$id/read';
+  static String message(int id) => '/messages/$id';
   static String matchingSeminars(String tag) =>
       '/teacher/seminars/matching?tag=${Uri.encodeQueryComponent(tag)}';
 }

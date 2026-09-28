@@ -10,7 +10,7 @@ void main() {
 
     expect(find.text('Teacher Portal'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
-    expect(find.text('Email'), findsOneWidget);
+    expect(find.text('Employee ID'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
   });
 }

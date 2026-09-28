@@ -178,6 +178,51 @@ class MessagingApiTest extends TestCase
             ->assertJsonMissing(['content' => 'Hidden']);
     }
 
+    public function test_index_reports_the_unread_count_not_just_unread_top_level_threads(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $teacher = User::factory()->teacher()->create();
+        // An unread top-level thread...
+        Message::create([
+            'sender_id' => $counselor->id, 'receiver_id' => $teacher->id, 'content' => 'Please see me.',
+        ]);
+        // ...and an unread reply on a thread the teacher started (so it's
+        // never in "inbox" at all, but is still something new for them).
+        $ownThread = Message::create([
+            'sender_id' => $teacher->id, 'receiver_id' => $counselor->id, 'content' => 'Question about a student.',
+            'read_at' => now(),
+        ]);
+        Message::create([
+            'sender_id' => $counselor->id, 'receiver_id' => $teacher->id, 'parent_id' => $ownThread->id,
+            'content' => 'Here is my answer.',
+        ]);
+        // A thread already read must not be counted.
+        Message::create([
+            'sender_id' => $counselor->id, 'receiver_id' => $teacher->id, 'content' => 'Already seen.',
+            'read_at' => now(),
+        ]);
+        Sanctum::actingAs($teacher);
+
+        $this->getJson('/api/messages')
+            ->assertOk()
+            ->assertJsonPath('unread_count', 2);
+    }
+
+    public function test_index_unread_count_excludes_threads_the_receiver_deleted(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $teacher = User::factory()->teacher()->create();
+        Message::create([
+            'sender_id' => $counselor->id, 'receiver_id' => $teacher->id, 'content' => 'Deleted but unread',
+            'deleted_by_receiver' => true,
+        ]);
+        Sanctum::actingAs($teacher);
+
+        $this->getJson('/api/messages')
+            ->assertOk()
+            ->assertJsonPath('unread_count', 0);
+    }
+
     public function test_sent_excludes_threads_deleted_by_the_sender(): void
     {
         $counselor = User::factory()->counselor()->create();

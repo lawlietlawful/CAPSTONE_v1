@@ -11,7 +11,13 @@ use Illuminate\Support\Facades\DB;
 class MessageController extends Controller
 {
     /**
-     * Get the inbox (received top-level messages/threads).
+     * Get the inbox (received top-level messages/threads), plus an
+     * `unread_count` sibling for the mobile clients' unread badge (the
+     * Teacher Portal's Messages button, mirroring the counselor web inbox's
+     * badge). Counts every unread message addressed to this user, including
+     * unread replies to a thread they started — not just this page of
+     * top-level threads, and not just "unread threads" (a thread with one
+     * read message and one new reply is still something they haven't seen).
      */
     public function index()
     {
@@ -26,7 +32,12 @@ class MessageController extends Controller
             ->paginate(15)
             ->through(fn (Message $message) => $this->shapeMessage($message));
 
-        return response()->json($messages);
+        $unreadCount = Message::where('receiver_id', $user->id)
+            ->where('deleted_by_receiver', false)
+            ->whereNull('read_at')
+            ->count();
+
+        return response()->json($messages->toArray() + ['unread_count' => $unreadCount]);
     }
 
     /**

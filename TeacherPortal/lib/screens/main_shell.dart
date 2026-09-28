@@ -31,7 +31,11 @@ class _MainShellState extends State<MainShell> {
     // Restore the cached teacher profile (name/initials) for the headers.
     // Needed when the app boots straight to /home from a saved session.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<AuthProvider>().loadProfile();
+      if (!mounted) return;
+      context.read<AuthProvider>().loadProfile();
+      // Populates the Messages FAB's unread badge on every tab, not just
+      // when the Messages screen itself is opened.
+      context.read<TeacherProvider>().loadMessages();
     });
   }
 
@@ -63,6 +67,14 @@ class _MainShellState extends State<MainShell> {
     context.read<TeacherProvider>().loadReferrals();
   }
 
+  Future<void> _openMessages() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const messaging_screen.MessagingScreen()),
+    );
+    if (!mounted) return;
+    context.read<TeacherProvider>().loadMessages();
+  }
+
   @override
   Widget build(BuildContext context) {
     // IndexedStack keeps all tabs alive — avoids re-fetching on every switch.
@@ -90,20 +102,7 @@ class _MainShellState extends State<MainShell> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            FloatingActionButton(
-              heroTag: 'msg_fab',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const messaging_screen.MessagingScreen()),
-                );
-              },
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.accent,
-              elevation: 2,
-              tooltip: 'Messages',
-              child: const Icon(Icons.mail_outline_rounded, size: 24),
-            ),
+            _MessagesFab(onPressed: _openMessages),
             const SizedBox(height: 12),
             FloatingActionButton(
               heroTag: 'log_fab',
@@ -121,6 +120,58 @@ class _MainShellState extends State<MainShell> {
           onTap: _onTap,
         ),
       ),
+    );
+  }
+}
+
+/// The Messages FAB with an unread-count badge, matching NotificationBell's
+/// treatment so an unread notice is just as hard to miss as an unread
+/// notification, from any tab.
+class _MessagesFab extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _MessagesFab({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = context.watch<TeacherProvider>().unreadMessages;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        FloatingActionButton(
+          heroTag: 'msg_fab',
+          onPressed: onPressed,
+          backgroundColor: Colors.white,
+          foregroundColor: AppColors.accent,
+          elevation: 2,
+          tooltip: 'Messages',
+          child: const Icon(Icons.mail_outline_rounded, size: 24),
+        ),
+        if (unread > 0)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+              decoration: BoxDecoration(
+                color: AppColors.red,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                unread > 9 ? '9+' : '$unread',
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

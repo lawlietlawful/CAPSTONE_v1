@@ -287,8 +287,15 @@ class _EscalatedReferralCard extends StatelessWidget {
     );
   }
 
-  static String _cap(String s) =>
-      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+  // Same title-casing as AppBadge's private _cap: splits on underscores so
+  // "in_progress" reads as "In Progress" rather than "In_progress".
+  static String _cap(String s) {
+    if (s.isEmpty) return s;
+    return s
+        .split('_')
+        .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
 }
 
 class _Card extends StatelessWidget {

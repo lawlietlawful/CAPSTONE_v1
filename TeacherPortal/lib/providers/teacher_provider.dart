@@ -4,6 +4,7 @@ import '../core/services/api_service.dart';
 import '../models/advised_student.dart';
 import '../models/behavioral_report.dart';
 import '../models/dashboard_stats.dart';
+import '../models/message.dart';
 import '../models/referral.dart';
 import '../models/referral_detail.dart';
 import '../models/app_notification.dart';
@@ -48,6 +49,13 @@ class TeacherProvider extends ChangeNotifier {
   int _unreadNotifications = 0;
   bool _loadingNotifications = false;
   String? _notificationsError;
+
+  // Messages (Counselor Notices) — the inbox of top-level threads with a
+  // counselor, plus the whole-history unread count for the Messages badge.
+  List<Message> _messages = [];
+  int _unreadMessages = 0;
+  bool _loadingMessages = false;
+  String? _messagesError;
 
   // Search + status filter, per list. Empty search / null status = no filter.
   // The extra dimensions (type/priority/severity/date range) are optional
@@ -106,6 +114,11 @@ class TeacherProvider extends ChangeNotifier {
   int get unreadNotifications => _unreadNotifications;
   bool get loadingNotifications => _loadingNotifications;
   String? get notificationsError => _notificationsError;
+
+  List<Message> get messages => _messages;
+  int get unreadMessages => _unreadMessages;
+  bool get loadingMessages => _loadingMessages;
+  String? get messagesError => _messagesError;
 
   String get referralSearch => _referralSearch;
   String? get referralStatus => _referralStatus;
@@ -460,6 +473,63 @@ class TeacherProvider extends ChangeNotifier {
       // The badge is already cleared locally; a failed sync self-heals on the
       // next loadNotifications().
     }
+  }
+
+  /// Loads (or reloads) the inbox of top-level message threads with a
+  /// counselor, plus the whole-history unread count for the Messages badge.
+  Future<void> loadMessages() async {
+    _loadingMessages = true;
+    _messagesError = null;
+    notifyListeners();
+    try {
+      final data = await ApiService.get(ApiConstants.messages);
+      _messages = (data['data'] as List? ?? [])
+          .map((e) => Message.fromJson(e as Map<String, dynamic>))
+          .toList();
+      _unreadMessages = (data['unread_count'] as num?)?.toInt() ?? 0;
+    } on ApiException catch (e) {
+      _messagesError = e.message;
+    } catch (_) {
+      _messagesError = 'Unable to load messages. Check your connection.';
+    } finally {
+      _loadingMessages = false;
+      notifyListeners();
+    }
+  }
+
+  /// Fetches one thread (the root message + every reply, oldest first) and
+  /// marks it read as a side effect on the server. Not cached — always
+  /// reflects whatever the counselor has said most recently.
+  Future<Message> fetchThread(int id) async {
+    final data = await ApiService.get(ApiConstants.message(id));
+    return Message.fromJson(data);
+  }
+
+  /// The counselors a teacher is allowed to message (Message::canInitiate).
+  Future<List<Map<String, dynamic>>> fetchCounselors() async {
+    final data = await ApiService.get(ApiConstants.counselors);
+    return (data['data'] as List? ?? []).cast<Map<String, dynamic>>();
+  }
+
+  /// Starts a new top-level thread with a counselor.
+  Future<void> sendMessage({
+    required int receiverId,
+    String? subject,
+    required String content,
+  }) async {
+    await ApiService.post(
+      ApiConstants.messages,
+      body: {'receiver_id': receiverId, 'subject': subject, 'content': content},
+    );
+  }
+
+  /// Replies within an existing thread. The receiver is derived server-side
+  /// from whichever party didn't send this reply.
+  Future<void> sendReply({required int parentId, required String content}) async {
+    await ApiService.post(
+      ApiConstants.messages,
+      body: {'parent_id': parentId, 'content': content},
+    );
   }
 
   Future<void> loadStudents() async {

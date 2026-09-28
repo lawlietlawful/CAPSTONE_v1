@@ -116,8 +116,15 @@ class AppBadge extends StatelessWidget {
         icon: Icons.auto_awesome_rounded,
       );
 
-  static String _cap(String s) =>
-      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+  /// Title-cases a raw enum value, splitting on underscores so e.g.
+  /// "in_progress" reads as "In Progress" rather than "In_progress".
+  static String _cap(String s) {
+    if (s.isEmpty) return s;
+    return s
+        .split('_')
+        .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
 
   @override
   Widget build(BuildContext context) {

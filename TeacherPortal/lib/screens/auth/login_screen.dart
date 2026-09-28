@@ -144,6 +144,22 @@ class _LoginScreenState extends State<LoginScreen> {
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => _handleSignIn(),
         ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: GestureDetector(
+            onTap: () => _showForgotPasswordNotice(context),
+            behavior: HitTestBehavior.opaque,
+            child: Text(
+              'Forgot password?',
+              style: GoogleFonts.inter(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+                color: AppColors.text3,
+              ),
+            ),
+          ),
+        ),
 
         if (auth.errorMessage != null) ...[
           const SizedBox(height: 12),
@@ -193,6 +209,33 @@ class _LoginScreenState extends State<LoginScreen> {
       ],
     );
   }
+}
+
+/// There is no self-service password reset yet — the account was set up by
+/// an administrator in the first place, so that's also who can issue a new
+/// one-time code. This just makes that path discoverable instead of leaving
+/// a locked-out teacher with no visible next step.
+void _showForgotPasswordNotice(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(
+        'Forgot your password?',
+        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+      content: Text(
+        'Please contact your school administrator. They can reset your '
+        'account and issue you a new activation code.',
+        style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2, height: 1.45),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: Text('Got it', style: GoogleFonts.inter(color: AppColors.accent)),
+        ),
+      ],
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────
