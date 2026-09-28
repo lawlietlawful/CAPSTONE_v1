@@ -50,7 +50,7 @@ class TeacherController extends Controller
             'behavioralReports',
         ]);
 
-        $teachers = $query->paginate(15)->appends($request->query());
+        $teachers = $query->paginate(10)->appends($request->query());
 
         // Engagement reflects the teacher's most recent participation —
         // either a behavioral report filed or a referral raised.
