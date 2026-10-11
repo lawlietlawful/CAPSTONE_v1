@@ -8,7 +8,7 @@
 
 {{-- ── Summary Cards ─────────────────────────────────────────── --}}
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3">
+    <a href="{{ route('admin.teachers.index') }}" class="bg-white border rounded-xl p-3 flex items-center gap-3 transition hover:shadow-sm {{ request('status') ? 'border-gray-100' : 'border-blue-200 ring-1 ring-blue-100' }}">
         <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
             <i class="ti ti-user-check text-blue-600 text-lg"></i>
         </div>
@@ -16,7 +16,7 @@
             <div class="text-lg font-bold text-gray-900 leading-none">{{ number_format($totalTeachers) }}</div>
             <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Registered Teachers</div>
         </div>
-    </div>
+    </a>
     <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
             <i class="ti ti-message-report text-amber-600 text-lg"></i>
@@ -26,7 +26,7 @@
             <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Total Behavioral Reports</div>
         </div>
     </div>
-    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3">
+    <a href="{{ route('admin.teachers.index', ['status' => 'pending']) }}" class="bg-white border rounded-xl p-3 flex items-center gap-3 transition hover:shadow-sm {{ request('status') === 'pending' ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-gray-100' }}" title="Show only teachers pending activation">
         <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
             <i class="ti ti-key text-indigo-600 text-lg"></i>
         </div>
@@ -34,7 +34,7 @@
             <div class="text-lg font-bold text-indigo-700 leading-none">{{ number_format($pendingActivationCount) }}</div>
             <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Pending Activation</div>
         </div>
-    </div>
+    </a>
 </div>
 
 <div class="mb-6">
@@ -49,6 +49,15 @@
                     <input type="text" id="searchInput" name="search" value="{{ request('search') }}" placeholder="Name, email, or username..."
                         class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition" autocomplete="off">
                 </div>
+            </div>
+
+            <div class="w-full lg:w-44">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                <select name="status" onchange="document.getElementById('filterForm').submit();" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
+                    <option value="" {{ request('status') ? '' : 'selected' }}>All Teachers</option>
+                    <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending Activation</option>
+                    <option value="activated" {{ request('status') === 'activated' ? 'selected' : '' }}>Activated</option>
+                </select>
             </div>
 
             <div class="w-full lg:w-48">

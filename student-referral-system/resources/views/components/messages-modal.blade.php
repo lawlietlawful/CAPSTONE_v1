@@ -1,12 +1,14 @@
 {{--
     Global Messages popup: any page can open it by dispatching the
-    `open-messages` window event, optionally with a recipient to prefill
-    Compose with — @click="$dispatch('open-messages', { to: {{ $teacher->id }} })".
+    `open-messages` window event —
+      @click="$dispatch('open-messages', { to: 123 })"      opens Compose, prefilled
+      @click="$dispatch('open-messages', { thread: 45 })"   opens that thread directly
     Shared by layouts.admin and layouts.counselor so every page (not just the
-    counselor's own section) can send a notice without leaving where it is.
+    counselor's own section) can send a notice, or revisit one, without
+    leaving where it is.
 --}}
-<div x-data="{ showMessages: false, prefillTo: null }"
-     @open-messages.window="showMessages = true; prefillTo = $event.detail?.to ?? null"
+<div x-data="{ showMessages: false, prefillTo: null, prefillThread: null }"
+     @open-messages.window="showMessages = true; prefillTo = $event.detail?.to ?? null; prefillThread = $event.detail?.thread ?? null"
      @keydown.escape.window="showMessages = false"
      @message.window="if ($event.origin === window.location.origin && $event.data === 'close-messages') showMessages = false"
      x-cloak
@@ -39,9 +41,11 @@
                 {{-- Modal Body (Iframe) --}}
                 <div class="flex-1 relative w-full h-full rounded-2xl overflow-hidden bg-white">
                     <template x-if="showMessages">
-                        <iframe :src="prefillTo
-                                    ? '{{ route('counselor.messages.index', ['modal' => 1]) }}&to=' + prefillTo
-                                    : '{{ route('counselor.messages.index', ['modal' => 1]) }}'"
+                        <iframe :src="prefillThread
+                                    ? '{{ route('counselor.messages.show', ['message' => '__ID__', 'modal' => 1]) }}'.replace('__ID__', prefillThread)
+                                    : (prefillTo
+                                        ? '{{ route('counselor.messages.index', ['modal' => 1]) }}&to=' + prefillTo
+                                        : '{{ route('counselor.messages.index', ['modal' => 1]) }}')"
                                 class="absolute inset-0 w-full h-full border-0"></iframe>
                     </template>
                 </div>

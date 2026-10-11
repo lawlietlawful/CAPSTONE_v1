@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BehavioralReport;
+use App\Models\Message;
 use App\Models\Referral;
 use App\Models\Student;
 use App\Models\User;
@@ -165,5 +166,104 @@ class AdminTeacherProfileTest extends TestCase
         $this->assertMatchesRegularExpression('#flex items-center gap-4">\s*<div class="w-14 h-14 rounded-full#', $html);
         $this->assertStringContainsString('Roberto Villanueva', $html);
         $this->assertStringNotContainsString('w-20 h-20 rounded-full bg-blue-100', $html, 'the tall centered avatar is gone');
+    }
+
+    // ── Recent Notices ──────────────────────────────────────────────────
+
+    public function test_recent_notices_lists_threads_either_direction(): void
+    {
+        // The card always names the OTHER party relative to the teacher
+        // whose profile this is — showing the teacher's own name back at
+        // them would be redundant on their own page.
+        $admin = User::factory()->counselor()->create(['name' => 'Edago Counselor']);
+        $teacher = User::factory()->teacher()->create(['name' => 'Carlos Ramos']);
+        Message::create([
+            'sender_id' => $admin->id, 'receiver_id' => $teacher->id,
+            'subject' => 'Reminder', 'content' => 'Please see me about a student.',
+        ]);
+        Message::create([
+            'sender_id' => $teacher->id, 'receiver_id' => $admin->id, 'content' => 'Will do, thank you.',
+        ]);
+
+        $html = $this->actingAs($admin)->get(route('admin.teachers.show', $teacher->id))->getContent();
+
+        $this->assertStringContainsString('Recent Notices', $html);
+        $this->assertStringContainsString('Reminder', $html);
+        $this->assertStringContainsString('Will do, thank you.', $html);
+        $this->assertStringContainsString('From Edago Counselor', $html, 'the notice the admin sent the teacher');
+        $this->assertStringContainsString('To Edago Counselor', $html, 'the reply the teacher sent back');
+    }
+
+    public function test_recent_notices_only_shows_top_level_threads_not_replies(): void
+    {
+        $admin = $this->admin();
+        $teacher = User::factory()->teacher()->create();
+        $thread = Message::create([
+            'sender_id' => $admin->id, 'receiver_id' => $teacher->id, 'content' => 'Original notice.',
+        ]);
+        Message::create([
+            'sender_id' => $teacher->id, 'receiver_id' => $admin->id,
+            'parent_id' => $thread->id, 'content' => 'A reply, not a new thread.',
+        ]);
+
+        $page = $this->actingAs($admin)->get(route('admin.teachers.show', $teacher->id));
+
+        $this->assertCount(1, $page->viewData('recentNotices'));
+    }
+
+    public function test_recent_notices_shows_at_most_five_newest(): void
+    {
+        $admin = $this->admin();
+        $teacher = User::factory()->teacher()->create();
+        foreach (range(1, 7) as $i) {
+            Message::create(['sender_id' => $admin->id, 'receiver_id' => $teacher->id, 'content' => "Notice {$i}"]);
+        }
+
+        $notices = $this->actingAs($admin)
+            ->get(route('admin.teachers.show', $teacher->id))
+            ->viewData('recentNotices');
+
+        $this->assertCount(5, $notices);
+        $this->assertSame('Notice 7', $notices->first()->content);
+    }
+
+    public function test_a_notice_between_two_other_counselors_is_shown_but_not_clickable(): void
+    {
+        $viewer = $this->admin();
+        $otherCounselor = User::factory()->counselor()->create();
+        $teacher = User::factory()->teacher()->create();
+        Message::create(['sender_id' => $otherCounselor->id, 'receiver_id' => $teacher->id, 'content' => 'Not yours to open.']);
+
+        $html = $this->actingAs($viewer)->get(route('admin.teachers.show', $teacher->id))->getContent();
+
+        $this->assertStringContainsString('Not yours to open.', $html);
+        // "Send Notice" elsewhere on the page also dispatches open-messages
+        // (with a `to:` payload) — check specifically for no `thread:`
+        // dispatch, which is what a clickable notice row would add.
+        $this->assertStringNotContainsString('{ thread:', $html);
+    }
+
+    public function test_a_teacher_with_no_notices_shows_an_empty_state(): void
+    {
+        $teacher = User::factory()->teacher()->create();
+
+        $html = $this->page($teacher);
+
+        $this->assertStringContainsString('No notices sent yet.', $html);
+    }
+
+    public function test_the_course_assignments_modal_offers_a_duplicate_row_button(): void
+    {
+        $teacher = User::factory()->teacher()->create();
+
+        $html = $this->page($teacher);
+
+        $this->assertStringContainsString('duplicateAssignment(index)', $html);
+        $this->assertStringContainsString('Duplicate this row', $html);
+        // Copies the row in place (splice at index + 1), not appended to the end.
+        $this->assertStringContainsString(
+            'duplicateAssignment(i) { this.assignments.splice(i + 1, 0, { ...this.assignments[i] }); }',
+            $html,
+        );
     }
 }

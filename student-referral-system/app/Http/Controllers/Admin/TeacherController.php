@@ -9,6 +9,7 @@ use App\Models\Attendance;
 use App\Models\BehavioralReport;
 use App\Models\Referral;
 use App\Models\Course;
+use App\Models\Message;
 use Illuminate\Support\Facades\DB;
 
 class TeacherController extends Controller
@@ -25,6 +26,15 @@ class TeacherController extends Controller
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('username', 'like', "%{$search}%");
             });
+        }
+
+        // Activation status filter — lets the "Pending Activation" summary
+        // card actually narrow the table down instead of only counting it.
+        $status = $request->input('status');
+        if ($status === 'pending') {
+            $query->whereNull('account_activated_at');
+        } elseif ($status === 'activated') {
+            $query->whereNotNull('account_activated_at');
         }
 
         // Handle sorting
@@ -133,6 +143,24 @@ class TeacherController extends Controller
             ->take(10)
             ->get();
 
+        // Recent notices either side of this teacher's conversation with
+        // guidance — top-level threads only (a reply shows under its parent
+        // when the thread itself is opened), newest first. Not scoped by
+        // either party's own deleted_by_* flag: that's a per-inbox hide, not
+        // a real deletion, and this is an admin looking at the full history.
+        $recentNotices = Message::where(function ($q) use ($teacher) {
+            $q->where('sender_id', $teacher->id)->orWhere('receiver_id', $teacher->id);
+        })
+            ->whereNull('parent_id')
+            ->with(['sender:id,name,role', 'receiver:id,name,role'])
+            // created_at is the semantic order; id is a stable tiebreaker so
+            // two notices sent in the same second can't reorder (same
+            // convention as the reports/referrals queries above).
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->take(5)
+            ->get();
+
         // Stats
         $totalReports = BehavioralReport::where('reported_by', $teacher->id)->count();
         $totalReferrals = Referral::where('referred_by', $teacher->id)->count();
@@ -142,7 +170,8 @@ class TeacherController extends Controller
         $teacher->engagement_status = $this->engagementStatusFor($teacher);
 
         return view('admin.teachers.show', compact(
-            'teacher', 'recentReports', 'recentReferrals', 'totalReports', 'totalReferrals', 'courseCombos'
+            'teacher', 'recentReports', 'recentReferrals', 'recentNotices',
+            'totalReports', 'totalReferrals', 'courseCombos'
         ));
     }
 
@@ -245,11 +274,19 @@ class TeacherController extends Controller
         $teachers = User::where('role', 'teacher')->get();
 
         $teacherIds = $teachers->pluck('id');
-            
+
         $reportsCount = BehavioralReport::select('reported_by', DB::raw('count(*) as total'))
             ->whereIn('reported_by', $teacherIds)
             ->groupBy('reported_by')
             ->pluck('total', 'reported_by');
+
+        // Same two counts the on-screen directory, profile and Print PDF
+        // already show — this export used to report on behavioral reports
+        // alone, which disagreed with all three of those.
+        $referralsCount = Referral::select('referred_by', DB::raw('count(*) as total'))
+            ->whereIn('referred_by', $teacherIds)
+            ->groupBy('referred_by')
+            ->pluck('total', 'referred_by');
 
         $filename = "teacher_directory_" . date('Y-m-d_H-i-s') . ".csv";
 
@@ -261,22 +298,28 @@ class TeacherController extends Controller
             "Expires"             => "0"
         );
 
-        $columns = array('Teacher Name', 'Email', 'Employee ID', 'Reports Filed', 'Joined Date');
+        $columns = array('Teacher Name', 'Email', 'Employee ID', 'Reports Filed', 'Referrals Filed', 'Engagement', 'Joined Date');
 
-        $callback = function() use($teachers, $columns, $reportsCount) {
+        $callback = function() use($teachers, $columns, $reportsCount, $referralsCount) {
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
-            
-            $now = now();
-            
+
             foreach ($teachers as $teacher) {
                 $repFiled = $reportsCount[$teacher->id] ?? 0;
-                
+                $refFiled = $referralsCount[$teacher->id] ?? 0;
+                $engagement = match ($this->engagementStatusFor($teacher)) {
+                    'highly_active' => 'Highly Active',
+                    'active'        => 'Active',
+                    default         => 'Inactive',
+                };
+
                 fputcsv($file, array(
                     $teacher->name,
                     $teacher->email,
                     $teacher->username ?? 'N/A',
                     $repFiled,
+                    $refFiled,
+                    $engagement,
                     $teacher->created_at->format('Y-m-d')
                 ));
             }

@@ -166,4 +166,99 @@ class AdminTeacherDirectoryTest extends TestCase
         // Both rows render; the point is only $other is highly active.
         $this->assertSame(1, substr_count($html, 'Highly Active'));
     }
+
+    // ── Status filter ─────────────────────────────────────────────────────
+    // Ties the "Pending Activation" summary card to an actual filter instead
+    // of being just a count you then have to scan the table for by hand.
+
+    public function test_status_pending_shows_only_unactivated_teachers(): void
+    {
+        $pending = User::factory()->teacher()->create(['name' => 'Pending Teacher']);
+        $activated = User::factory()->teacher()->create(['name' => 'Activated Teacher', 'account_activated_at' => now()]);
+
+        $response = $this->actingAs($this->admin())
+            ->get(route('admin.teachers.index', ['status' => 'pending']));
+
+        $names = $response->viewData('teachers')->pluck('name');
+        $this->assertTrue($names->contains('Pending Teacher'));
+        $this->assertFalse($names->contains('Activated Teacher'));
+    }
+
+    public function test_status_activated_shows_only_activated_teachers(): void
+    {
+        $pending = User::factory()->teacher()->create(['name' => 'Pending Teacher']);
+        $activated = User::factory()->teacher()->create(['name' => 'Activated Teacher', 'account_activated_at' => now()]);
+
+        $response = $this->actingAs($this->admin())
+            ->get(route('admin.teachers.index', ['status' => 'activated']));
+
+        $names = $response->viewData('teachers')->pluck('name');
+        $this->assertTrue($names->contains('Activated Teacher'));
+        $this->assertFalse($names->contains('Pending Teacher'));
+    }
+
+    public function test_no_status_param_shows_everyone(): void
+    {
+        User::factory()->teacher()->create(['name' => 'Pending Teacher']);
+        User::factory()->teacher()->create(['name' => 'Activated Teacher', 'account_activated_at' => now()]);
+
+        $names = $this->actingAs($this->admin())
+            ->get(route('admin.teachers.index'))
+            ->viewData('teachers')->pluck('name');
+
+        $this->assertTrue($names->contains('Pending Teacher'));
+        $this->assertTrue($names->contains('Activated Teacher'));
+    }
+
+    public function test_the_pending_activation_card_links_to_the_filtered_view(): void
+    {
+        $html = $this->actingAs($this->admin())
+            ->get(route('admin.teachers.index'))
+            ->getContent();
+
+        $this->assertStringContainsString(route('admin.teachers.index', ['status' => 'pending']), $html);
+    }
+
+    // ── CSV export ──────────────────────────────────────────────────────
+    // Used to report on behavioral reports alone — Referrals Filed and
+    // Engagement, both shown on the directory/profile/print PDF, were
+    // missing from the one surface meant to be taken offline.
+
+    public function test_the_csv_export_includes_referrals_filed_and_engagement(): void
+    {
+        $teacher = User::factory()->teacher()->create(['name' => 'Carlos Ramos']);
+        $this->backdate(
+            \App\Models\Referral::factory()->count(2)->create(['referred_by' => $teacher->id])->first(),
+            now()->subDays(3),
+        );
+
+        $response = $this->actingAs($this->admin())->get(route('admin.teachers.export'));
+        $response->assertOk();
+
+        $csv = $response->streamedContent();
+        $this->assertStringContainsString('Referrals Filed', $csv);
+        $this->assertStringContainsString('Engagement', $csv);
+
+        $row = collect(explode("\n", $csv))->first(fn ($line) => str_contains($line, 'Carlos Ramos'));
+        $this->assertNotNull($row);
+        $fields = str_getcsv($row);
+        // Teacher Name, Email, Employee ID, Reports Filed, Referrals Filed, Engagement, Joined Date
+        $this->assertSame('2', $fields[4]);
+        $this->assertSame('Highly Active', $fields[5]);
+    }
+
+    public function test_the_csv_export_reports_inactive_for_a_teacher_with_no_activity(): void
+    {
+        User::factory()->teacher()->create(['name' => 'Quiet Teacher']);
+
+        $csv = $this->actingAs($this->admin())
+            ->get(route('admin.teachers.export'))
+            ->streamedContent();
+
+        $row = collect(explode("\n", $csv))->first(fn ($line) => str_contains($line, 'Quiet Teacher'));
+        $fields = str_getcsv($row);
+        $this->assertSame('0', $fields[3]);
+        $this->assertSame('0', $fields[4]);
+        $this->assertSame('Inactive', $fields[5]);
+    }
 }

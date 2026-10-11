@@ -91,6 +91,9 @@
                 combos: @json($courseCombos),
                 addAssignment() { this.assignments.push({ course: "", grade_level: "", section: "" }); },
                 removeAssignment(i) { this.assignments.splice(i, 1); },
+                // For a teacher who advises several sections of the same course/year —
+                // copies the row right below it so only the Section needs changing.
+                duplicateAssignment(i) { this.assignments.splice(i + 1, 0, { ...this.assignments[i] }); },
                 coursesFor() { return [...new Set(this.combos.map(c => c.course))]; },
                 gradesFor(course) { return [...new Set(this.combos.filter(c => c.course === course).map(c => c.grade_level))]; },
                 sectionsFor(course, grade) { return [...new Set(this.combos.filter(c => c.course === course && (!grade || c.grade_level === grade)).map(c => c.section))]; }
@@ -147,14 +150,14 @@
                             </p>
 
                             <div x-show="assignments.length > 0" class="grid grid-cols-12 gap-2 px-0.5 mb-1.5">
-                                <span class="col-span-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Course</span>
+                                <span class="col-span-5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Course</span>
                                 <span class="col-span-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Year Level</span>
                                 <span class="col-span-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Section</span>
                             </div>
 
                             <template x-for="(a, index) in assignments" :key="index">
                                 <div class="grid grid-cols-12 gap-2 mb-2 items-center">
-                                    <div class="col-span-6">
+                                    <div class="col-span-5">
                                         <select :name="'assignments[' + index + '][course]'"
                                             :title="a.course"
                                             @change="a.course = $event.target.value; a.grade_level = ''; a.section = '';"
@@ -185,8 +188,11 @@
                                             </template>
                                         </select>
                                     </div>
-                                    <div class="col-span-1 flex items-center justify-center">
-                                        <button type="button" @click="removeAssignment(index)" class="text-red-400 hover:text-red-600">
+                                    <div class="col-span-2 flex items-center justify-center gap-2.5">
+                                        <button type="button" @click="duplicateAssignment(index)" class="text-gray-400 hover:text-blue-600" title="Duplicate this row">
+                                            <i class="ti ti-copy"></i>
+                                        </button>
+                                        <button type="button" @click="removeAssignment(index)" class="text-red-400 hover:text-red-600" title="Remove this row">
                                             <i class="ti ti-trash"></i>
                                         </button>
                                     </div>
@@ -285,13 +291,13 @@
         </div>
 
         <!-- Recent Referrals -->
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover flex-1 flex flex-col" data-recent-referrals>
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover" data-recent-referrals>
             <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
                 <h4 class="font-semibold text-gray-800 flex items-center gap-2">
                     <i class="ti ti-file-export text-purple-600"></i> Recent Referrals
                 </h4>
             </div>
-            <div class="overflow-x-auto overflow-y-auto custom-scrollbar flex-1" style="max-height: 320px;">
+            <div class="overflow-x-auto overflow-y-auto custom-scrollbar" style="max-height: 320px;">
                 <table class="w-full text-left border-collapse relative">
                     <thead class="sticky top-0 bg-white z-10 shadow-sm">
                         <tr class="bg-white border-b border-gray-100">
@@ -345,6 +351,49 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Recent Notices -->
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover flex-1 flex flex-col" data-recent-notices x-data="{}">
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                <h4 class="font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="ti ti-messages text-indigo-600"></i> Recent Notices
+                </h4>
+                <span class="text-xs text-gray-400">Between guidance and {{ explode(' ', $teacher->name)[0] }}</span>
+            </div>
+            <div class="flex-1 overflow-y-auto custom-scrollbar divide-y divide-gray-50" style="max-height: 320px;">
+                @forelse($recentNotices as $notice)
+                    @php
+                        $teacherIsSender = $notice->sender_id === $teacher->id;
+                        $otherParty = $teacherIsSender ? $notice->receiver : $notice->sender;
+                        // A third-party admin can only open a thread they're actually
+                        // part of (Message::show() checks that) — in today's
+                        // single-counselor setup that's always true, but this stays
+                        // correct if a second counselor's notices ever show up here.
+                        $canOpen = in_array(auth()->id(), [$notice->sender_id, $notice->receiver_id], true);
+                    @endphp
+                    <div class="px-6 py-3 flex items-start gap-3 {{ $canOpen ? 'hover:bg-gray-50 cursor-pointer transition' : '' }}"
+                         @if($canOpen) @click="$dispatch('open-messages', { thread: {{ $notice->id }} })" @endif>
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 {{ $teacherIsSender ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-500' }}">
+                            {{ strtoupper(substr($otherParty->name ?? '?', 0, 1)) }}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center justify-between gap-2">
+                                <p class="text-sm font-medium text-gray-900 truncate">
+                                    {{ $teacherIsSender ? 'To ' : 'From ' }}{{ $otherParty->name ?? 'Unknown' }}
+                                </p>
+                                <span class="text-[11px] text-gray-400 whitespace-nowrap">{{ $notice->created_at->diffForHumans() }}</span>
+                            </div>
+                            @if($notice->subject)
+                                <p class="text-xs font-medium text-gray-600 truncate mt-0.5">{{ $notice->subject }}</p>
+                            @endif
+                            <p class="text-xs text-gray-500 truncate mt-0.5">{{ Str::limit($notice->content, 70) }}</p>
+                        </div>
+                    </div>
+                @empty
+                    <div class="py-8 text-center text-sm text-gray-400">No notices sent yet.</div>
+                @endforelse
             </div>
         </div>
     </div>
