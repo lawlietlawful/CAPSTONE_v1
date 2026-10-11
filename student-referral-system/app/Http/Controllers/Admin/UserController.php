@@ -20,10 +20,16 @@ class UserController extends Controller
     {
         $query = User::where('role', '!=', 'student')
             ->with('teacherAssignments')
-            // What a delete would take with it — every one of these foreign
-            // keys is ON DELETE CASCADE, so the confirmation has to say so.
-            ->withCount(['behavioralReports', 'referralsReferred', 'interventions'])
+            // What a delete would erase or orphan (see recordsOnFile()) — the
+            // page only offers Delete when all four are zero.
+            ->withCount(['behavioralReports', 'referralsReferred', 'interventions', 'referralsCounselor'])
             ->latest();
+
+        if ($request->input('status') === 'active') {
+            $query->whereNull('deactivated_at');
+        } elseif ($request->input('status') === 'deactivated') {
+            $query->whereNotNull('deactivated_at');
+        }
 
         if (auth()->user()->role !== 'super_admin') {
             $query->where('role', 'teacher');
@@ -45,16 +51,6 @@ class UserController extends Controller
         $users = $query->paginate(10)->appends($request->query());
         $courseCombos = $this->courseCombos();
         return view('admin.users.index', compact('users', 'courseCombos'));
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        $courseCombos = $this->courseCombos();
-
-        return view('admin.users.create', compact('courseCombos'));
     }
 
     /**
@@ -141,34 +137,6 @@ class UserController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        $user = User::with('teacherAssignments')->findOrFail($id);
-        if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
-            abort(403, 'Unauthorized action.');
-        }
-        return view('admin.users.show', compact('user'));
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        $user = User::findOrFail($id);
-        if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
-            abort(403, 'Unauthorized action.');
-        }
-        $courseCombos = $this->courseCombos();
-        $existingAssignments = $user->teacherAssignments()
-            ->get(['course', 'grade_level', 'section']);
-
-        return view('admin.users.edit', compact('user', 'courseCombos', 'existingAssignments'));
-    }
-
-    /**
      * Update the specified resource in storage.
      */
     public function update(UpdateUserRequest $request, string $id)
@@ -239,7 +207,10 @@ class UserController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Permanently delete an account — only one with nothing on file (e.g. created
+     * by mistake). Every report, referral and intervention a user filed is ON
+     * DELETE CASCADE, and a counselor's assigned referrals would silently become
+     * unassigned, so an account with any of that must be deactivated instead.
      */
     public function destroy(string $id)
     {
@@ -247,13 +218,89 @@ class UserController extends Controller
         if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
             abort(403, 'Unauthorized action.');
         }
-        
+
         if ($user->id === auth()->id()) {
             return redirect()->route('admin.users.index')->with('error', 'You cannot delete yourself.');
+        }
+
+        $onFile = $this->recordsOnFile($user);
+        if ($onFile !== []) {
+            return redirect()->route('admin.users.index')->with('error',
+                "{$user->name} has " . implode(', ', $onFile) . ' on file, which deleting would erase. Deactivate the account instead.');
         }
 
         $user->delete();
 
         return redirect()->route('admin.users.index')->with('success', 'User deleted successfully.');
+    }
+
+    /**
+     * Switch an account off without touching anything they filed: they can't
+     * sign in anywhere (web or the portal apps), any open portal session is
+     * revoked now, an open web session ends on its next request
+     * (EnsureAccountIsActive), and they drop out of every assignment and
+     * messaging list. Reversible with reactivate().
+     */
+    public function deactivate(string $id)
+    {
+        $user = User::findOrFail($id);
+        if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
+            abort(403, 'Unauthorized action.');
+        }
+        if ($user->role === 'student') {
+            return back()->with('error', 'Student accounts are managed from the Students page.');
+        }
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'You cannot deactivate your own account.');
+        }
+        if ($user->isDeactivated()) {
+            return back()->with('error', "{$user->name}'s account is already deactivated.");
+        }
+
+        $user->update(['deactivated_at' => now()]);
+        $user->tokens()->delete(); // sign out of the portal apps right away
+
+        return back()->with('success', "{$user->name}'s account was deactivated. Everything they filed is kept.");
+    }
+
+    /** Undo deactivate(): the same account, with all its history, signs in again. */
+    public function reactivate(string $id)
+    {
+        $user = User::findOrFail($id);
+        if (auth()->user()->role !== 'super_admin' && $user->role !== 'teacher') {
+            abort(403, 'Unauthorized action.');
+        }
+        if (! $user->isDeactivated()) {
+            return back()->with('error', "{$user->name}'s account is already active.");
+        }
+
+        $user->update(['deactivated_at' => null]);
+
+        return back()->with('success', "{$user->name}'s account was reactivated.");
+    }
+
+    /**
+     * What this user has on file that a delete would erase or orphan, as
+     * human-readable counts ("3 behavioral reports"); empty when nothing.
+     * Shared by destroy() and the index page, which only offers Delete when
+     * this is empty.
+     */
+    public static function recordsOnFile(User $user): array
+    {
+        $counts = [
+            'behavioral report' => $user->behavioral_reports_count ?? $user->behavioralReports()->count(),
+            'referral' => $user->referrals_referred_count ?? $user->referralsReferred()->count(),
+            'intervention record' => $user->interventions_count ?? $user->interventions()->count(),
+            'assigned referral' => $user->referrals_counselor_count ?? $user->referralsCounselor()->count(),
+        ];
+
+        $parts = [];
+        foreach ($counts as $label => $n) {
+            if ($n > 0) {
+                $parts[] = $n . ' ' . $label . ($n === 1 ? '' : 's');
+            }
+        }
+
+        return $parts;
     }
 }

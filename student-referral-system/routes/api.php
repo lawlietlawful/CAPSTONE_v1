@@ -71,7 +71,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Role is 'admin' — the former 'guidance_counselor' role was collapsed
         // into 'admin' (see User::isCounselor()). 'counselor' never matched
         // any real row, so this endpoint always returned an empty list.
-        return response()->json(['data' => \App\Models\User::where('role', 'admin')->select('id', 'name')->get()]);
+        // Active counselors only — a deactivated one can't read a notice.
+        return response()->json(['data' => \App\Models\User::where('role', 'admin')->whereNull('deactivated_at')->select('id', 'name')->get()]);
     });
     Route::get('/messages', [\App\Http\Controllers\Api\MessageController::class, 'index']);
     Route::get('/messages/sent', [\App\Http\Controllers\Api\MessageController::class, 'sent']);

@@ -102,9 +102,7 @@
             <select name="counselor_id" onchange="document.getElementById('filterForm').submit();" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
                 <option value="">All Counselors</option>
                 <option value="unassigned" {{ request('counselor_id') === 'unassigned' ? 'selected' : '' }}>Unassigned (open)</option>
-                @foreach($counselors as $c)
-                    <option value="{{ $c->id }}" {{ request('counselor_id') == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
-                @endforeach
+                @include('partials.counselor-options', ['mode' => 'filter', 'selected' => request('counselor_id')])
             </select>
         </div>
         
@@ -165,9 +163,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Select Counselor</label>
                     <select name="assign_counselor_id" x-model="assignCounselorId" class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm">
                         <option value="">-- Select Counselor --</option>
-                        @foreach($counselors as $c)
-                            <option value="{{ $c->id }}">{{ $c->name }}</option>
-                        @endforeach
+                        @include('partials.counselor-options', ['mode' => 'new', 'selected' => null])
                     </select>
                 </div>
                 <div class="grid grid-cols-2 gap-3 w-full">
@@ -380,9 +376,7 @@
                                 <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Assign to Counselor</label>
                                 <select name="counselor_id" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                                     <option value="">Unassigned (Counselor will pick up)</option>
-                                    @foreach($counselors as $c)
-                                        <option value="{{ $c->id }}" {{ old('counselor_id') == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
-                                    @endforeach
+                                    @include('partials.counselor-options', ['mode' => 'new', 'selected' => old('counselor_id')])
                                 </select>
                             </div>
                             <div>
@@ -469,9 +463,7 @@
                                     <label class="block text-xs font-semibold text-gray-600 mb-1 text-left">Assigned Counselor</label>
                                     <select name="counselor_id" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                                         <option value="">Unassigned</option>
-                                        @foreach($counselors as $c)
-                                            <option value="{{ $c->id }}" {{ $referral->counselor_id == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
-                                        @endforeach
+                                        @include('partials.counselor-options', ['mode' => 'existing', 'selected' => $referral->counselor_id])
                                     </select>
                                 </div>
                             </div>

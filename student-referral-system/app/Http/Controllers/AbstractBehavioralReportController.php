@@ -7,6 +7,7 @@ use App\Models\BehavioralReport;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\BehavioralReportService;
+use App\Support\AssignableCounselor;
 
 abstract class AbstractBehavioralReportController extends Controller
 {
@@ -129,7 +130,7 @@ abstract class AbstractBehavioralReportController extends Controller
     public function refer(Request $request, BehavioralReport $behavioral_report)
     {
         $data = $request->validate([
-            'counselor_id' => ['nullable', \Illuminate\Validation\Rule::exists('users', 'id')->where('role', 'admin')],
+            'counselor_id' => ['nullable', AssignableCounselor::rule()->where('role', 'admin')],
         ]);
 
         // A counselor files it to themselves by default; a super admin leaves it unassigned unless chosen.

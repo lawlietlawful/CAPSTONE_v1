@@ -62,11 +62,7 @@
                     <select name="counselor_id" id="counselor_id"
                         class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm @error('counselor_id') border-red-500 @enderror">
                         <option value="">Unassigned (Counselor will pick up)</option>
-                        @foreach($counselors as $counselor)
-                            <option value="{{ $counselor->id }}" {{ old('counselor_id') == $counselor->id ? 'selected' : '' }}>
-                                {{ $counselor->name }}
-                            </option>
-                        @endforeach
+                        @include('partials.counselor-options', ['mode' => 'new', 'selected' => old('counselor_id')])
                     </select>
                     @error('counselor_id') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
                 </div>

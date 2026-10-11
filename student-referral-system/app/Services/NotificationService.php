@@ -125,6 +125,7 @@ class NotificationService
         $name = $referral->student?->full_name ?? 'A student';
 
         User::where('role', 'admin')
+            ->whereNull('deactivated_at')
             ->where('id', '!=', $referral->referred_by)
             ->when($referral->counselor_id, fn ($q) => $q->where('id', $referral->counselor_id))
             ->get()

@@ -14,9 +14,17 @@
         <a href="{{ route('admin.teachers.print', $teacher->id) }}" target="_blank" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center gap-1.5">
             <i class="ti ti-printer text-blue-600"></i> Print / Export PDF
         </a>
-        <button type="button" x-data="{}" @click="$dispatch('open-messages', { to: {{ $teacher->id }} })" class="px-4 py-2 bg-indigo-600 border border-transparent text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center gap-1.5">
-            <i class="ti ti-send text-white"></i> Send Notice
-        </button>
+        @if($teacher->isDeactivated())
+            {{-- Message::canInitiate refuses a deactivated recipient — say so
+                 here rather than letting Compose fail. --}}
+            <span class="px-4 py-2 bg-gray-100 border border-gray-200 text-gray-400 text-sm font-medium rounded-lg flex items-center gap-1.5 cursor-not-allowed" title="This account is deactivated and can't receive notices" data-send-notice-disabled>
+                <i class="ti ti-send"></i> Send Notice
+            </span>
+        @else
+            <button type="button" x-data="{}" @click="$dispatch('open-messages', { to: {{ $teacher->id }} })" class="px-4 py-2 bg-indigo-600 border border-transparent text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center gap-1.5">
+                <i class="ti ti-send text-white"></i> Send Notice
+            </button>
+        @endif
     </div>
 </div>
 
@@ -58,6 +66,13 @@
                 @endif
                 <p class="text-xs text-gray-400">Joined {{ $teacher->created_at->format('M j, Y') }}</p>
             </div>
+
+            @if($teacher->isDeactivated())
+                <div class="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 flex items-start gap-1.5" data-deactivated-banner>
+                    <i class="ti ti-user-off mt-0.5"></i>
+                    <span>Deactivated {{ $teacher->deactivated_at->format('M j, Y') }} — can't sign in. Their records below are kept. Reactivate from User Management.</span>
+                </div>
+            @endif
         </div>
 
         <!-- Activity Stats -->

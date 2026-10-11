@@ -19,6 +19,7 @@ class User extends Authenticatable
         'role',
         'account_activated_at',
         'activation_code',
+        'deactivated_at',
     ];
 
     protected $hidden = [
@@ -55,6 +56,7 @@ class User extends Authenticatable
 
     protected $casts = [
         'account_activated_at' => 'datetime',
+        'deactivated_at' => 'datetime',
     ];
 
     // Relationships
@@ -167,6 +169,25 @@ class User extends Authenticatable
         return $this->role === 'student';
     }
 
+    /**
+     * Switched off by an admin (Admin\UserController::deactivate): can't sign
+     * in anywhere and drops out of every "pick someone" list, but every record
+     * they filed stays. Reversible. Distinct from never having activated
+     * (account_activated_at), which is about a first sign-in.
+     */
+    /** Shown wherever a deactivated account tries to sign in or use a token. */
+    public const DEACTIVATED_MESSAGE = 'This account has been deactivated. Please contact the school administrator.';
+
+    public function isDeactivated(): bool
+    {
+        return $this->deactivated_at !== null;
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->whereNull('deactivated_at');
+    }
+
     public function isActivated()
     {
         return $this->account_activated_at !== null;
@@ -185,7 +206,9 @@ class User extends Authenticatable
      */
     public static function soleCounselorId(): ?int
     {
-        $counselors = static::where('role', 'admin')->pluck('id');
+        // Active counselors only: a deactivated one can't pick anything up,
+        // and mustn't stop the one who can from being the obvious default.
+        $counselors = static::where('role', 'admin')->whereNull('deactivated_at')->pluck('id');
 
         return $counselors->count() === 1 ? $counselors->first() : null;
     }

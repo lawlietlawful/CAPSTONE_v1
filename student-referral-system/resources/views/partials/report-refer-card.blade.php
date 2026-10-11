@@ -25,11 +25,13 @@
                     <label class="block text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-1">Assign to</label>
                     <select name="counselor_id" class="w-full rounded-lg border border-blue-200 bg-white text-sm px-3 py-2">
                         <option value="">{{ auth()->user()->role === 'admin' ? 'Me' : 'Unassigned (a counselor will pick it up)' }}</option>
-                        @foreach($referCounselors as $counselor)
-                            @unless(auth()->user()->role === 'admin' && $counselor->id === auth()->id())
-                                <option value="{{ $counselor->id }}">{{ $counselor->name }}</option>
-                            @endunless
-                        @endforeach
+                        @include('partials.counselor-options', [
+                            'counselors' => $referCounselors,
+                            'mode' => 'new',
+                            'selected' => null,
+                            // "Me" is already the first option for a counselor.
+                            'skip' => auth()->user()->role === 'admin' ? auth()->id() : null,
+                        ])
                     </select>
                 </div>
                 <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center gap-1.5">

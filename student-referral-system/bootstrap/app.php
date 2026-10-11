@@ -17,6 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // API group carried no rate limiting at all.
         $middleware->throttleApi();
 
+        // A deactivated account loses any session it still has open — see
+        // EnsureAccountIsActive.
+        $middleware->web(append: [\App\Http\Middleware\EnsureAccountIsActive::class]);
+        $middleware->api(append: [\App\Http\Middleware\EnsureAccountIsActive::class]);
+
         $middleware->alias([
             'admin'       => \App\Http\Middleware\AdminMiddleware::class,
             'counselor'   => \App\Http\Middleware\CounselorMiddleware::class,

@@ -183,8 +183,14 @@ Route::prefix('admin')
     Route::delete('/course-sections/{courseSection}', [\App\Http\Controllers\Admin\CourseController::class, 'destroySection'])
          ->name('courses.sections.destroy');
 
-    // User Management
-    Route::resource('users', UserController::class);
+    // User Management — adding and editing happen in modals on the index, so
+    // there are no standalone create/show/edit pages (they were unreachable,
+    // duplicated the modals, and show's Reset Password skipped their warning).
+    Route::resource('users', UserController::class)->except(['create', 'show', 'edit']);
+    Route::post('/users/{user}/deactivate', [UserController::class, 'deactivate'])
+         ->name('users.deactivate');
+    Route::post('/users/{user}/reactivate', [UserController::class, 'reactivate'])
+         ->name('users.reactivate');
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])
          ->name('users.reset-password');
     Route::post('/users/{user}/activation-code', [UserController::class, 'regenerateActivationCode'])

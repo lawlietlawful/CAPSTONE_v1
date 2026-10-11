@@ -47,9 +47,13 @@ class AdminUserManagementTest extends TestCase
         return substr($html, $start, $next === false ? null : $next - $start);
     }
 
-    // ── Delete warns about the cascade ────────────────────────────────────
+    // ── Delete is only for accounts with nothing on file ─────────────────
+    // Every report, referral and intervention a user filed is ON DELETE
+    // CASCADE. Accounts with records are deactivated instead (see
+    // AccountDeactivationTest); Delete is only offered — and only allowed —
+    // for an account with nothing to lose.
 
-    public function test_deleting_a_teacher_with_records_warns_exactly_what_will_be_erased(): void
+    public function test_a_teacher_with_records_is_offered_deactivate_not_delete(): void
     {
         $teacher = User::factory()->teacher()->create(['name' => 'Carlos Ramos']);
         BehavioralReport::factory()->count(3)->create(['reported_by' => $teacher->id]);
@@ -57,33 +61,53 @@ class AdminUserManagementTest extends TestCase
 
         $html = $this->actingAs($this->counselor())->get(route('admin.users.index'))->getContent();
 
-        $this->assertStringContainsString('3 behavioral reports', $html);
-        $this->assertStringContainsString('2 referrals', $html);
-        $this->assertStringContainsString('permanently erase', $html);
+        $this->assertStringNotContainsString('data-delete-user="' . $teacher->id . '"', $html);
+        $this->assertStringContainsString('data-deactivate-user="' . $teacher->id . '"', $html);
+        // The disabled bin explains why, with the exact counts.
+        $this->assertStringContainsString('Has 3 behavioral reports, 2 referrals on file', $html);
     }
 
-    public function test_deleting_a_user_with_no_records_gets_the_plain_confirmation(): void
+    public function test_a_user_with_nothing_on_file_can_still_be_deleted(): void
     {
-        User::factory()->teacher()->create(['name' => 'Quiet Teacher']);
+        $teacher = User::factory()->teacher()->create(['name' => 'Created By Mistake']);
 
         $html = $this->actingAs($this->counselor())->get(route('admin.users.index'))->getContent();
+        $this->assertStringContainsString('data-delete-user="' . $teacher->id . '"', $html);
+        $this->assertStringContainsString('They have nothing on file', $html);
 
-        $this->assertStringNotContainsString('permanently erase', $html);
-        $this->assertStringContainsString('This action cannot be undone.', $html);
+        $this->actingAs($this->counselor())->delete(route('admin.users.destroy', $teacher->id))
+            ->assertRedirect(route('admin.users.index'));
+        $this->assertDatabaseMissing('users', ['id' => $teacher->id]);
     }
 
-    public function test_the_warning_is_accurate_because_the_delete_really_does_cascade(): void
+    public function test_deleting_a_user_with_records_is_refused_and_nothing_is_erased(): void
     {
-        // Pins the behavior the warning describes, so the two can't drift.
+        // The server enforces it too — the hidden button isn't the only guard.
         $teacher = User::factory()->teacher()->create();
         $report = BehavioralReport::factory()->create(['reported_by' => $teacher->id]);
         $referral = Referral::factory()->create(['referred_by' => $teacher->id]);
 
         $this->actingAs($this->counselor())->delete(route('admin.users.destroy', $teacher->id))
-            ->assertRedirect(route('admin.users.index'));
+            ->assertRedirect(route('admin.users.index'))
+            ->assertSessionHas('error', fn ($m) => str_contains($m, 'Deactivate the account instead'));
 
-        $this->assertDatabaseMissing('behavioral_reports', ['id' => $report->id]);
-        $this->assertDatabaseMissing('referrals', ['id' => $referral->id]);
+        $this->assertDatabaseHas('users', ['id' => $teacher->id]);
+        $this->assertDatabaseHas('behavioral_reports', ['id' => $report->id]);
+        $this->assertDatabaseHas('referrals', ['id' => $referral->id]);
+    }
+
+    public function test_a_counselor_with_assigned_referrals_cannot_be_deleted_either(): void
+    {
+        // Not erased (counselor_id is SET NULL) but every open case of theirs
+        // would silently become unassigned — so it counts as "on file" too.
+        $superAdmin = $this->superAdmin();
+        $counselor = $this->counselor();
+        $referral = Referral::factory()->create(['counselor_id' => $counselor->id]);
+
+        $this->actingAs($superAdmin)->delete(route('admin.users.destroy', $counselor->id))
+            ->assertSessionHas('error', fn ($m) => str_contains($m, '1 assigned referral'));
+
+        $this->assertSame($counselor->id, $referral->fresh()->counselor_id);
     }
 
     // ── Validation failures reopen the right modal ───────────────────────

@@ -49,6 +49,11 @@ class AuthController extends Controller
             ], 401);
         }
 
+        // After the credential check, so it can't be used to probe accounts.
+        if ($user->isDeactivated()) {
+            return response()->json(['message' => User::DEACTIVATED_MESSAGE], 403);
+        }
+
         $student = $user->student;
         if (!$student) {
             return response()->json([
@@ -108,6 +113,11 @@ class AuthController extends Controller
             return $mismatch;
         }
 
+        // After the credential check, so it can't be used to probe accounts.
+        if ($user->isDeactivated()) {
+            return response()->json(['message' => User::DEACTIVATED_MESSAGE], 403);
+        }
+
         $user->update([
             'password' => Hash::make($request->input('new_password')),
             'account_activated_at' => now(),
@@ -163,6 +173,11 @@ class AuthController extends Controller
             ], 401);
         }
 
+        // After the credential check, so it can't be used to probe accounts.
+        if ($user->isDeactivated()) {
+            return response()->json(['message' => User::DEACTIVATED_MESSAGE], 403);
+        }
+
         $token = $user->createToken('teacher-portal')->plainTextToken;
 
         return response()->json([
@@ -206,6 +221,11 @@ class AuthController extends Controller
         $code = User::canonicalActivationCode($request->input('activation_code'));
         if (!$user->activation_code || !Hash::check($code, $user->activation_code)) {
             return $mismatch;
+        }
+
+        // After the credential check, so it can't be used to probe accounts.
+        if ($user->isDeactivated()) {
+            return response()->json(['message' => User::DEACTIVATED_MESSAGE], 403);
         }
 
         $user->update([

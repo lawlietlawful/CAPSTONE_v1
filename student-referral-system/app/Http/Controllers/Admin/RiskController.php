@@ -13,6 +13,7 @@ use App\Services\NotificationService;
 use App\Services\RiskAssessmentService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\Support\AssignableCounselor;
 
 class RiskController extends Controller
 {
@@ -206,7 +207,7 @@ class RiskController extends Controller
             'action' => 'required|in:export_selected,assign_counselor',
             // Must be an actual counselor — a bare exists:users,id also
             // accepted a teacher's or student's id.
-            'assign_counselor_id' => ['required_if:action,assign_counselor', 'nullable', Rule::exists('users', 'id')->where('role', 'admin')],
+            'assign_counselor_id' => ['required_if:action,assign_counselor', 'nullable', AssignableCounselor::rule()->where('role', 'admin')],
         ]);
 
         if ($request->action === 'export_selected') {

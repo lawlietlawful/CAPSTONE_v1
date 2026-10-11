@@ -9,6 +9,7 @@ use App\Models\Referral;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use App\Support\AssignableCounselor;
 
 class ReferralController extends Controller
 {
@@ -79,7 +80,7 @@ class ReferralController extends Controller
             'referral_type'       => 'required|in:' . implode(',', Referral::REFERRAL_TYPES),
             'referral_type_other' => 'nullable|required_if:referral_type,Other|string|max:255',
             'reason'              => 'required|string',
-            'counselor_id'        => 'nullable|exists:users,id',
+            'counselor_id'        => ['nullable', AssignableCounselor::rule()],
         ]);
 
         // Goes through the same service the teacher-filed flow uses, so a
@@ -214,7 +215,7 @@ class ReferralController extends Controller
     {
         $request->validate([
             'status'          => 'required|in:pending,in_progress,resolved,cancelled',
-            'counselor_id'    => 'nullable|exists:users,id',
+            'counselor_id'    => ['nullable', AssignableCounselor::rule($referral->counselor_id)],
             'counselor_notes' => 'nullable|string',
         ]);
 

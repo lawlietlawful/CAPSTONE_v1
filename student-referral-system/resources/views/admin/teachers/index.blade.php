@@ -57,6 +57,7 @@
                     <option value="" {{ request('status') ? '' : 'selected' }}>All Teachers</option>
                     <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending Activation</option>
                     <option value="activated" {{ request('status') === 'activated' ? 'selected' : '' }}>Activated</option>
+                    <option value="deactivated" {{ request('status') === 'deactivated' ? 'selected' : '' }}>Deactivated</option>
                 </select>
             </div>
 
@@ -117,11 +118,15 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs font-mono">
                                 {{ $teacher->username ?? '—' }}
                             </span>
-                            @unless($teacher->account_activated_at)
+                            @if($teacher->isDeactivated())
+                                <span class="mt-1 flex w-max items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200" title="Deactivated {{ $teacher->deactivated_at->format('M d, Y') }} — reactivate in User Management" data-deactivated-badge>
+                                    <i class="ti ti-user-off text-[11px]"></i> Deactivated
+                                </span>
+                            @elseif(! $teacher->account_activated_at)
                                 <span class="mt-1 flex w-max items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100" title="This teacher hasn't set their password yet">
                                     <i class="ti ti-key text-[11px]"></i> Pending activation
                                 </span>
-                            @endunless
+                            @endif
                         </td>
                         <td class="px-5 py-3 text-center">
                             <span class="inline-flex items-center gap-1 text-sm font-medium {{ $teacher->behavioral_reports_count > 0 ? 'text-amber-700' : 'text-gray-400' }}">
@@ -160,6 +165,9 @@
                                 </button>
                                 <div class="border-t border-gray-100 my-1"></div>
 
+                                @if($teacher->isDeactivated())
+                                    <p class="px-4 py-2 text-xs text-gray-400 leading-snug">Deactivated — reactivate in User Management to restore access.</p>
+                                @else
                                 @unless($teacher->account_activated_at)
                                     {{-- Pending: re-issue the one-time activation code (e.g. if lost). --}}
                                     <form id="regen-code-{{ $teacher->id }}" action="{{ route('admin.users.activation-code', $teacher->id) }}" method="POST">
@@ -187,6 +195,7 @@
                                         <i class="ti ti-key"></i> Reset Password
                                     </button>
                                 </form>
+                                @endif
                             </div>
                         </td>
                     </tr>
@@ -199,7 +208,7 @@
                                 </div>
                                 <h3 class="text-base font-medium text-gray-900 mb-1">No Teachers Found</h3>
                                 <p class="text-sm text-gray-500 mb-4">Teacher accounts will appear here once they are registered in User Management.</p>
-                                <a href="{{ route('admin.users.create') }}" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
+                                <a href="{{ route('admin.users.index', ['add' => 1]) }}" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
                                     <i class="ti ti-plus mr-1"></i> Register a Teacher
                                 </a>
                             </div>

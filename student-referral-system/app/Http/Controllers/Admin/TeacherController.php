@@ -31,10 +31,14 @@ class TeacherController extends Controller
         // Activation status filter — lets the "Pending Activation" summary
         // card actually narrow the table down instead of only counting it.
         $status = $request->input('status');
+        // Pending / Activated describe accounts still in use; a deactivated
+        // account is neither, and has its own filter.
         if ($status === 'pending') {
-            $query->whereNull('account_activated_at');
+            $query->whereNull('account_activated_at')->whereNull('deactivated_at');
         } elseif ($status === 'activated') {
-            $query->whereNotNull('account_activated_at');
+            $query->whereNotNull('account_activated_at')->whereNull('deactivated_at');
+        } elseif ($status === 'deactivated') {
+            $query->whereNotNull('deactivated_at');
         }
 
         // Handle sorting
@@ -74,6 +78,7 @@ class TeacherController extends Controller
         $totalBehavioralReports = BehavioralReport::count();
         $pendingActivationCount = User::where('role', 'teacher')
             ->whereNull('account_activated_at')
+            ->whereNull('deactivated_at')
             ->count();
 
         return view('admin.teachers.index', compact(
@@ -298,7 +303,7 @@ class TeacherController extends Controller
             "Expires"             => "0"
         );
 
-        $columns = array('Teacher Name', 'Email', 'Employee ID', 'Reports Filed', 'Referrals Filed', 'Engagement', 'Joined Date');
+        $columns = array('Teacher Name', 'Email', 'Employee ID', 'Reports Filed', 'Referrals Filed', 'Engagement', 'Joined Date', 'Account Status');
 
         $callback = function() use($teachers, $columns, $reportsCount, $referralsCount) {
             $file = fopen('php://output', 'w');
@@ -320,7 +325,12 @@ class TeacherController extends Controller
                     $repFiled,
                     $refFiled,
                     $engagement,
-                    $teacher->created_at->format('Y-m-d')
+                    $teacher->created_at->format('Y-m-d'),
+                    match (true) {
+                        $teacher->isDeactivated() => 'Deactivated',
+                        ! $teacher->isActivated() => 'Pending Activation',
+                        default => 'Active',
+                    },
                 ));
             }
 

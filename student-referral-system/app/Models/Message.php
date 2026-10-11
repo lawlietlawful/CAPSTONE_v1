@@ -57,6 +57,12 @@ class Message extends Model
      */
     public static function canInitiate(User $sender, User $receiver): bool
     {
+        // A deactivated account can't sign in to read anything — a new thread
+        // to it would just sit unseen.
+        if ($receiver->isDeactivated()) {
+            return false;
+        }
+
         return match ($sender->role) {
             'teacher' => in_array($receiver->role, ['admin', 'super_admin'], true),
             'admin', 'super_admin' => in_array($receiver->role, ['student', 'teacher'], true),

@@ -65,6 +65,14 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // Checked only after the password matches, so this message can't be
+        // used to probe which accounts exist.
+        if ($user->isDeactivated()) {
+            throw ValidationException::withMessages([
+                'email' => User::DEACTIVATED_MESSAGE,
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
 
         Auth::login($user, $this->boolean('remember'));

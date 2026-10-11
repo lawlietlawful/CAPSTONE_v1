@@ -234,11 +234,7 @@
                             <select name="counselor_id" id="counselor_id"
                                 class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                                 <option value="">Unassigned</option>
-                                @foreach($counselors as $counselor)
-                                    <option value="{{ $counselor->id }}" {{ $referral->counselor_id == $counselor->id ? 'selected' : '' }}>
-                                        {{ $counselor->name }}
-                                    </option>
-                                @endforeach
+                                @include('partials.counselor-options', ['mode' => 'existing', 'selected' => $referral->counselor_id])
                             </select>
                         </div>
 

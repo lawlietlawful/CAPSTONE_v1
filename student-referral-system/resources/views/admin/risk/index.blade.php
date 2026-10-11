@@ -172,9 +172,7 @@
                 <select x-model="assignCounselorId" name="assign_counselor_id" class="w-full rounded-xl border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition">
                     <option value="">-- Select Counselor --</option>
                     @isset($counselors)
-                        @foreach($counselors as $c)
-                            <option value="{{ $c->id }}">{{ $c->name }}</option>
-                        @endforeach
+                        @include('partials.counselor-options', ['mode' => 'new', 'selected' => null])
                     @endisset
                 </select>
             </div>

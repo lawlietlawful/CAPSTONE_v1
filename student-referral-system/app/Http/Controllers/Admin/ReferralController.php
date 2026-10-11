@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use App\Models\Referral;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\AssignableCounselor;
 
 class ReferralController extends Controller
 {
@@ -66,7 +67,7 @@ class ReferralController extends Controller
             'referral_type'       => 'required|in:' . implode(',', Referral::REFERRAL_TYPES),
             'referral_type_other' => 'nullable|required_if:referral_type,Other|string|max:255',
             'reason'              => 'required|string',
-            'counselor_id'        => 'nullable|exists:users,id',
+            'counselor_id'        => ['nullable', AssignableCounselor::rule()],
         ]);
 
         // The At-Risk profile's Refer form sends guard_duplicate so a second
@@ -103,7 +104,7 @@ class ReferralController extends Controller
     {
         $request->validate([
             'status'          => 'required|in:pending,in_progress,resolved,cancelled',
-            'counselor_id'    => 'nullable|exists:users,id',
+            'counselor_id'    => ['nullable', AssignableCounselor::rule($referral->counselor_id)],
             'counselor_notes' => 'nullable|string',
         ]);
 
@@ -161,7 +162,7 @@ class ReferralController extends Controller
             'referral_ids' => 'required|array',
             'referral_ids.*' => 'exists:referrals,id',
             'action' => 'required|in:resolved,in_progress,pending,delete,export_selected,assign_counselor',
-            'assign_counselor_id' => 'required_if:action,assign_counselor|nullable|exists:users,id'
+            'assign_counselor_id' => ['required_if:action,assign_counselor', 'nullable', AssignableCounselor::rule()]
         ]);
 
         $ids = $request->referral_ids;
@@ -248,7 +249,7 @@ class ReferralController extends Controller
             'reason'              => 'required|string',
             'priority'            => 'required|in:low,moderate,high',
             'status'              => 'required|in:pending,in_progress,resolved,cancelled',
-            'counselor_id'        => 'nullable|exists:users,id',
+            'counselor_id'        => ['nullable', AssignableCounselor::rule($referral->counselor_id)],
         ]);
 
         // Everything except the status is a plain field edit...

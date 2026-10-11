@@ -48,7 +48,7 @@ class MessageController extends Controller
 
         // For composing new messages, get a list of students and teachers
         $students = User::where('role', 'student')->get();
-        $teachers = User::where('role', 'teacher')->get();
+        $teachers = User::where('role', 'teacher')->whereNull('deactivated_at')->get();
 
         // A page can open this (as the popup modal) with a recipient already
         // in mind — e.g. "Send Notice" on a teacher's profile — via ?to=.

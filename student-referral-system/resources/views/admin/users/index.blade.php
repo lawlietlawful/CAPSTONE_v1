@@ -29,7 +29,9 @@
     ';
 @endphp
 
-<div x-data="{ showAddUser: {{ $addFailed ? 'true' : 'false' }} }">
+{{-- ?add=1 opens "Add New User" straight away (e.g. the Teachers page's
+     "Register a Teacher" button). --}}
+<div x-data="{ showAddUser: {{ $addFailed || request()->boolean('add') ? 'true' : 'false' }} }">
 
 {{-- A validation failure that didn't come from any form on this page (no
      _form marker) still has to be visible somewhere. --}}
@@ -71,6 +73,15 @@
                 </div>
             @endif
 
+            <div class="w-full lg:w-44">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                <select name="status" onchange="document.getElementById('filterForm').submit();" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
+                    <option value="" {{ request('status') ? '' : 'selected' }}>All Accounts</option>
+                    <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
+                    <option value="deactivated" {{ request('status') === 'deactivated' ? 'selected' : '' }}>Deactivated</option>
+                </select>
+            </div>
+
             <div class="flex gap-2 w-full lg:w-auto">
                 <a href="{{ route('admin.users.index') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap">
                     <i class="ti ti-x"></i> Reset
@@ -107,30 +118,26 @@
                 @forelse($users as $user)
                     @php
                         $editFailed = $failedForm === 'edit-' . $user->id;
+                        $isSelf = auth()->id() === $user->id;
 
-                        // Deleting a user is ON DELETE CASCADE for everything
-                        // they filed or logged — the confirmation has to say
-                        // what goes with them, the way the Students page does.
-                        $erased = [];
-                        if ($user->behavioral_reports_count > 0) {
-                            $erased[] = $user->behavioral_reports_count . ' behavioral report' . ($user->behavioral_reports_count === 1 ? '' : 's');
-                        }
-                        if ($user->referrals_referred_count > 0) {
-                            $erased[] = $user->referrals_referred_count . ' referral' . ($user->referrals_referred_count === 1 ? '' : 's');
-                        }
-                        if ($user->interventions_count > 0) {
-                            $erased[] = $user->interventions_count . ' intervention record' . ($user->interventions_count === 1 ? '' : 's');
-                        }
-                        $deleteMessage = count($erased) > 0
-                            ? 'Deleting ' . $user->name . ' will also permanently erase ' . implode(', ', $erased) . ' they filed — part of the students\' case history. This cannot be undone.'
-                            : 'Are you sure you want to delete ' . $user->name . '? This action cannot be undone.';
+                        // Delete is only offered for an account with nothing on
+                        // file: reports, referrals and interventions are all ON
+                        // DELETE CASCADE, and a counselor's assigned referrals
+                        // would be orphaned. Anything else gets Deactivate.
+                        $onFile = \App\Http\Controllers\Admin\UserController::recordsOnFile($user);
+                        $canDelete = ! $isSelf && $onFile === [];
                     @endphp
-                    <tr class="hover:bg-blue-50/50 transition" x-data="{ showEditModal: {{ $editFailed ? 'true' : 'false' }} }">
-                        <td class="px-6 py-4 font-medium text-gray-800 whitespace-nowrap">
+                    <tr class="{{ $user->isDeactivated() ? 'bg-gray-50/70' : 'hover:bg-blue-50/50' }} transition" x-data="{ showEditModal: {{ $editFailed ? 'true' : 'false' }} }" data-user-row="{{ $user->id }}">
+                        <td class="px-6 py-4 font-medium whitespace-nowrap {{ $user->isDeactivated() ? 'text-gray-400' : 'text-gray-800' }}">
                             @if($user->role === 'teacher')
                                 <a href="{{ route('admin.teachers.show', $user->id) }}" class="hover:text-blue-600 hover:underline transition" title="Open teacher profile">{{ $user->name }}</a>
                             @else
                                 {{ $user->name }}
+                            @endif
+                            @if($user->isDeactivated())
+                                <span class="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-200 text-gray-600" title="Deactivated {{ $user->deactivated_at->format('M d, Y') }}" data-deactivated-badge>
+                                    <i class="ti ti-user-off text-[11px]"></i> Deactivated
+                                </span>
                             @endif
                         </td>
                         <td class="px-6 py-4 text-gray-500 whitespace-nowrap">{{ $user->email ?: '—' }}</td>
@@ -305,19 +312,56 @@
                                         </div>
                                     </div>
                                 </div>
-                                @if(auth()->id() !== $user->id)
+                                @if(! $isSelf && $user->isDeactivated())
+                                    <form id="reactivate-user-{{ $user->id }}" action="{{ route('admin.users.reactivate', $user->id) }}" method="POST" class="inline-block">
+                                        @csrf
+                                        <button type="button" @click="$dispatch('open-confirm-modal', {
+                                                formId: 'reactivate-user-{{ $user->id }}',
+                                                title: 'Reactivate Account',
+                                                message: @js("Reactivate {$user->name}? They can sign in again with their existing password, and everything they filed is still there."),
+                                                confirmText: 'Yes, Reactivate',
+                                                buttonClass: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200',
+                                                iconClass: 'ti-user-check text-emerald-600',
+                                                iconBgClass: 'bg-emerald-50'
+                                            })" class="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Reactivate account" data-reactivate-user="{{ $user->id }}">
+                                            <i class="ti ti-user-check text-lg"></i>
+                                        </button>
+                                    </form>
+                                @elseif(! $isSelf)
+                                    <form id="deactivate-user-{{ $user->id }}" action="{{ route('admin.users.deactivate', $user->id) }}" method="POST" class="inline-block">
+                                        @csrf
+                                        <button type="button" @click="$dispatch('open-confirm-modal', {
+                                                formId: 'deactivate-user-{{ $user->id }}',
+                                                title: 'Deactivate Account',
+                                                message: @js("Deactivate {$user->name}? They're signed out and can't sign in until reactivated. Everything they filed stays on record, and they drop out of assignment and messaging lists."),
+                                                confirmText: 'Yes, Deactivate',
+                                                buttonClass: 'bg-amber-500 hover:bg-amber-600 shadow-amber-200',
+                                                iconClass: 'ti-user-off text-amber-600',
+                                                iconBgClass: 'bg-amber-50'
+                                            })" class="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Deactivate account" data-deactivate-user="{{ $user->id }}">
+                                            <i class="ti ti-user-off text-lg"></i>
+                                        </button>
+                                    </form>
+                                @endif
+
+                                @if($canDelete)
                                     <form id="delete-user-{{ $user->id }}" action="{{ route('admin.users.destroy', $user->id) }}" method="POST" class="inline-block">
                                         @csrf
                                         @method('DELETE')
                                         <button type="button" @click="$dispatch('open-confirm-modal', {
                                                 formId: 'delete-user-{{ $user->id }}',
                                                 title: 'Delete User',
-                                                message: @js($deleteMessage),
+                                                message: @js("Permanently delete {$user->name}? They have nothing on file, so no case history is affected. This cannot be undone."),
                                                 confirmText: 'Yes, Delete User'
                                             })" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete User" data-delete-user="{{ $user->id }}">
                                             <i class="ti ti-trash"></i>
                                         </button>
                                     </form>
+                                @elseif(! $isSelf)
+                                    {{-- Keeps the column aligned, and says why there's no Delete. --}}
+                                    <span class="p-1.5 text-gray-200 cursor-help" title="Has {{ implode(', ', $onFile) }} on file — deactivate instead of deleting" data-delete-locked="{{ $user->id }}">
+                                        <i class="ti ti-trash-off"></i>
+                                    </span>
                                 @endif
                             </div>
                         </td>
@@ -326,7 +370,7 @@
                     <tr>
                         <td colspan="6" class="px-6 py-12 text-center text-gray-400">
                             <i class="ti ti-users text-4xl mb-3 block opacity-20"></i>
-                            {{ request('search') || request('role') ? 'No users match your search.' : 'No users found.' }}
+                            {{ request('search') || request('role') || request('status') ? 'No users match your search.' : 'No users found.' }}
                         </td>
                     </tr>
                 @endforelse

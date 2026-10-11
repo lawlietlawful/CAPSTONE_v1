@@ -429,9 +429,7 @@
                                     <select name="counselor_id" class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
                                         <option value="">Unassigned (Counselor will pick up)</option>
                                         @isset($counselors)
-                                            @foreach($counselors as $c)
-                                                <option value="{{ $c->id }}">{{ $c->name }}</option>
-                                            @endforeach
+                                            @include('partials.counselor-options', ['mode' => 'new', 'selected' => null])
                                         @endisset
                                     </select>
                                 </div>
