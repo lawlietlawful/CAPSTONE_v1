@@ -8,7 +8,10 @@ use App\Models\CourseSection;
 use App\Models\Student;
 use App\Models\TeacherAssignment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CourseController extends Controller
 {
@@ -34,13 +37,17 @@ class CourseController extends Controller
         $teacherAssignments = TeacherAssignment::all(['teacher_id', 'course', 'grade_level', 'section']);
 
         foreach ($courses as $course) {
+            $course->setRelation('sections', $this->sortSections($course->sections));
+
             foreach ($course->sections as $section) {
                 $key = $this->comboKey($course->name, $section->grade_level, $section->section);
                 $section->student_count = (int) $studentCounts->get($key, 0);
+                // Case-insensitive, like the student count above — the
+                // columns are free text, and MySQL matches them that way too.
                 $section->teacher_count = $teacherAssignments
-                    ->filter(fn ($a) => $a->course === $course->name
-                        && (! $a->grade_level || $a->grade_level === $section->grade_level)
-                        && (! $a->section || $a->section === $section->section))
+                    ->filter(fn ($a) => strcasecmp((string) $a->course, $course->name) === 0
+                        && (! $a->grade_level || strcasecmp($a->grade_level, $section->grade_level) === 0)
+                        && (! $a->section || strcasecmp($a->section, $section->section) === 0))
                     ->pluck('teacher_id')
                     ->unique()
                     ->count();
@@ -68,6 +75,74 @@ class CourseController extends Controller
         return strtolower(($course ?? '') . '|' . ($gradeLevel ?? '') . '|' . ($section ?? ''));
     }
 
+    /**
+     * Sections in school order: by the grade/year level's position in the
+     * fixed lists (so Grade 2 comes before Grade 10, which a plain string
+     * sort gets wrong), then strand, then section name naturally ("Block 2"
+     * before "Block 10"). A grade level not in either list sorts last.
+     */
+    private function sortSections(Collection $sections): Collection
+    {
+        $order = array_flip(array_merge(Course::BASIC_ED_GRADE_LEVELS, Course::COLLEGE_YEAR_LEVELS));
+
+        return $sections->sort(function ($a, $b) use ($order) {
+            return [$order[$a->grade_level] ?? PHP_INT_MAX, (string) $a->strand]
+                    <=> [$order[$b->grade_level] ?? PHP_INT_MAX, (string) $b->strand]
+                ?: strnatcasecmp($a->section, $b->section);
+        })->values();
+    }
+
+    /**
+     * Validation shared by Add Section and Edit Section. The grade level
+     * must come from the course's own list (Basic Education grades or
+     * College year levels), and a strand is only kept for Basic Education
+     * Grade 11/12 — anything else has its strand cleared, so a section
+     * moved out of Senior High can't keep a stale "STEM" badge.
+     *
+     * Duplicates are checked on (grade level, section) without the strand,
+     * exactly like the course_sections_unique index: a section is
+     * identified by course + grade + section everywhere else in the app
+     * (student pickers, teacher assignments, which have no strand at all),
+     * so "Grade 11 STEM A" and "Grade 11 ABM A" can't both exist.
+     *
+     * Errors go to a named bag so the page can reopen the exact form that
+     * failed, with the admin's input still in it.
+     */
+    private function validatedSection(Request $request, Course $course, string $bag, ?int $ignoreId = null): array
+    {
+        $isBasicEd = $course->education_level === 'Basic Education';
+        $gradeLevels = $isBasicEd ? Course::BASIC_ED_GRADE_LEVELS : Course::COLLEGE_YEAR_LEVELS;
+
+        $data = $request->validateWithBag($bag, [
+            'grade_level' => ['required', 'string', Rule::in($gradeLevels)],
+            'strand' => ['nullable', 'string', Rule::in(Course::STRANDS)],
+            'section' => ['required', 'string', 'max:50'],
+        ], [
+            'grade_level.in' => 'Choose a ' . ($isBasicEd ? 'grade level' : 'year level') . ' from the list.',
+            'strand.in' => 'Choose a strand from the list.',
+        ]);
+
+        if (! $isBasicEd || ! in_array($data['grade_level'], Course::SENIOR_HIGH_GRADES, true)) {
+            $data['strand'] = null;
+        }
+
+        $duplicate = CourseSection::where('course_id', $course->id)
+            ->where('grade_level', $data['grade_level'])
+            ->where('section', $data['section'])
+            ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
+            ->first();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'section' => "{$data['grade_level']} — {$duplicate->section} already exists in this course"
+                    . ($duplicate->strand ? " (under {$duplicate->strand})" : '')
+                    . '. Section names must be unique within a grade level.',
+            ])->errorBag($bag);
+        }
+
+        return $data;
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -92,7 +167,9 @@ class CourseController extends Controller
      */
     public function update(Request $request, Course $course)
     {
-        $request->validate([
+        // Own error bag: a failed rename reopens this course's rename form
+        // instead of landing under (and pre-filling) Add Course.
+        $request->validateWithBag('renameCourse', [
             'name' => ['required', 'string', 'max:255', 'unique:courses,name,' . $course->id],
         ]);
 
@@ -127,29 +204,9 @@ class CourseController extends Controller
 
     public function storeSection(Request $request, Course $course)
     {
-        $request->validate([
-            'grade_level' => ['required', 'string', 'max:50'],
-            'strand' => ['nullable', 'string', 'max:50'],
-            'section' => ['required', 'string', 'max:50'],
-        ]);
+        $data = $this->validatedSection($request, $course, 'addSection');
 
-        $exists = CourseSection::where('course_id', $course->id)
-            ->where('grade_level', $request->grade_level)
-            ->where('strand', $request->strand)
-            ->where('section', $request->section)
-            ->exists();
-
-        if ($exists) {
-            return redirect()->route('admin.courses.index')
-                ->with('error', 'That grade level and section already exists for this course.');
-        }
-
-        CourseSection::create([
-            'course_id' => $course->id,
-            'grade_level' => $request->grade_level,
-            'strand' => $request->strand,
-            'section' => $request->section,
-        ]);
+        CourseSection::create(['course_id' => $course->id] + $data);
 
         return redirect()->route('admin.courses.index')->with('success', 'Section added successfully.');
     }
@@ -162,32 +219,15 @@ class CourseController extends Controller
      */
     public function updateSection(Request $request, CourseSection $courseSection)
     {
-        $request->validate([
-            'grade_level' => ['required', 'string', 'max:50'],
-            'strand' => ['nullable', 'string', 'max:50'],
-            'section' => ['required', 'string', 'max:50'],
-        ]);
-
         $course = $courseSection->course;
-
-        $exists = CourseSection::where('course_id', $course->id)
-            ->where('grade_level', $request->grade_level)
-            ->where('strand', $request->strand)
-            ->where('section', $request->section)
-            ->where('id', '!=', $courseSection->id)
-            ->exists();
-
-        if ($exists) {
-            return redirect()->route('admin.courses.index')
-                ->with('error', 'That grade level and section already exists for this course.');
-        }
+        $data = $this->validatedSection($request, $course, 'editSection', $courseSection->id);
 
         $oldGradeLevel = $courseSection->grade_level;
         $oldStrand = $courseSection->strand;
         $oldSection = $courseSection->section;
-        $newGradeLevel = $request->grade_level;
-        $newStrand = $request->strand;
-        $newSection = $request->section;
+        $newGradeLevel = $data['grade_level'];
+        $newStrand = $data['strand'];
+        $newSection = $data['section'];
 
         if ($oldGradeLevel === $newGradeLevel && $oldStrand === $newStrand && $oldSection === $newSection) {
             return redirect()->route('admin.courses.index')->with('success', 'Section updated successfully.');

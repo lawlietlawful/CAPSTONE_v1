@@ -47,7 +47,7 @@
         </div>
         <div class="flex-1 min-w-[220px]">
             <label class="block text-xs font-medium text-gray-500 mb-1">Course / Program Name</label>
-            <input type="text" name="name" value="{{ old('name') }}" placeholder="e.g. BSIT, or Basic Education" required
+            <input type="text" name="name" value="{{ old('_rename_course') ? '' : old('name') }}" placeholder="e.g. BSIT, or Basic Education" required
                 class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3 @error('name') border-red-500 @enderror">
             @error('name')
                 <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
@@ -61,11 +61,17 @@
 
 {{-- ── Courses List ───────────────────────────────────────── --}}
 @forelse($courses as $course)
+    @php
+        // A failed Rename / Add Section on this course reopens that form
+        // with the admin's input (see the named error bags in CourseController).
+        $renameFailed = $errors->renameCourse->any() && (string) old('_rename_course') === (string) $course->id;
+        $addSectionFailed = $errors->addSection->any() && (string) old('_section_course') === (string) $course->id;
+    @endphp
     <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden mb-5"
          x-data="{
-            addingSection: false,
-            editingCourse: false,
-            educationLevel: '{{ $course->education_level }}',
+            addingSection: @js($addSectionFailed),
+            editingCourse: @js($renameFailed),
+            educationLevel: @js($course->education_level),
             isBasicEd() { return this.educationLevel === 'Basic Education'; },
             isSeniorHigh(grade) { return {{ json_encode(\App\Models\Course::SENIOR_HIGH_GRADES) }}.includes(grade); }
          }">
@@ -85,13 +91,19 @@
                 </span>
             </h2>
 
-            <form x-show="editingCourse" x-cloak action="{{ route('admin.courses.update', $course->id) }}" method="POST" class="flex-1 flex items-center gap-2">
+            <form x-show="editingCourse" x-cloak action="{{ route('admin.courses.update', $course->id) }}" method="POST" class="flex-1 min-w-0">
                 @csrf
                 @method('PUT')
-                <input type="text" name="name" value="{{ $course->name }}" required
-                    class="block w-full max-w-xs border border-gray-300 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-1.5 px-3">
-                <button type="submit" class="text-xs font-semibold text-blue-600 hover:text-blue-700 px-2 py-1.5">Save</button>
-                <button type="button" @click="editingCourse = false" class="text-xs font-medium text-gray-500 hover:text-gray-700 px-2 py-1.5">Cancel</button>
+                <input type="hidden" name="_rename_course" value="{{ $course->id }}">
+                <div class="flex items-center gap-2">
+                    <input type="text" name="name" value="{{ $renameFailed ? old('name') : $course->name }}" required
+                        class="block w-full max-w-xs border rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-1.5 px-3 {{ $renameFailed ? 'border-red-500' : 'border-gray-300' }}">
+                    <button type="submit" class="text-xs font-semibold text-blue-600 hover:text-blue-700 px-2 py-1.5">Save</button>
+                    <button type="button" @click="editingCourse = false" class="text-xs font-medium text-gray-500 hover:text-gray-700 px-2 py-1.5">Cancel</button>
+                </div>
+                @if($renameFailed)
+                    <p class="mt-1 text-xs text-red-500">{{ $errors->renameCourse->first('name') }}</p>
+                @endif
             </form>
 
             <div class="flex items-center gap-2 shrink-0" x-show="!editingCourse">
@@ -107,7 +119,7 @@
                     <button type="button" @click="$dispatch('open-confirm-modal', {
                             formId: 'delete-course-{{ $course->id }}',
                             title: 'Delete Course',
-                            message: 'Are you sure you want to delete &quot;{{ addslashes($course->name) }}&quot;? This also removes all of its sections.',
+                            message: @js('Are you sure you want to delete "' . $course->name . '"? This also removes all of its sections.'),
                             confirmText: 'Yes, Delete Course'
                         })" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete Course">
                         <i class="ti ti-trash"></i>
@@ -118,9 +130,10 @@
 
         {{-- Add Section (collapsible) --}}
         <div x-show="addingSection" x-cloak class="px-6 py-4 border-b border-gray-100 bg-blue-50/30"
-             x-data="{ gradeLevel: '' }">
+             x-data="{ gradeLevel: @js($addSectionFailed ? (string) old('grade_level') : '') }">
             <form method="POST" action="{{ route('admin.courses.sections.store', $course->id) }}" class="flex flex-wrap gap-3 items-end">
                 @csrf
+                <input type="hidden" name="_section_course" value="{{ $course->id }}">
                 <div class="w-full sm:w-44">
                     <label class="block text-xs font-medium text-gray-500 mb-1" x-text="isBasicEd() ? 'Grade Level' : 'Year Level'"></label>
                     <select name="grade_level" x-model="gradeLevel" required class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
@@ -139,21 +152,28 @@
                 </div>
                 <div class="w-full sm:w-40" x-show="isBasicEd() && isSeniorHigh(gradeLevel)" x-cloak>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Strand</label>
-                    <select name="strand" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
+                    <select name="strand" :disabled="!(isBasicEd() && isSeniorHigh(gradeLevel))" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
                         <option value="">Select...</option>
                         @foreach($strands as $strand)
-                            <option value="{{ $strand }}">{{ $strand }}</option>
+                            <option value="{{ $strand }}" @selected($addSectionFailed && old('strand') === $strand)>{{ $strand }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="w-full sm:w-44">
                     <label class="block text-xs font-medium text-gray-500 mb-1">Section</label>
-                    <input type="text" name="section" placeholder="e.g. Block 1" required
+                    <input type="text" name="section" value="{{ $addSectionFailed ? old('section') : '' }}" placeholder="e.g. Block 1" required
                         class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3">
                 </div>
                 <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm h-[38px]">
                     Save Section
                 </button>
+                @if($addSectionFailed)
+                    <div class="w-full space-y-0.5">
+                        @foreach($errors->addSection->all() as $message)
+                            <p class="text-xs text-red-500">{{ $message }}</p>
+                        @endforeach
+                    </div>
+                @endif
             </form>
         </div>
 
@@ -164,8 +184,9 @@
             </div>
         @else
             <div class="divide-y divide-gray-50">
-                @foreach($course->sections->sortBy(['grade_level', 'section']) as $section)
-                    <div class="px-6 py-3 flex items-center justify-between gap-3 hover:bg-gray-50/50 transition" x-data="{ editingSection: false, editGradeLevel: '{{ $section->grade_level }}' }">
+                @foreach($course->sections as $section)
+                    @php $editFailed = $errors->editSection->any() && (string) old('_section_id') === (string) $section->id; @endphp
+                    <div class="px-6 py-3 flex items-center justify-between gap-3 hover:bg-gray-50/50 transition" x-data="{ editingSection: @js($editFailed), editGradeLevel: @js($editFailed ? (string) old('grade_level') : $section->grade_level) }">
                         <div class="flex items-center gap-3 flex-1 min-w-0" x-show="!editingSection">
                             <div class="flex items-center gap-2 shrink-0">
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
@@ -195,9 +216,11 @@
                             </div>
                         </div>
 
-                        <form x-show="editingSection" x-cloak action="{{ route('admin.courses.sections.update', $section->id) }}" method="POST" class="flex-1 flex items-center gap-2">
+                        <form x-show="editingSection" x-cloak action="{{ route('admin.courses.sections.update', $section->id) }}" method="POST" class="flex-1 min-w-0">
                             @csrf
                             @method('PUT')
+                            <input type="hidden" name="_section_id" value="{{ $section->id }}">
+                            <div class="flex items-center gap-2">
                             <select name="grade_level" x-model="editGradeLevel" required class="block border border-gray-300 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-1.5 px-2 w-36 shrink-0">
                                 <template x-if="isBasicEd()">
                                     <template x-for="gl in {{ json_encode($basicEdGradeLevels) }}" :key="gl">
@@ -210,16 +233,23 @@
                                     </template>
                                 </template>
                             </select>
-                            <select name="strand" x-show="isBasicEd() && isSeniorHigh(editGradeLevel)" x-cloak class="block border border-gray-300 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-1.5 px-2 w-32 shrink-0">
+                            @php $currentStrand = $editFailed ? old('strand') : $section->strand; @endphp
+                            <select name="strand" x-show="isBasicEd() && isSeniorHigh(editGradeLevel)" :disabled="!(isBasicEd() && isSeniorHigh(editGradeLevel))" x-cloak class="block border border-gray-300 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-1.5 px-2 w-32 shrink-0">
                                 <option value="">Strand...</option>
                                 @foreach($strands as $strand)
-                                    <option value="{{ $strand }}" {{ $section->strand === $strand ? 'selected' : '' }}>{{ $strand }}</option>
+                                    <option value="{{ $strand }}" @selected($currentStrand === $strand)>{{ $strand }}</option>
                                 @endforeach
                             </select>
-                            <input type="text" name="section" value="{{ $section->section }}" required
-                                class="block w-full max-w-xs border border-gray-300 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-1.5 px-2">
+                            <input type="text" name="section" value="{{ $editFailed ? old('section') : $section->section }}" required
+                                class="block w-full max-w-xs border rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-1.5 px-2 {{ $editFailed ? 'border-red-500' : 'border-gray-300' }}">
                             <button type="submit" class="text-xs font-semibold text-blue-600 hover:text-blue-700 px-1.5 shrink-0">Save</button>
                             <button type="button" @click="editingSection = false" class="text-xs font-medium text-gray-500 hover:text-gray-700 px-1.5 shrink-0">Cancel</button>
+                            </div>
+                            @if($editFailed)
+                                @foreach($errors->editSection->all() as $message)
+                                    <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                                @endforeach
+                            @endif
                         </form>
 
                         <div class="flex items-center gap-1 shrink-0" x-show="!editingSection">
@@ -232,7 +262,7 @@
                                 <button type="button" @click="$dispatch('open-confirm-modal', {
                                         formId: 'delete-section-{{ $section->id }}',
                                         title: 'Delete Section',
-                                        message: 'Are you sure you want to delete &quot;{{ addslashes($section->grade_level . ' - ' . $section->section) }}&quot;?',
+                                        message: @js('Are you sure you want to delete "' . $section->grade_level . ($section->strand ? ' ' . $section->strand : '') . ' - ' . $section->section . '"?'),
                                         confirmText: 'Yes, Delete Section'
                                     })" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete Section">
                                     <i class="ti ti-trash text-sm"></i>
