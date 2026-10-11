@@ -16,13 +16,33 @@ class UserController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $query = User::where('role', '!=', 'student')->with('teacherAssignments')->latest();
+        $query = User::where('role', '!=', 'student')
+            ->with('teacherAssignments')
+            // What a delete would take with it — every one of these foreign
+            // keys is ON DELETE CASCADE, so the confirmation has to say so.
+            ->withCount(['behavioralReports', 'referralsReferred', 'interventions'])
+            ->latest();
+
         if (auth()->user()->role !== 'super_admin') {
             $query->where('role', 'teacher');
+        } elseif (in_array($request->input('role'), ['super_admin', 'admin', 'teacher'], true)) {
+            // Role filter is only meaningful to a super admin — a counselor
+            // only ever sees teachers.
+            $query->where('role', $request->input('role'));
         }
-        $users = $query->paginate(10);
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('username', 'like', "%{$search}%");
+            });
+        }
+
+        $users = $query->paginate(10)->appends($request->query());
         $courseCombos = $this->courseCombos();
         return view('admin.users.index', compact('users', 'courseCombos'));
     }
