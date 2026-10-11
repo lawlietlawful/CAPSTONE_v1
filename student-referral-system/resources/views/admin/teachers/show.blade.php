@@ -14,31 +14,35 @@
         <a href="{{ route('admin.teachers.print', $teacher->id) }}" target="_blank" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center gap-1.5">
             <i class="ti ti-printer text-blue-600"></i> Print / Export PDF
         </a>
-        <a href="{{ route('counselor.messages.index') }}" class="px-4 py-2 bg-indigo-600 border border-transparent text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center gap-1.5">
+        <button type="button" x-data="{}" @click="$dispatch('open-messages', { to: {{ $teacher->id }} })" class="px-4 py-2 bg-indigo-600 border border-transparent text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center gap-1.5">
             <i class="ti ti-send text-white"></i> Send Notice
-        </a>
+        </button>
     </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
     <!-- Left Column: Profile + Stats -->
-    <div class="lg:col-span-1 space-y-6">
+    <div class="lg:col-span-1 flex flex-col gap-6">
 
         <!-- Profile Card -->
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-6 text-center transition-all duration-300 hover:shadow-hover">
-            <div class="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-3xl mx-auto mb-4">
-                {{ strtoupper(substr($teacher->name, 0, 1)) }}
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-5 transition-all duration-300 hover:shadow-hover">
+            <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-100 to-indigo-50 text-blue-700 flex items-center justify-center text-lg font-bold shrink-0 ring-4 ring-white shadow-sm">
+                    {{ strtoupper(substr($teacher->name, 0, 1)) }}
+                </div>
+                <div class="min-w-0">
+                    <h3 class="font-bold text-gray-900 truncate">{{ $teacher->name }}</h3>
+                    <p class="text-xs text-gray-500 mt-0.5 truncate">{{ $teacher->email }}</p>
+                    @if($teacher->username)
+                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px] font-mono mt-1">
+                            @<span>{{ $teacher->username }}</span>
+                        </span>
+                    @endif
+                </div>
             </div>
-            <h3 class="text-xl font-bold text-gray-900">{{ $teacher->name }}</h3>
-            <p class="text-sm text-gray-500 mt-0.5">{{ $teacher->email }}</p>
-            @if($teacher->username)
-                <span class="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-mono mt-2 mb-2">
-                    @<span>{{ $teacher->username }}</span>
-                </span>
-            @endif
-            
-            <div class="mt-3">
+
+            <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
                 @if($teacher->engagement_status === 'highly_active')
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 border border-green-200">
                         <i class="ti ti-bolt mr-1"></i> Highly Active
@@ -52,9 +56,8 @@
                         <i class="ti ti-moon mr-1"></i> Inactive
                     </span>
                 @endif
+                <p class="text-xs text-gray-400">Joined {{ $teacher->created_at->format('M j, Y') }}</p>
             </div>
-
-            <p class="text-xs text-gray-400 mt-4">Joined {{ $teacher->created_at->format('F j, Y') }}</p>
         </div>
 
         <!-- Activity Stats -->
@@ -71,6 +74,13 @@
                     <span class="text-lg font-bold text-gray-900">{{ number_format($totalReports) }}</span>
                 </div>
 
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600 flex items-center gap-2">
+                        <i class="ti ti-file-export text-purple-500"></i> Referrals Filed
+                    </span>
+                    <span class="text-lg font-bold text-gray-900">{{ number_format($totalReferrals) }}</span>
+                </div>
+
             </div>
         </div>
 
@@ -84,9 +94,9 @@
                 coursesFor() { return [...new Set(this.combos.map(c => c.course))]; },
                 gradesFor(course) { return [...new Set(this.combos.filter(c => c.course === course).map(c => c.grade_level))]; },
                 sectionsFor(course, grade) { return [...new Set(this.combos.filter(c => c.course === course && (!grade || c.grade_level === grade)).map(c => c.section))]; }
-            }'>
+            }' class="flex-1 flex flex-col">
 
-            <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-6 transition-all duration-300 hover:shadow-hover">
+            <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-6 transition-all duration-300 hover:shadow-hover flex-1 flex flex-col">
                 <div class="flex items-center justify-between mb-4">
                     <h4 class="font-semibold text-gray-800 flex items-center gap-2">
                         <i class="ti ti-clipboard-list text-blue-600"></i> Course Assignments
@@ -117,7 +127,7 @@
                 <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                     <div x-show="showAssignmentsModal" x-transition.opacity class="fixed inset-0 transition-opacity bg-gray-900/60 backdrop-blur-sm" aria-hidden="true" @click="showAssignmentsModal = false"></div>
                     <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                    <div x-show="showAssignmentsModal" x-transition.scale.origin.bottom class="inline-block w-full max-w-2xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-premium rounded-2xl sm:p-8">
+                    <div x-show="showAssignmentsModal" x-transition.scale.origin.bottom class="inline-block w-full max-w-3xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-premium rounded-2xl sm:p-8">
                         <div class="flex items-center justify-between mb-5">
                             <div>
                                 <h3 class="text-xl font-bold text-gray-900">Course Assignments</h3>
@@ -136,12 +146,19 @@
                                 Leave Year Level or Section blank to cover the whole course or whole year level. A teacher with no assignments will not see any students.
                             </p>
 
+                            <div x-show="assignments.length > 0" class="grid grid-cols-12 gap-2 px-0.5 mb-1.5">
+                                <span class="col-span-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Course</span>
+                                <span class="col-span-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Year Level</span>
+                                <span class="col-span-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Section</span>
+                            </div>
+
                             <template x-for="(a, index) in assignments" :key="index">
                                 <div class="grid grid-cols-12 gap-2 mb-2 items-center">
-                                    <div class="col-span-4">
+                                    <div class="col-span-6">
                                         <select :name="'assignments[' + index + '][course]'"
+                                            :title="a.course"
                                             @change="a.course = $event.target.value; a.grade_level = ''; a.section = '';"
-                                            class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition">
+                                            class="w-full truncate rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition">
                                             <option value="">Select course...</option>
                                             <template x-for="c in coursesFor()" :key="c">
                                                 <option :value="c" x-text="c" :selected="c === a.course"></option>
@@ -151,17 +168,17 @@
                                     <div class="col-span-3">
                                         <select :name="'assignments[' + index + '][grade_level]'"
                                             @change="a.grade_level = $event.target.value; a.section = '';"
-                                            class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition">
+                                            class="w-full truncate rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition">
                                             <option value="">All year levels</option>
                                             <template x-for="g in gradesFor(a.course)" :key="g">
                                                 <option :value="g" x-text="g" :selected="g === a.grade_level"></option>
                                             </template>
                                         </select>
                                     </div>
-                                    <div class="col-span-4">
+                                    <div class="col-span-2">
                                         <select :name="'assignments[' + index + '][section]'"
                                             @change="a.section = $event.target.value"
-                                            class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition">
+                                            class="w-full truncate rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition">
                                             <option value="">All sections</option>
                                             <template x-for="s in sectionsFor(a.course, a.grade_level)" :key="s">
                                                 <option :value="s" x-text="s" :selected="s === a.section"></option>
@@ -203,8 +220,7 @@
     </div>
 
     <!-- Right Column: Recent Activity Tables -->
-    <div class="lg:col-span-2 space-y-6">
-
+    <div class="lg:col-span-2 flex flex-col gap-6">
 
         <!-- Recent Behavioral Reports -->
         <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover">
@@ -213,7 +229,7 @@
                     <i class="ti ti-message-report text-amber-600"></i> Recent Behavioral Reports
                 </h4>
             </div>
-            <div class="overflow-x-auto overflow-y-auto custom-scrollbar" style="max-height: 480px;">
+            <div class="overflow-x-auto overflow-y-auto custom-scrollbar" style="max-height: 320px;">
                 <table class="w-full text-left border-collapse relative">
                     <thead class="sticky top-0 bg-white z-10 shadow-sm">
                         <tr class="bg-white border-b border-gray-100">
@@ -261,6 +277,70 @@
                         @empty
                             <tr>
                                 <td colspan="5" class="py-8 text-center text-sm text-gray-400">No behavioral reports filed.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent Referrals -->
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden transition-all duration-300 hover:shadow-hover flex-1 flex flex-col" data-recent-referrals>
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                <h4 class="font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="ti ti-file-export text-purple-600"></i> Recent Referrals
+                </h4>
+            </div>
+            <div class="overflow-x-auto overflow-y-auto custom-scrollbar flex-1" style="max-height: 320px;">
+                <table class="w-full text-left border-collapse relative">
+                    <thead class="sticky top-0 bg-white z-10 shadow-sm">
+                        <tr class="bg-white border-b border-gray-100">
+                            <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider">Student</th>
+                            <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider">Type</th>
+                            <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">Priority</th>
+                            <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider text-center">Status</th>
+                            <th class="px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wider">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 text-sm">
+                        @forelse($recentReferrals as $referral)
+                            <tr class="hover:bg-gray-50/50 transition">
+                                <td class="px-5 py-2.5">
+                                    <a href="{{ route('admin.referrals.show', $referral->id) }}" class="font-medium text-gray-900 hover:text-blue-600 hover:underline transition">
+                                        {{ $referral->student->last_name }}, {{ $referral->student->first_name }}
+                                    </a>
+                                </td>
+                                <td class="px-5 py-2.5 text-gray-600">{{ $referral->referral_type_label }}</td>
+                                <td class="px-5 py-2.5 text-center">
+                                    @php
+                                        $priClass = match($referral->priority) {
+                                            'high'     => 'bg-red-50 text-red-700',
+                                            'moderate' => 'bg-amber-50 text-amber-700',
+                                            default    => 'bg-green-50 text-green-700',
+                                        };
+                                    @endphp
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium {{ $priClass }}">
+                                        {{ ucfirst($referral->priority) }}
+                                    </span>
+                                </td>
+                                <td class="px-5 py-2.5 text-center">
+                                    @php
+                                        $stClass = match($referral->status) {
+                                            'pending'     => 'bg-blue-50 text-blue-700',
+                                            'in_progress' => 'bg-amber-50 text-amber-700',
+                                            'resolved'    => 'bg-green-50 text-green-700',
+                                            default       => 'bg-gray-100 text-gray-500',
+                                        };
+                                    @endphp
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium {{ $stClass }}">
+                                        {{ ucwords(str_replace('_', ' ', $referral->status)) }}
+                                    </span>
+                                </td>
+                                <td class="px-5 py-2.5 text-xs text-gray-500">{{ $referral->created_at->format('M d, Y') }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="py-8 text-center text-sm text-gray-400">No referrals filed.</td>
                             </tr>
                         @endforelse
                     </tbody>

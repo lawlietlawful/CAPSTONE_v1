@@ -26,6 +26,15 @@
             <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Total Behavioral Reports</div>
         </div>
     </div>
+    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+            <i class="ti ti-key text-indigo-600 text-lg"></i>
+        </div>
+        <div>
+            <div class="text-lg font-bold text-indigo-700 leading-none">{{ number_format($pendingActivationCount) }}</div>
+            <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Pending Activation</div>
+        </div>
+    </div>
 </div>
 
 <div class="mb-6">

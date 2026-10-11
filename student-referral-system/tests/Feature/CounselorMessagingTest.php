@@ -316,4 +316,82 @@ class CounselorMessagingTest extends TestCase
         $this->actingAs($counselor)->get(route('counselor.messages.show', $message))
             ->assertNotFound();
     }
+
+    // ── Recipient prefill (?to=) ────────────────────────────────────────
+    // Opened as a popup from elsewhere (e.g. "Send Notice" on a teacher's
+    // profile) with a recipient already decided — Compose should open
+    // straight to them instead of a blank inbox.
+
+    public function test_to_param_prefills_and_auto_opens_compose_for_a_valid_recipient(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $teacher = User::factory()->teacher()->create(['name' => 'Carlos Jaime Ramos']);
+
+        $html = $this->actingAs($counselor)
+            ->get(route('counselor.messages.index', ['to' => $teacher->id]))
+            ->getContent();
+
+        $this->assertStringContainsString("selectedId: {$teacher->id}", $html);
+        $this->assertStringContainsString('Carlos Jaime Ramos (Teacher)', $html);
+        $this->assertStringContainsString('Opened with a recipient already in mind', $html);
+    }
+
+    public function test_to_param_is_ignored_for_a_recipient_this_counselor_cannot_message(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $otherCounselor = User::factory()->counselor()->create();
+
+        $html = $this->actingAs($counselor)
+            ->get(route('counselor.messages.index', ['to' => $otherCounselor->id]))
+            ->getContent();
+
+        $this->assertStringContainsString("selectedId: &#039;&#039;,", $html);
+        $this->assertStringNotContainsString('Opened with a recipient already in mind', $html);
+    }
+
+    public function test_no_to_param_leaves_compose_closed_and_unprefilled(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+
+        $html = $this->actingAs($counselor)
+            ->get(route('counselor.messages.index'))
+            ->getContent();
+
+        $this->assertStringContainsString("selectedId: &#039;&#039;,", $html);
+        $this->assertStringNotContainsString('Opened with a recipient already in mind', $html);
+    }
+
+    // ── Role labels ───────────────────────────────────────────────────────
+    // ucfirst() alone on a raw role value rendered 'super_admin' as
+    // "Super_admin" wherever a message's other party was shown.
+
+    public function test_a_multi_word_role_reads_as_two_words_in_the_thread_header(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $superAdmin = User::factory()->create(['role' => 'super_admin', 'name' => 'System Admin']);
+        $message = Message::create([
+            'sender_id' => $superAdmin->id, 'receiver_id' => $counselor->id, 'content' => 'Notice',
+        ]);
+
+        $html = $this->actingAs($counselor)
+            ->get(route('counselor.messages.show', $message))
+            ->getContent();
+
+        $this->assertStringContainsString('Super admin', $html);
+        $this->assertStringNotContainsString('Super_admin', $html);
+    }
+
+    public function test_a_multi_word_role_reads_as_two_words_in_the_inbox_list(): void
+    {
+        $counselor = User::factory()->counselor()->create();
+        $superAdmin = User::factory()->create(['role' => 'super_admin', 'name' => 'System Admin']);
+        Message::create(['sender_id' => $superAdmin->id, 'receiver_id' => $counselor->id, 'content' => 'x']);
+
+        $html = $this->actingAs($counselor)
+            ->get(route('counselor.messages.index'))
+            ->getContent();
+
+        $this->assertStringContainsString('Super admin', $html);
+        $this->assertStringNotContainsString('Super_admin', $html);
+    }
 }

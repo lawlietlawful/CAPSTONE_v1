@@ -41,7 +41,7 @@
                             @elseif($user->role === 'teacher')
                                 <span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">Teacher</span>
                             @else
-                                <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">{{ ucfirst($user->role) }}</span>
+                                <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">{{ ucfirst(str_replace('_', ' ', $user->role)) }}</span>
                             @endif
                         </td>
                         <td class="px-6 py-4">

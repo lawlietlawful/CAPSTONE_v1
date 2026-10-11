@@ -17,9 +17,9 @@
             <div>
                 <h2 class="text-xl font-bold text-gray-900">{{ $message->subject ?: 'Notice Thread' }}</h2>
                 <div class="flex items-center gap-2 mt-2 text-sm text-gray-500">
-                    <span>From: <strong>{{ $message->sender->name }}</strong> ({{ ucfirst($message->sender->role) }})</span>
+                    <span>From: <strong>{{ $message->sender->name }}</strong> ({{ ucfirst(str_replace('_', ' ', $message->sender->role)) }})</span>
                     <span>&bull;</span>
-                    <span>To: <strong>{{ $message->receiver->name }}</strong> ({{ ucfirst($message->receiver->role) }})</span>
+                    <span>To: <strong>{{ $message->receiver->name }}</strong> ({{ ucfirst(str_replace('_', ' ', $message->receiver->role)) }})</span>
                 </div>
             </div>
             <div class="text-xs text-gray-400 bg-white px-3 py-1.5 rounded-lg border border-gray-100 shadow-sm">

@@ -307,6 +307,7 @@
 </div>
 
 @include('components.confirm-modal')
+@include('components.messages-modal')
 @stack('scripts')
 </body>
 </html>

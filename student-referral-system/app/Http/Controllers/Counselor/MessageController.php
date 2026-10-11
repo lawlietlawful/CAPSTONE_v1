@@ -50,7 +50,22 @@ class MessageController extends Controller
         $students = User::where('role', 'student')->get();
         $teachers = User::where('role', 'teacher')->get();
 
-        return view('counselor.messages.index', compact('inbox', 'sent', 'unreadCount', 'students', 'teachers', 'search'));
+        // A page can open this (as the popup modal) with a recipient already
+        // in mind — e.g. "Send Notice" on a teacher's profile — via ?to=.
+        // Only honored when it's someone this counselor could actually
+        // message; anything else is silently ignored rather than erroring,
+        // since Compose still works fine with nobody preselected.
+        $prefillRecipient = null;
+        if ($request->filled('to')) {
+            $candidate = User::find($request->query('to'));
+            if ($candidate && Message::canInitiate($user, $candidate)) {
+                $prefillRecipient = $candidate;
+            }
+        }
+
+        return view('counselor.messages.index', compact(
+            'inbox', 'sent', 'unreadCount', 'students', 'teachers', 'search', 'prefillRecipient'
+        ));
     }
 
     /**

@@ -58,12 +58,16 @@ class TeacherController extends Controller
             $teacher->engagement_status = $this->engagementStatusFor($teacher);
         }
 
-        // Summary stats
+        // Summary stats — whole-directory totals, independent of the current
+        // search/page, same as totalTeachers/totalBehavioralReports below.
         $totalTeachers = User::where('role', 'teacher')->count();
         $totalBehavioralReports = BehavioralReport::count();
+        $pendingActivationCount = User::where('role', 'teacher')
+            ->whereNull('account_activated_at')
+            ->count();
 
         return view('admin.teachers.index', compact(
-            'teachers', 'totalTeachers', 'totalBehavioralReports'
+            'teachers', 'totalTeachers', 'totalBehavioralReports', 'pendingActivationCount'
         ));
     }
 
@@ -120,15 +124,25 @@ class TeacherController extends Controller
             ->take(10)
             ->get();
 
+        // Recent referrals raised by this teacher — Engagement already weighs
+        // these equally against reports, so the profile shouldn't show only
+        // half of what makes a teacher "active".
+        $recentReferrals = Referral::with('student')
+            ->where('referred_by', $teacher->id)
+            ->latest()
+            ->take(10)
+            ->get();
+
         // Stats
         $totalReports = BehavioralReport::where('reported_by', $teacher->id)->count();
+        $totalReferrals = Referral::where('referred_by', $teacher->id)->count();
 
         // Engagement reflects the teacher's most recent participation
         // (behavioral report filed or referral raised).
         $teacher->engagement_status = $this->engagementStatusFor($teacher);
 
         return view('admin.teachers.show', compact(
-            'teacher', 'recentReports', 'totalReports', 'courseCombos'
+            'teacher', 'recentReports', 'recentReferrals', 'totalReports', 'totalReferrals', 'courseCombos'
         ));
     }
 
@@ -197,14 +211,23 @@ class TeacherController extends Controller
         }
 
         $totalReports = BehavioralReport::where('reported_by', $teacher->id)->count();
+        $totalReferrals = Referral::where('referred_by', $teacher->id)->count();
 
         $recentReports = BehavioralReport::with('student')
             ->where('reported_by', $teacher->id)
             ->latest()
             ->take(50)
             ->get();
-            
-        $latestReport = BehavioralReport::where('reported_by', $teacher->id)->latest()->first();
+
+        // Referrals get the same billing as reports here — Engagement (and
+        // now the on-screen profile) weighs the two equally, and this PDF
+        // used to report on reports alone.
+        $recentReferrals = Referral::with('student')
+            ->where('referred_by', $teacher->id)
+            ->latest()
+            ->take(50)
+            ->get();
+
         $engagementStatus = match ($this->engagementStatusFor($teacher)) {
             'highly_active' => 'Highly Active',
             'active'        => 'Active',
@@ -212,8 +235,8 @@ class TeacherController extends Controller
         };
 
         return view('admin.teachers.print', compact(
-            'teacher', 'totalReports',
-            'recentReports', 'engagementStatus', 'latestReport'
+            'teacher', 'totalReports', 'totalReferrals',
+            'recentReports', 'recentReferrals', 'engagementStatus'
         ));
     }
 

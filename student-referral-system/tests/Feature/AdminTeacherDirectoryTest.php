@@ -128,6 +128,31 @@ class AdminTeacherDirectoryTest extends TestCase
         $this->assertStringContainsString('Highly Active', $html);
     }
 
+    // ── Pending Activation summary card ──────────────────────────────────
+
+    public function test_the_pending_activation_card_counts_teachers_with_no_activation_timestamp(): void
+    {
+        User::factory()->teacher()->count(2)->create(); // account_activated_at null by default
+        User::factory()->teacher()->create(['account_activated_at' => now()]);
+
+        $response = $this->actingAs($this->admin())->get(route('admin.teachers.index'));
+
+        $response->assertOk();
+        $this->assertSame(2, $response->viewData('pendingActivationCount'));
+        $this->assertStringContainsString('Pending Activation', $response->getContent());
+    }
+
+    public function test_the_pending_activation_card_is_a_whole_directory_count_not_scoped_to_the_current_page(): void
+    {
+        // 12 unactivated teachers: more than one page (10/page), so the card
+        // must still report the full count, not just what's on page 1.
+        User::factory()->teacher()->count(12)->create();
+
+        $response = $this->actingAs($this->admin())->get(route('admin.teachers.index'));
+
+        $this->assertSame(12, $response->viewData('pendingActivationCount'));
+    }
+
     public function test_each_teachers_engagement_is_based_on_only_their_own_activity(): void
     {
         // Guards the reported_by/referred_by scoping itself: a fresh report

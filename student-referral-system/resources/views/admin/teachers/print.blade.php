@@ -14,7 +14,7 @@
         
         .section-title { font-size: 16px; font-weight: bold; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin: 30px 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px; }
         
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
         .stat-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; text-align: center; }
         .stat-value { font-size: 24px; font-weight: bold; color: #1e293b; margin-bottom: 5px; }
         .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; }
@@ -67,6 +67,11 @@
             <div class="stat-label">Behavioral Reports</div>
         </div>
 
+        <div class="stat-box">
+            <div class="stat-value">{{ number_format($totalReferrals) }}</div>
+            <div class="stat-label">Referrals Filed</div>
+        </div>
+
     </div>
 
 
@@ -78,7 +83,7 @@
                 <tr>
                     <th>Date</th>
                     <th>Student Name</th>
-                    <th>Report Type</th>
+                    <th>Incident Type</th>
                     <th>Status</th>
                 </tr>
             </thead>
@@ -86,8 +91,8 @@
                 @foreach($recentReports as $report)
                     <tr>
                         <td>{{ $report->created_at->format('M d, Y') }}</td>
-                        <td>{{ $report->student->name }}</td>
-                        <td>{{ $report->report_type }}</td>
+                        <td>{{ $report->student ? $report->student->last_name . ', ' . $report->student->first_name : '—' }}</td>
+                        <td>{{ $report->incident_type }}</td>
                         <td style="text-transform: capitalize;">{{ $report->status }}</td>
                     </tr>
                 @endforeach
@@ -95,6 +100,34 @@
         </table>
     @else
         <p style="font-size: 13px; color: #64748b; font-style: italic;">No behavioral reports found.</p>
+    @endif
+
+    <div class="section-title">Recent Referrals Filed</div>
+    @if($recentReferrals->count() > 0)
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Student Name</th>
+                    <th>Referral Type</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($recentReferrals as $referral)
+                    <tr>
+                        <td>{{ $referral->created_at->format('M d, Y') }}</td>
+                        <td>{{ $referral->student ? $referral->student->last_name . ', ' . $referral->student->first_name : '—' }}</td>
+                        <td>{{ $referral->referral_type_label }}</td>
+                        <td style="text-transform: capitalize;">{{ $referral->priority }}</td>
+                        <td style="text-transform: capitalize;">{{ str_replace('_', ' ', $referral->status) }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @else
+        <p style="font-size: 13px; color: #64748b; font-style: italic;">No referrals found.</p>
     @endif
 
     <div class="signature-area">

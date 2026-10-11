@@ -62,7 +62,7 @@
                                 <h4 class="text-sm font-semibold {{ is_null($msg->read_at) && request('tab', 'inbox') === 'inbox' ? 'text-gray-900' : 'text-gray-700' }} truncate">
                                     {{ request('tab') === 'sent' ? 'To: ' . ($msg->receiver->name ?? 'Unknown') : ($msg->sender->name ?? 'Unknown') }}
                                     <span class="text-[10px] ml-2 px-2 py-0.5 rounded-full {{ request('tab') === 'sent' ? ($msg->receiver->role === 'teacher' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700') : ($msg->sender->role === 'teacher' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700') }}">
-                                        {{ ucfirst(request('tab') === 'sent' ? ($msg->receiver->role ?? 'user') : ($msg->sender->role ?? 'user')) }}
+                                        {{ ucfirst(str_replace('_', ' ', request('tab') === 'sent' ? ($msg->receiver->role ?? 'user') : ($msg->sender->role ?? 'user'))) }}
                                     </span>
                                 </h4>
                                 <span class="text-[11px] text-gray-400 whitespace-nowrap">{{ $msg->created_at->diffForHumans() }}</span>
@@ -137,10 +137,10 @@
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all">
         <form action="{{ request()->has('modal') ? route('counselor.messages.store', ['modal' => 1]) : route('counselor.messages.store') }}" method="POST"
               x-data="{
-                    query: '',
+                    query: {{ $prefillRecipient ? json_encode($prefillRecipient->name . ' (' . ucfirst(str_replace('_', ' ', $prefillRecipient->role)) . ')') : "''" }},
                     open: false,
-                    selectedId: '',
-                    selectedLabel: '',
+                    selectedId: {{ $prefillRecipient?->id ?? "''" }},
+                    selectedLabel: {{ $prefillRecipient ? json_encode($prefillRecipient->name . ' (' . ucfirst(str_replace('_', ' ', $prefillRecipient->role)) . ')') : "''" }},
                     error: false,
                     recipients: [
                         @foreach($teachers as $teacher)
@@ -245,6 +245,12 @@
             searchInput.setSelectionRange(length, length);
         }
     }
+
+    @if($prefillRecipient)
+        // Opened with a recipient already in mind (e.g. "Send Notice" on a
+        // teacher's profile) — go straight to Compose instead of the inbox.
+        document.getElementById('composeModal').classList.remove('hidden');
+    @endif
 </script>
 
 @endsection
