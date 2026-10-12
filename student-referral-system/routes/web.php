@@ -130,6 +130,8 @@ Route::prefix('admin')
     Route::resource('seminars', SeminarController::class)->except(['create', 'edit']);
     Route::post('seminars/{seminar}/assign', [SeminarController::class, 'assignStudents'])
          ->name('seminars.assign');
+    Route::delete('seminars/{seminar}/students/{student}', [SeminarController::class, 'removeStudent'])
+         ->name('seminars.students.remove');
     Route::patch('seminars/{seminar}/attendance', [SeminarController::class, 'updateAttendance'])
          ->name('seminars.attendance');
     Route::get('seminars/{seminar}/print', [SeminarController::class, 'printRoster'])
@@ -253,10 +255,12 @@ Route::prefix('counselor')
     Route::post('/behavioral-reports/{behavioral_report}/refer', [\App\Http\Controllers\Counselor\BehavioralReportController::class, 'refer'])
          ->name('behavioral-reports.refer');
 
-    // Seminars
-    Route::resource('seminars', \App\Http\Controllers\Counselor\SeminarController::class);
+    // Seminars — create/edit are modals, as on the admin side.
+    Route::resource('seminars', \App\Http\Controllers\Counselor\SeminarController::class)->except(['create', 'edit']);
     Route::post('seminars/{seminar}/assign', [\App\Http\Controllers\Counselor\SeminarController::class, 'assignStudents'])
          ->name('seminars.assign');
+    Route::delete('seminars/{seminar}/students/{student}', [\App\Http\Controllers\Counselor\SeminarController::class, 'removeStudent'])
+         ->name('seminars.students.remove');
     Route::patch('seminars/{seminar}/attendance', [\App\Http\Controllers\Counselor\SeminarController::class, 'updateAttendance'])
          ->name('seminars.attendance');
     Route::get('seminars/{seminar}/print', [\App\Http\Controllers\Counselor\SeminarController::class, 'printRoster'])

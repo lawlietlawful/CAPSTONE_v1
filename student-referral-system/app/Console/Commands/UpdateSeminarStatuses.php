@@ -31,9 +31,7 @@ class UpdateSeminarStatuses extends Command
         // Any still-"upcoming"/"ongoing" seminar dated before today has clearly
         // already happened — flip it to "completed". Cancelled and already
         // completed seminars are left untouched.
-        $completed = Seminar::whereIn('status', ['upcoming', 'ongoing'])
-            ->whereDate('date', '<', now()->toDateString())
-            ->update(['status' => 'completed']);
+        $completed = Seminar::markPastAsCompleted();
 
         $this->info("Marked {$completed} past seminar(s) as completed.");
 

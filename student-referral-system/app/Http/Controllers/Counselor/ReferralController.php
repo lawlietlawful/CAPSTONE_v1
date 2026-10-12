@@ -111,8 +111,10 @@ class ReferralController extends Controller
             $factors = $referral->riskAssessment->risk_factors ?? [];
             $tag = $factors['recommended_seminar_tag'] ?? null;
             if ($tag) {
+                // stillAhead(): a past seminar whose status was never rolled
+                // over must not be recommended.
                 $recommendedSeminars = \App\Models\Seminar::where('trigger_reason', $tag)
-                    ->whereIn('status', ['upcoming', 'ongoing'])
+                    ->stillAhead()
                     ->get();
             }
         }

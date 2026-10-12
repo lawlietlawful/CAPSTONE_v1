@@ -71,6 +71,12 @@ class AutoAssignSeminars extends Command
                 $student = $assessment->student;
                 if (!$student) continue;
 
+                // Respect the seminar's target audience, exactly like the
+                // manual "Assign Students" list does — a BSIT-only seminar
+                // must not auto-enroll students from other courses.
+                if ($seminar->target_course && strcasecmp((string) $student->course, $seminar->target_course) !== 0) continue;
+                if ($seminar->target_grade_level && strcasecmp((string) $student->grade_level, $seminar->target_grade_level) !== 0) continue;
+
                 // Check max participants if seminar has a limit
                 if ($seminar->max_participants > 0 && $seminar->students()->count() >= $seminar->max_participants) {
                     $this->warn("Seminar capacity reached for {$seminar->title}. Skipping remaining students.");

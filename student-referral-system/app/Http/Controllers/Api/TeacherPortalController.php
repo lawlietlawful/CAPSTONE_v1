@@ -248,7 +248,7 @@ class TeacherPortalController extends Controller
         $request->validate(['tag' => 'required|string']);
 
         $seminars = \App\Models\Seminar::where('trigger_reason', $request->tag)
-            ->whereIn('status', ['upcoming', 'ongoing'])
+            ->stillAhead()
             ->orderBy('date')
             ->orderBy('time')
             ->get()

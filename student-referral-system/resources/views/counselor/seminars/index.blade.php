@@ -6,42 +6,74 @@
 
 @section('content')
 
-<div x-data="{ showCreateModal: {{ $errors->any() && !old('id') ? 'true' : 'false' }}, viewMode: 'grid' }">
+@php
+    // One palette for the status pills, the cards' date tiles, the calendar
+    // events and its legend (the calendar's colours are in the styles below).
+    $statusStyles = [
+        'upcoming'  => ['label' => 'Upcoming',  'icon' => 'ti-calendar-clock', 'pill' => 'bg-blue-50 text-blue-700 border-blue-100',          'tile' => 'bg-blue-600',    'dot' => 'bg-blue-600'],
+        'ongoing'   => ['label' => 'Ongoing',   'icon' => 'ti-player-play',    'pill' => 'bg-amber-50 text-amber-700 border-amber-100',       'tile' => 'bg-amber-500',   'dot' => 'bg-amber-500'],
+        'completed' => ['label' => 'Completed', 'icon' => 'ti-circle-check',   'pill' => 'bg-emerald-50 text-emerald-700 border-emerald-100', 'tile' => 'bg-emerald-600', 'dot' => 'bg-emerald-500'],
+        'cancelled' => ['label' => 'Cancelled', 'icon' => 'ti-circle-x',       'pill' => 'bg-red-50 text-red-700 border-red-100',             'tile' => 'bg-red-400',     'dot' => 'bg-red-400'],
+    ];
+    $filtersActive = collect(['search', 'status', 'is_required'])->contains(fn ($key) => request()->filled($key));
+@endphp
 
-{{-- Summary Cards --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
-    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-gray-300 transition">
-        <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-            <i class="ti ti-presentation text-blue-600 text-lg"></i>
+<div x-data="{
+        showCreateModal: {{ $errors->any() && !old('id') ? 'true' : 'false' }},
+        viewMode: 'grid',
+        init() {
+            try { if (localStorage.getItem('seminars.view') === 'calendar') this.setView('calendar'); } catch (e) {}
+        },
+        setView(mode) {
+            this.viewMode = mode;
+            try { localStorage.setItem('seminars.view', mode); } catch (e) {}
+            if (mode === 'calendar') this.$nextTick(() => initCalendar());
+        }
+     }">
+
+{{-- ── Summary Cards ─────────────────────────────────────────── --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+    <a href="{{ route('counselor.seminars.index') }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-gray-300 transition">
+        <div class="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+            <i class="ti ti-presentation text-gray-500 text-lg"></i>
         </div>
         <div>
             <div class="text-lg font-bold text-gray-900 leading-none">{{ number_format($totalSeminars) }}</div>
-            <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Total Seminars</div>
+            <div class="text-[11px] font-medium text-gray-400 mt-0.5">Total Seminars</div>
         </div>
-    </div>
-    
-    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-amber-200 transition">
-        <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-            <i class="ti ti-calendar-event text-amber-600 text-lg"></i>
+    </a>
+    <a href="{{ route('counselor.seminars.index', ['status' => 'upcoming']) }}" class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-blue-200 transition">
+        <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+            <i class="ti ti-calendar-event text-blue-600 text-lg"></i>
         </div>
         <div>
-            <div class="text-lg font-bold text-amber-700 leading-none">{{ number_format($upcomingSessions) }}</div>
-            <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Upcoming Sessions</div>
+            <div class="text-lg font-bold text-blue-700 leading-none">{{ number_format($upcomingSessions) }}</div>
+            <div class="text-[11px] font-medium text-gray-400 mt-0.5">Upcoming</div>
+        </div>
+    </a>
+    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+            <i class="ti ti-users text-violet-600 text-lg"></i>
+        </div>
+        <div>
+            <div class="text-lg font-bold text-violet-700 leading-none">{{ number_format($rosterEntries) }}</div>
+            <div class="text-[11px] font-medium text-gray-400 mt-0.5">Students on Rosters</div>
         </div>
     </div>
-
-    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 hover:shadow-md hover:border-emerald-200 transition">
+    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3" title="Attended out of everyone whose attendance was taken (attended or missed)">
         <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
-            <i class="ti ti-users text-emerald-600 text-lg"></i>
+            <i class="ti ti-user-check text-emerald-600 text-lg"></i>
         </div>
         <div>
-            <div class="text-lg font-bold text-emerald-700 leading-none">{{ number_format($totalStudentsEnrolled) }}</div>
-            <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mt-1">Students Enrolled</div>
+            <div class="text-lg font-bold text-emerald-700 leading-none">{{ $attendanceRate !== null ? $attendanceRate . '%' : '—' }}</div>
+            <div class="text-[11px] font-medium text-gray-400 mt-0.5">
+                Attendance Rate @if($attendanceTaken > 0)<span class="text-gray-300">·</span> {{ number_format($attendanceTaken) }} taken @endif
+            </div>
         </div>
     </div>
 </div>
 
-{{-- Search and Filter Bar --}}
+{{-- ── Search and Filter Bar ─────────────────────────────────── --}}
 <div class="mb-6">
     <form action="{{ route('counselor.seminars.index') }}" method="GET" class="w-full" id="filterForm">
         <div class="bg-white border border-gray-100 rounded-2xl shadow-premium p-4 flex flex-col lg:flex-row gap-3 items-end">
@@ -51,7 +83,7 @@
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i class="ti ti-search text-gray-400"></i>
                     </div>
-                    <input type="text" id="searchInput" name="search" value="{{ request('search') }}" placeholder="Search by title or venue..."
+                    <input type="text" id="searchInput" name="search" value="{{ request('search') }}" placeholder="Title, venue or description..."
                         class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition" autocomplete="off">
                 </div>
             </div>
@@ -60,10 +92,9 @@
                 <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
                 <select name="status" onchange="document.getElementById('filterForm').submit();" class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 px-3 cursor-pointer">
                     <option value="">All Statuses</option>
-                    <option value="upcoming" {{ request('status') == 'upcoming' ? 'selected' : '' }}>Upcoming</option>
-                    <option value="ongoing" {{ request('status') == 'ongoing' ? 'selected' : '' }}>Ongoing</option>
-                    <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
-                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                    @foreach($statusStyles as $value => $style)
+                        <option value="{{ $value }}" @selected(request('status') === $value)>{{ $style['label'] }}</option>
+                    @endforeach
                 </select>
             </div>
 
@@ -75,19 +106,19 @@
                     <option value="0" {{ request('is_required') === '0' ? 'selected' : '' }}>Optional</option>
                 </select>
             </div>
-            
+
             <div class="flex gap-2 w-full lg:w-auto mt-3 lg:mt-0">
-                @if(request()->hasAny(['search', 'status', 'is_required']))
-                    <a href="{{ route('counselor.seminars.index') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap">
+                @if($filtersActive)
+                    <a href="{{ route('counselor.seminars.index') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap h-[38px]">
                         <i class="ti ti-x"></i> Reset
                     </a>
                 @endif
-                <div class="bg-gray-100 p-1 rounded-lg flex items-center shadow-inner h-[38px] mr-2">
-                    <button type="button" @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'" class="px-3 py-1 text-sm font-medium rounded-md transition-all h-full">
-                        <i class="ti ti-layout-grid"></i>
+                <div class="bg-gray-100 p-1 rounded-lg flex items-center h-[38px]" role="group" aria-label="View">
+                    <button type="button" @click="setView('grid')" :class="viewMode === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'" class="px-3 h-full text-xs font-semibold rounded-md transition flex items-center gap-1.5" data-view="grid">
+                        <i class="ti ti-layout-grid text-sm"></i> Cards
                     </button>
-                    <button type="button" @click="viewMode = 'calendar'; setTimeout(() => initCalendar(), 50);" :class="viewMode === 'calendar' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'" class="px-3 py-1 text-sm font-medium rounded-md transition-all h-full">
-                        <i class="ti ti-calendar"></i>
+                    <button type="button" @click="setView('calendar')" :class="viewMode === 'calendar' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'" class="px-3 h-full text-xs font-semibold rounded-md transition flex items-center gap-1.5" data-view="calendar">
+                        <i class="ti ti-calendar text-sm"></i> Calendar
                     </button>
                 </div>
                 <button type="button" @click="showCreateModal = true" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center justify-center gap-1.5 w-full lg:w-auto whitespace-nowrap h-[38px]">
@@ -98,81 +129,132 @@
     </form>
 </div>
 
+{{-- ── Cards View ─────────────────────────────────────────────── --}}
 <div x-show="viewMode === 'grid'">
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    @php $lastGroup = null; @endphp
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
     @forelse($seminars as $seminar)
-        <div class="bg-white border border-gray-100 rounded-2xl shadow-premium flex flex-col overflow-hidden relative">
-            @if($seminar->is_required)
-                <div class="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg uppercase tracking-wider">Required</div>
-            @endif
+        @php
+            $style = $statusStyles[$seminar->status] ?? $statusStyles['upcoming'];
+            $group = in_array($seminar->status, ['upcoming', 'ongoing'], true) ? 'ahead' : 'past';
+            $time = \Carbon\Carbon::parse($seminar->time);
+            $daysAway = (int) today()->diffInDays($seminar->date, false);
+            $when = $group === 'ahead'
+                ? match (true) { $daysAway <= 0 => 'Today', $daysAway === 1 => 'Tomorrow', default => "In {$daysAway} days" }
+                : null;
+            $audience = $seminar->target_course
+                ? \App\Models\Course::abbreviate($seminar->target_course) . ($seminar->target_grade_level ? ' · ' . $seminar->target_grade_level : '')
+                : ($seminar->target_grade_level ? 'All courses · ' . $seminar->target_grade_level : 'All students');
+            $fillPct = $seminar->max_participants ? min(100, (int) round($seminar->students_count / $seminar->max_participants * 100)) : null;
+        @endphp
 
-            <div class="p-5 border-b border-gray-50 flex-grow">
-                <div class="flex items-center gap-2 mb-2">
-                    @if($seminar->status == 'upcoming')
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700"><i class="ti ti-calendar-clock"></i> Upcoming</span>
-                    @elseif($seminar->status == 'ongoing')
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700"><i class="ti ti-player-play"></i> Ongoing</span>
-                    @elseif($seminar->status == 'completed')
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700"><i class="ti ti-check"></i> Completed</span>
-                    @else
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-red-50 text-red-700"><i class="ti ti-x"></i> Cancelled</span>
-                    @endif
+        @if($group !== $lastGroup)
+            <div class="col-span-full flex items-center gap-3 {{ $lastGroup ? 'mt-4' : '' }}" data-seminar-group="{{ $group }}">
+                <h3 class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                    <i class="ti {{ $group === 'ahead' ? 'ti-calendar-up' : 'ti-history' }}"></i>
+                    {{ $group === 'ahead' ? 'Coming Up' : 'Past & Cancelled' }}
+                </h3>
+                <div class="flex-1 h-px bg-gray-200/70"></div>
+            </div>
+            @php $lastGroup = $group; @endphp
+        @endif
+
+        <article class="group bg-white border border-gray-100 rounded-2xl shadow-premium hover:shadow-hover hover:border-gray-200 transition-all duration-300 flex flex-col overflow-hidden" data-seminar-card>
+            <div class="p-5 pb-4 flex gap-4">
+                {{-- Date tile --}}
+                <div class="w-14 shrink-0 rounded-xl overflow-hidden border border-gray-100 text-center bg-white shadow-sm self-start">
+                    <div class="{{ $style['tile'] }} text-white text-[10px] font-bold uppercase tracking-wider py-1">{{ $seminar->date->format('M') }}</div>
+                    <div class="text-xl font-bold text-gray-900 leading-none pt-1.5">{{ $seminar->date->format('d') }}</div>
+                    <div class="text-[10px] font-medium text-gray-400 uppercase pt-0.5 pb-1.5">{{ $seminar->date->format('D') }}</div>
                 </div>
 
-                <h3 class="font-bold text-gray-900 text-lg leading-tight mb-1">{{ $seminar->title }}</h3>
-                <p class="text-sm text-gray-500 mb-4 line-clamp-2">{{ $seminar->description }}</p>
-
-                <div class="space-y-2 text-sm text-gray-600">
-                    <div class="flex items-center gap-2">
-                        <i class="ti ti-calendar text-gray-400"></i> {{ \Carbon\Carbon::parse($seminar->date)->format('M d, Y') }} at {{ \Carbon\Carbon::parse($seminar->time)->format('h:i A') }}
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <i class="ti ti-map-pin text-gray-400"></i> {{ $seminar->venue }}
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <i class="ti ti-target text-gray-400"></i> Target: {{ $seminar->target_course ?: 'All Courses' }} ({{ $seminar->target_grade_level ?: 'All Years' }})
-                    </div>
-                    <div class="mt-4 pt-4 border-t border-gray-50">
-                        <div class="flex justify-between items-end mb-1.5">
-                            <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                                <i class="ti ti-users text-gray-400"></i> Capacity
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border {{ $style['pill'] }}">
+                            <i class="ti {{ $style['icon'] }}"></i> {{ $style['label'] }}
+                        </span>
+                        @if($seminar->is_required)
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border bg-rose-50 text-rose-700 border-rose-100">
+                                <i class="ti ti-alert-circle"></i> Required
                             </span>
-                            <span class="text-xs font-black {{ $seminar->max_participants && $seminar->total_attendees >= $seminar->max_participants ? 'text-red-500' : 'text-blue-600' }}">
-                                {{ $seminar->total_attendees }} / {{ $seminar->max_participants ?: '∞' }}
-                            </span>
-                        </div>
-                        @if($seminar->max_participants)
-                            @php
-                                $fillPct = min(100, round(($seminar->total_attendees / $seminar->max_participants) * 100));
-                                $fillColor = $fillPct >= 100 ? 'bg-red-500' : ($fillPct > 80 ? 'bg-amber-500' : 'bg-blue-500');
-                            @endphp
-                            <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                <div class="{{ $fillColor }} h-1.5 rounded-full transition-all duration-500" style="width: {{ $fillPct }}%"></div>
-                            </div>
                         @else
-                            <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                <div class="bg-emerald-400 h-1.5 rounded-full w-full"></div>
-                            </div>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border bg-gray-50 text-gray-500 border-gray-200">Optional</span>
                         @endif
                     </div>
+                    <h3 class="font-semibold text-gray-900 text-[15px] leading-snug line-clamp-2" data-seminar-title>
+                        <a href="{{ route('counselor.seminars.show', $seminar->id) }}" class="hover:text-blue-700 transition">{{ $seminar->title }}</a>
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <i class="ti ti-clock text-gray-400"></i> {{ $time->format('h:i A') }}
+                        @if($when)
+                            <span class="text-gray-300">·</span> <span class="font-semibold text-blue-600">{{ $when }}</span>
+                        @endif
+                    </p>
                 </div>
             </div>
 
-            <div class="px-5 py-3 bg-gray-50/50 flex justify-between items-center mt-auto">
-                <a href="{{ route('counselor.seminars.show', $seminar->id) }}" class="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1">
-                    Manage Participants <i class="ti ti-arrow-right"></i>
+            @if($seminar->description)
+                <p class="px-5 text-sm text-gray-500 line-clamp-2 leading-relaxed">{{ $seminar->description }}</p>
+            @endif
+
+            <dl class="px-5 mt-3 space-y-1.5 text-[13px] text-gray-600">
+                <div class="flex items-center gap-2 min-w-0">
+                    <dt class="sr-only">Venue</dt>
+                    <i class="ti ti-map-pin text-gray-400 shrink-0"></i>
+                    <dd class="truncate">{{ $seminar->venue }}</dd>
+                </div>
+                <div class="flex items-center gap-2 min-w-0" @if($seminar->target_course) title="{{ $seminar->target_course }}" @endif>
+                    <dt class="sr-only">Audience</dt>
+                    <i class="ti ti-target-arrow text-gray-400 shrink-0"></i>
+                    <dd class="truncate">{{ $audience }}</dd>
+                </div>
+                @if($seminar->trigger_reason)
+                    <div class="flex items-center gap-2 min-w-0">
+                        <dt class="sr-only">ML trigger</dt>
+                        <i class="ti ti-sparkles text-violet-400 shrink-0"></i>
+                        <dd class="truncate text-violet-700">{{ \App\Models\Seminar::TRIGGER_REASONS[$seminar->trigger_reason] ?? $seminar->trigger_reason }}</dd>
+                    </div>
+                @endif
+            </dl>
+
+            {{-- Roster --}}
+            <div class="px-5 mt-4 mb-5">
+                <div class="flex items-center justify-between text-xs mb-1.5">
+                    <span class="font-medium text-gray-500 flex items-center gap-1"><i class="ti ti-users text-gray-400"></i> Roster</span>
+                    <span class="font-semibold {{ $fillPct !== null && $fillPct >= 100 ? 'text-red-600' : 'text-gray-900' }}">
+                        {{ $seminar->students_count }} <span class="font-normal text-gray-400">/ {{ $seminar->max_participants ?: '∞' }}</span>
+                    </span>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                    @if($fillPct !== null)
+                        <div class="{{ $fillPct >= 100 ? 'bg-red-500' : ($fillPct > 80 ? 'bg-amber-500' : 'bg-blue-500') }} h-1.5 rounded-full" style="width: {{ $fillPct }}%"></div>
+                    @elseif($seminar->students_count > 0)
+                        <div class="bg-blue-300 h-1.5 rounded-full w-full"></div>
+                    @endif
+                </div>
+                @if($seminar->attended_count + $seminar->missed_count > 0)
+                    <div class="flex items-center gap-3 mt-2 text-[11px] font-medium" data-attendance-summary>
+                        <span class="text-emerald-600 flex items-center gap-1"><i class="ti ti-circle-check"></i> {{ $seminar->attended_count }} attended</span>
+                        <span class="text-red-500 flex items-center gap-1"><i class="ti ti-circle-x"></i> {{ $seminar->missed_count }} missed</span>
+                    </div>
+                @endif
+            </div>
+
+            <div class="mt-auto px-5 py-3 border-t border-gray-100 bg-gray-50/60 flex items-center justify-between">
+                <a href="{{ route('counselor.seminars.show', $seminar->id) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 group/link">
+                    Manage Seminar <i class="ti ti-arrow-right transition-transform group-hover/link:translate-x-0.5"></i>
                 </a>
-                <div class="flex gap-2">
-                    <button type="button" @click="$dispatch('open-edit-modal-{{ $seminar->id }}')" class="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Edit">
+                <div class="flex gap-1">
+                    <button type="button" @click="$dispatch('open-edit-modal-{{ $seminar->id }}')" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
                         <i class="ti ti-edit"></i>
                     </button>
                     <form id="delete-seminar-{{ $seminar->id }}" action="{{ route('counselor.seminars.destroy', $seminar->id) }}" method="POST" class="inline">
                         @csrf
                         @method('DELETE')
-                        <button type="button" @click="$dispatch('open-confirm-modal', { 
-                                formId: 'delete-seminar-{{ $seminar->id }}', 
-                                title: 'Delete Seminar', 
-                                message: 'Are you sure you want to delete the seminar \'{{ addslashes($seminar->title) }}\'?',
+                        <button type="button" @click="$dispatch('open-confirm-modal', {
+                                formId: 'delete-seminar-{{ $seminar->id }}',
+                                title: 'Delete Seminar',
+                                message: @js('Are you sure you want to delete "' . $seminar->title . '"?' . ($seminar->students_count > 0 ? ' Its roster of ' . $seminar->students_count . ' student' . ($seminar->students_count === 1 ? '' : 's') . ', with their attendance records, will be deleted too.' : '')),
                                 confirmText: 'Yes, Delete Seminar'
                             })" class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
                             <i class="ti ti-trash"></i>
@@ -180,19 +262,26 @@
                     </form>
                 </div>
             </div>
-        </div>
+        </article>
     @empty
-        <div class="col-span-full py-12 flex flex-col items-center justify-center text-center bg-white border border-gray-100 rounded-2xl shadow-sm">
-            <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 mb-3">
-                <i class="ti ti-presentation text-2xl"></i>
+        <div class="col-span-full py-14 flex flex-col items-center justify-center text-center bg-white border border-gray-100 rounded-2xl shadow-premium">
+            <div class="w-14 h-14 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 mb-3">
+                <i class="ti {{ $filtersActive ? 'ti-search-off' : 'ti-presentation' }} text-2xl"></i>
             </div>
-            <h3 class="text-lg font-medium text-gray-900 mb-1">No Seminars Found</h3>
-            <p class="text-gray-500 mb-4">Get started by creating a new seminar for student intervention.</p>
-            <button type="button" @click="showCreateModal = true" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm">
-                Create Seminar
-            </button>
+            @if($filtersActive)
+                <h3 class="text-sm font-semibold text-gray-900 mb-1">No seminars match your filters</h3>
+                <p class="text-sm text-gray-500 mb-4">Try a different search, status or type.</p>
+                <a href="{{ route('counselor.seminars.index') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">Reset filters</a>
+            @else
+                <h3 class="text-sm font-semibold text-gray-900 mb-1">No seminars yet</h3>
+                <p class="text-sm text-gray-500 mb-4">Create a seminar to start assigning students and tracking attendance.</p>
+                <button type="button" @click="showCreateModal = true" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm flex items-center gap-1.5">
+                    <i class="ti ti-plus"></i> Create Seminar
+                </button>
+            @endif
         </div>
     @endforelse
+    </div>
     @if($seminars->hasPages())
         <div class="mt-6">
             {{ $seminars->links() }}
@@ -200,9 +289,24 @@
     @endif
 </div>
 
-<!-- Calendar View -->
-<div x-show="viewMode === 'calendar'" x-cloak class="bg-white border border-gray-100 rounded-2xl shadow-premium p-6">
-    <div id="calendar" class="w-full" style="min-height: 600px;"></div>
+{{-- ── Calendar View ──────────────────────────────────────────── --}}
+<div x-show="viewMode === 'calendar'" x-cloak class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h4 class="font-semibold text-gray-800 flex items-center gap-2"><i class="ti ti-calendar-month text-blue-600"></i> Seminar Calendar</h4>
+            <p class="text-xs text-gray-400 mt-0.5">Every seminar, whatever the filters above. Click one to manage it.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5" data-calendar-legend>
+            @foreach($statusStyles as $style)
+                <span class="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                    <span class="w-2.5 h-2.5 rounded-full {{ $style['dot'] }}"></span> {{ $style['label'] }}
+                </span>
+            @endforeach
+        </div>
+    </div>
+    <div class="p-5">
+        <div id="calendar" class="seminar-calendar w-full" style="min-height: 600px;"></div>
+    </div>
 </div>
 
 <!-- Create Seminar Modal -->
@@ -225,120 +329,7 @@
 
             <form action="{{ route('counselor.seminars.store') }}" method="POST">
                 @csrf
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                    
-                    <!-- Left Column -->
-                    <div class="space-y-4">
-                        <h4 class="font-semibold text-gray-800 border-b border-gray-100 pb-2 flex items-center gap-2 text-sm uppercase tracking-wider">
-                            <i class="ti ti-calendar-event text-blue-600"></i> Seminar Details
-                        </h4>
-                        
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">Seminar Title <span class="text-red-500">*</span></label>
-                            <input type="text" name="title" value="{{ old('title') }}" required
-                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm @error('title') border-red-500 @enderror">
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Date <span class="text-red-500">*</span></label>
-                                <input type="date" name="date" value="{{ old('date') }}" required
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Time <span class="text-red-500">*</span></label>
-                                <input type="time" name="time" value="{{ old('time') }}" required
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">Venue / Room <span class="text-red-500">*</span></label>
-                            <input type="text" name="venue" value="{{ old('venue') }}" required
-                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">ML Trigger Reason <span class="text-red-500">*</span></label>
-                            <select name="trigger_reason" required
-                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                <option value="general" {{ old('trigger_reason') === 'general' ? 'selected' : '' }}>General Guidance</option>
-                                <option value="academic_recovery" {{ old('trigger_reason') === 'academic_recovery' ? 'selected' : '' }}>Academic Recovery</option>
-                                <option value="attendance_intervention" {{ old('trigger_reason') === 'attendance_intervention' ? 'selected' : '' }}>Attendance Intervention</option>
-                                <option value="behavioral_counseling" {{ old('trigger_reason') === 'behavioral_counseling' ? 'selected' : '' }}>Behavioral Counseling</option>
-                                <option value="anti_bullying" {{ old('trigger_reason') === 'anti_bullying' ? 'selected' : '' }}>Anti-Bullying</option>
-                                <option value="values_formation" {{ old('trigger_reason') === 'values_formation' ? 'selected' : '' }}>Values Formation</option>
-                                <option value="orientation" {{ old('trigger_reason') === 'orientation' ? 'selected' : '' }}>Orientation</option>
-                            </select>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Status <span class="text-red-500">*</span></label>
-                                <select name="status" required
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                    <option value="upcoming" {{ old('status', 'upcoming') === 'upcoming' ? 'selected' : '' }}>Upcoming</option>
-                                    <option value="ongoing" {{ old('status') === 'ongoing' ? 'selected' : '' }}>Ongoing</option>
-                                    <option value="completed" {{ old('status') === 'completed' ? 'selected' : '' }}>Completed</option>
-                                    <option value="cancelled" {{ old('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Type <span class="text-red-500">*</span></label>
-                                <select name="is_required" required
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                    <option value="1" {{ old('is_required', '1') == '1' ? 'selected' : '' }}>Required</option>
-                                    <option value="0" {{ old('is_required') === '0' ? 'selected' : '' }}>Optional</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right Column -->
-                    <div class="space-y-4">
-                        <h4 class="font-semibold text-gray-800 border-b border-gray-100 pb-2 flex items-center gap-2 text-sm uppercase tracking-wider">
-                            <i class="ti ti-users text-blue-600"></i> Audience & Additional
-                        </h4>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Target Course</label>
-                                <input type="text" name="target_course" value="{{ old('target_course') }}" placeholder="e.g. BSIT"
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Target Year</label>
-                                <select name="target_grade_level"
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                    <option value="">All Years</option>
-                                    <option value="1st Year">1st Year</option>
-                                    <option value="2nd Year">2nd Year</option>
-                                    <option value="3rd Year">3rd Year</option>
-                                    <option value="4th Year">4th Year</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Speaker</label>
-                                <input type="text" name="speaker" value="{{ old('speaker') }}"
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Max Capacity</label>
-                                <input type="number" name="max_participants" value="{{ old('max_participants') }}" placeholder="Leave blank for unlimited"
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">Description</label>
-                            <textarea name="description" rows="3" required
-                                class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ old('description') }}</textarea>
-                        </div>
-                    </div>
-                </div>
+                @include('partials.seminar-form-fields', ['seminar' => null])
 
                 <div class="mt-6 flex items-center justify-end gap-3 pt-5 border-t border-gray-100 bg-gray-50 -mx-8 -mb-8 px-8 py-4 rounded-b-2xl">
                     <button type="button" @click="showCreateModal = false" class="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-900 transition">
@@ -377,107 +368,7 @@
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="id" value="{{ $seminar->id }}">
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                        
-                        <!-- Left Column -->
-                        <div class="space-y-4">
-                            <h4 class="font-semibold text-gray-800 border-b border-gray-100 pb-2 flex items-center gap-2 text-sm uppercase tracking-wider">
-                                <i class="ti ti-calendar-event text-blue-600"></i> Seminar Details
-                            </h4>
-                            
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Seminar Title <span class="text-red-500">*</span></label>
-                                <input type="text" name="title" value="{{ old('title', $seminar->title) }}" required
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Date <span class="text-red-500">*</span></label>
-                                    <input type="date" name="date" value="{{ old('date', $seminar->date->format('Y-m-d')) }}" required
-                                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Time <span class="text-red-500">*</span></label>
-                                    <input type="time" name="time" value="{{ old('time', \Carbon\Carbon::parse($seminar->time)->format('H:i')) }}" required
-                                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Venue / Room <span class="text-red-500">*</span></label>
-                                <input type="text" name="venue" value="{{ old('venue', $seminar->venue) }}" required
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Status <span class="text-red-500">*</span></label>
-                                    <select name="status" required
-                                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                        <option value="upcoming" {{ old('status', $seminar->status) === 'upcoming' ? 'selected' : '' }}>Upcoming</option>
-                                        <option value="ongoing" {{ old('status', $seminar->status) === 'ongoing' ? 'selected' : '' }}>Ongoing</option>
-                                        <option value="completed" {{ old('status', $seminar->status) === 'completed' ? 'selected' : '' }}>Completed</option>
-                                        <option value="cancelled" {{ old('status', $seminar->status) === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Type <span class="text-red-500">*</span></label>
-                                    <select name="is_required" required
-                                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                        <option value="1" {{ old('is_required', $seminar->is_required) == 1 ? 'selected' : '' }}>Required</option>
-                                        <option value="0" {{ old('is_required', $seminar->is_required) == 0 ? 'selected' : '' }}>Optional</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Right Column -->
-                        <div class="space-y-4">
-                            <h4 class="font-semibold text-gray-800 border-b border-gray-100 pb-2 flex items-center gap-2 text-sm uppercase tracking-wider">
-                                <i class="ti ti-users text-blue-600"></i> Audience & Additional
-                            </h4>
-
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Target Course</label>
-                                    <input type="text" name="target_course" value="{{ old('target_course', $seminar->target_course) }}" placeholder="e.g. BSIT"
-                                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Target Year</label>
-                                    <select name="target_grade_level"
-                                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                        <option value="">All Years</option>
-                                        <option value="1st Year" {{ old('target_grade_level', $seminar->target_grade_level) == '1st Year' ? 'selected' : '' }}>1st Year</option>
-                                        <option value="2nd Year" {{ old('target_grade_level', $seminar->target_grade_level) == '2nd Year' ? 'selected' : '' }}>2nd Year</option>
-                                        <option value="3rd Year" {{ old('target_grade_level', $seminar->target_grade_level) == '3rd Year' ? 'selected' : '' }}>3rd Year</option>
-                                        <option value="4th Year" {{ old('target_grade_level', $seminar->target_grade_level) == '4th Year' ? 'selected' : '' }}>4th Year</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Speaker</label>
-                                    <input type="text" name="speaker" value="{{ old('speaker', $seminar->speaker) }}"
-                                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Max Capacity</label>
-                                    <input type="number" name="max_participants" value="{{ old('max_participants', $seminar->max_participants) }}"
-                                        class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Description</label>
-                                <textarea name="description" rows="3" required
-                                    class="w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ old('description', $seminar->description) }}</textarea>
-                            </div>
-                        </div>
-                    </div>
+                    @include('partials.seminar-form-fields', ['seminar' => $seminar])
 
                     <div class="mt-6 flex items-center justify-end gap-3 pt-5 border-t border-gray-100 bg-gray-50 -mx-8 -mb-8 px-8 py-4 rounded-b-2xl">
                         <button type="button" @click="showEditModal = false" class="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-900 transition">
@@ -497,8 +388,84 @@
 </div>
 @endsection
 
+@push('styles')
+<style>
+    /* FullCalendar, restyled to match the rest of the app. */
+    .seminar-calendar {
+        --fc-border-color: #f1f5f9;
+        --fc-today-bg-color: #f8fbff;
+        --fc-neutral-bg-color: #f8fafc;
+        --fc-page-bg-color: #ffffff;
+        --fc-list-event-hover-bg-color: #f8fafc;
+        font-size: 13px;
+    }
+    .seminar-calendar a { text-decoration: none; }
+    .seminar-calendar .fc-header-toolbar.fc-toolbar { margin-bottom: 1rem; gap: .75rem; flex-wrap: wrap; }
+    .seminar-calendar .fc-toolbar-title { font-size: 1.05rem; font-weight: 700; color: #111827; }
+    .seminar-calendar .fc-button {
+        background: #fff; border: 1px solid #e5e7eb; color: #4b5563;
+        font-size: 12.5px; font-weight: 600; text-transform: none;
+        padding: .4rem .8rem; border-radius: .5rem; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    .seminar-calendar .fc-button:hover { background: #f9fafb; color: #111827; border-color: #d1d5db; }
+    .seminar-calendar .fc-button:focus, .seminar-calendar .fc-button:focus-visible { box-shadow: 0 0 0 3px rgba(59,130,246,.15) !important; outline: none; }
+    .seminar-calendar .fc-button-primary:not(:disabled).fc-button-active,
+    .seminar-calendar .fc-button-primary:not(:disabled):active { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .seminar-calendar .fc-button-primary:disabled { background: #f9fafb; color: #9ca3af; border-color: #e5e7eb; opacity: 1; }
+    .seminar-calendar .fc-button-group > .fc-button { border-radius: 0; }
+    .seminar-calendar .fc-button-group > .fc-button:first-child { border-top-left-radius: .5rem; border-bottom-left-radius: .5rem; }
+    .seminar-calendar .fc-button-group > .fc-button:last-child { border-top-right-radius: .5rem; border-bottom-right-radius: .5rem; }
+    .seminar-calendar .fc-today-button { margin-left: .5rem !important; }
+    .seminar-calendar .fc-scrollgrid { border-radius: .75rem; overflow: hidden; border-color: #eef2f7; }
+    .seminar-calendar .fc-col-header-cell { background: #f8fafc; }
+    .seminar-calendar .fc-col-header-cell-cushion { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; padding: .6rem 0; }
+    .seminar-calendar .fc-daygrid-day-frame { min-height: 6.5rem; }
+    .seminar-calendar .fc-daygrid-day-number { font-size: 12px; font-weight: 500; color: #4b5563; padding: .35rem .5rem; }
+    .seminar-calendar .fc-day-other .fc-daygrid-day-number { color: #cbd5e1; }
+    .seminar-calendar .fc-day-today .fc-daygrid-day-number {
+        background: #2563eb; color: #fff; border-radius: 9999px; min-width: 1.6rem; height: 1.6rem;
+        display: inline-flex; align-items: center; justify-content: center; padding: 0 .35rem; margin: .25rem;
+    }
+    .seminar-calendar .fc-daygrid-more-link { font-size: 11px; font-weight: 600; color: #2563eb; padding-left: 6px; }
+    .seminar-calendar .fc-timegrid-slot-label-cushion, .seminar-calendar .fc-timegrid-axis-cushion { font-size: 11px; color: #9ca3af; }
+
+    /* Events — same palette as the status pills. */
+    .seminar-calendar .sem-ev {
+        border: 0 !important; border-left: 3px solid !important; border-radius: .375rem;
+        padding: 2px 6px; margin: 1px 4px 2px; font-size: 11.5px; font-weight: 500; cursor: pointer;
+        transition: filter .15s ease;
+    }
+    .seminar-calendar .sem-ev:hover { filter: brightness(.96); }
+    .seminar-calendar .sem-ev .fc-event-main, .seminar-calendar .sem-ev .fc-event-title, .seminar-calendar .sem-ev .fc-event-time { color: inherit; }
+    .seminar-calendar .sem-ev .fc-event-time { font-weight: 700; margin-right: 4px; }
+    .seminar-calendar .sem-ev-upcoming  { background: #eff6ff !important; border-left-color: #2563eb !important; color: #1d4ed8 !important; }
+    .seminar-calendar .sem-ev-ongoing   { background: #fffbeb !important; border-left-color: #f59e0b !important; color: #b45309 !important; }
+    .seminar-calendar .sem-ev-completed { background: #ecfdf5 !important; border-left-color: #10b981 !important; color: #047857 !important; }
+    .seminar-calendar .sem-ev-cancelled { background: #fef2f2 !important; border-left-color: #f87171 !important; color: #b91c1c !important; }
+    .seminar-calendar .sem-ev-cancelled .fc-event-title,
+    .seminar-calendar .sem-ev-cancelled .sem-ev-name { text-decoration: line-through; }
+
+    /* Month view: time on top, title below (ellipsized) — side by side they clipped each other. */
+    .seminar-calendar .sem-ev-body { overflow: hidden; line-height: 1.3; padding: 1px 0; }
+    .seminar-calendar .sem-ev-time { font-size: 10.5px; font-weight: 700; opacity: .8; }
+    .seminar-calendar .sem-ev-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* List view: plain rows with a coloured dot. */
+    .seminar-calendar .fc-list { border-radius: .75rem; overflow: hidden; border-color: #eef2f7; }
+    .seminar-calendar .fc-list-day-cushion { background: #f8fafc; font-size: 12px; font-weight: 600; color: #374151; }
+    .seminar-calendar .fc-list-event.sem-ev { background: transparent !important; color: #374151 !important; border: 0 !important; margin: 0; }
+    .seminar-calendar .fc-list-event-time { color: #6b7280; font-size: 12px; }
+    .seminar-calendar .fc-list-event-title a { font-weight: 600; color: #111827; }
+    .seminar-calendar .fc-list-event.sem-ev-upcoming  .fc-list-event-dot { border-color: #2563eb; }
+    .seminar-calendar .fc-list-event.sem-ev-ongoing   .fc-list-event-dot { border-color: #f59e0b; }
+    .seminar-calendar .fc-list-event.sem-ev-completed .fc-list-event-dot { border-color: #10b981; }
+    .seminar-calendar .fc-list-event.sem-ev-cancelled .fc-list-event-dot { border-color: #f87171; }
+    .seminar-calendar .fc-list-empty { background: #fff; color: #9ca3af; font-size: 13px; }
+</style>
+@endpush
+
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script src="{{ asset('vendor/fullcalendar.global.min.js') }}"></script>
 <script>
     let calendarInitialized = false;
     function initCalendar() {
@@ -507,24 +474,65 @@
             return;
         }
         var calendarEl = document.getElementById('calendar');
-        if (!calendarEl) return;
-        
+        if (!calendarEl || typeof FullCalendar === 'undefined') return;
+
+        // Week view shows the working day (7am-7pm), stretched to fit any
+        // seminar scheduled earlier or later so none is ever hidden.
+        var seminarEvents = @json($calendarEvents);
+        var startHours = seminarEvents.map(function (e) { return parseInt(e.start.substr(11, 2), 10); });
+        var firstHour = Math.min.apply(null, [7].concat(startHours));
+        var lastHour = Math.min(24, Math.max.apply(null, [19].concat(startHours.map(function (h) { return h + 2; }))));
+        var pad = function (h) { return (h < 10 ? '0' : '') + h + ':00:00'; };
+
         window.calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
+            views: {
+                timeGridWeek: {
+                    allDaySlot: false,
+                    slotMinTime: pad(firstHour),
+                    slotMaxTime: pad(lastHour),
+                    dayHeaderFormat: { weekday: 'short', month: 'short', day: 'numeric' }
+                }
+            },
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
-                right: 'dayGridMonth,timeGridWeek'
+                right: 'dayGridMonth,timeGridWeek,listMonth'
             },
-            events: {!! json_encode($calendarEvents) !!},
-            eventClick: function(info) {
-                if(info.event.url) {
+            buttonText: { today: 'Today', month: 'Month', week: 'Week', list: 'List' },
+            events: seminarEvents,
+            eventDisplay: 'block',
+            dayMaxEvents: 3,
+            fixedWeekCount: false,
+            eventTimeFormat: { hour: 'numeric', minute: '2-digit', meridiem: 'short' },
+            eventContent: function (arg) {
+                if (arg.view.type !== 'dayGridMonth') return true;   // default rendering
+                var body = document.createElement('div');
+                body.className = 'sem-ev-body';
+                var time = document.createElement('div');
+                time.className = 'sem-ev-time';
+                time.textContent = arg.timeText;
+                var name = document.createElement('div');
+                name.className = 'sem-ev-name';
+                name.textContent = arg.event.title;
+                body.append(time, name);
+                return { domNodes: [body] };
+            },
+            noEventsContent: 'No seminars in this period',
+            eventDidMount: function (info) {
+                var p = info.event.extendedProps;
+                info.el.title = info.event.title + '\n'
+                    + p.status + (p.required ? ' · Required' : ' · Optional') + '\n'
+                    + p.venue + '\n'
+                    + p.enrolled + ' / ' + (p.capacity || '∞') + ' on the roster';
+            },
+            eventClick: function (info) {
+                if (info.event.url) {
                     window.location.href = info.event.url;
                     info.jsEvent.preventDefault();
                 }
             },
-            height: 'auto',
-            themeSystem: 'standard'
+            height: 'auto'
         });
         window.calendar.render();
         calendarInitialized = true;
@@ -535,10 +543,10 @@
     let filterForm = document.getElementById('filterForm');
 
     if (searchInput && filterForm) {
-        searchInput.addEventListener('input', function(e) {
+        searchInput.addEventListener('input', function (e) {
             clearTimeout(searchTimeout);
             const val = e.target.value.trim();
-            
+
             // Auto submit if cleared or if length >= 2
             if (val.length === 0 || val.length >= 2) {
                 searchTimeout = setTimeout(() => {
@@ -546,7 +554,7 @@
                 }, 500); // Wait 500ms after user stops typing
             }
         });
-        
+
         // Put cursor at the end of text when page reloads with search value
         if (searchInput.value) {
             const length = searchInput.value.length;
