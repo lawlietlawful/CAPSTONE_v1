@@ -36,8 +36,16 @@ class CourseController extends Controller
         // course" or "whole grade level" — see User::advisedStudentsQuery()).
         $teacherAssignments = TeacherAssignment::all(['teacher_id', 'course', 'grade_level', 'section']);
 
+        // Course names any student or teacher assignment still uses — such a
+        // course's education level is locked (see levelLockReason()).
+        $usedCourseNames = Student::distinct()->pluck('course')
+            ->merge($teacherAssignments->pluck('course'))
+            ->filter()
+            ->mapWithKeys(fn ($name) => [strtolower($name) => true]);
+
         foreach ($courses as $course) {
             $course->setRelation('sections', $this->sortSections($course->sections));
+            $course->level_lock_reason = $this->levelLockReason($course, $usedCourseNames->has(strtolower($course->name)));
 
             foreach ($course->sections as $section) {
                 $key = $this->comboKey($course->name, $section->grade_level, $section->section);
@@ -55,7 +63,9 @@ class CourseController extends Controller
             $course->total_students = $course->sections->sum('student_count');
         }
 
-        return view('admin.courses.index', compact('courses', 'totalCourses', 'totalSections'))
+        $unmatchedStudents = $this->studentsOutsideCatalog($courses);
+
+        return view('admin.courses.index', compact('courses', 'totalCourses', 'totalSections', 'unmatchedStudents'))
             ->with([
                 'collegeYearLevels' => Course::COLLEGE_YEAR_LEVELS,
                 'basicEdGradeLevels' => Course::BASIC_ED_GRADE_LEVELS,
@@ -73,6 +83,31 @@ class CourseController extends Controller
     private function comboKey(?string $course, ?string $gradeLevel, ?string $section): string
     {
         return strtolower(($course ?? '') . '|' . ($gradeLevel ?? '') . '|' . ($section ?? ''));
+    }
+
+    /**
+     * Students whose course/grade level/section doesn't match any catalog
+     * section (or is left blank). They're counted under no section on this
+     * page and the section pickers can't select their current placement, so
+     * without this list they'd be invisible here. Each gets a reason:
+     * the course itself isn't in the catalog, or only the section isn't.
+     */
+    private function studentsOutsideCatalog(Collection $courses): Collection
+    {
+        $courseNames = $courses->mapWithKeys(fn ($c) => [strtolower($c->name) => true]);
+        $catalogKeys = $courses->flatMap(fn ($c) => $c->sections->map(
+            fn ($s) => $this->comboKey($c->name, $s->grade_level, $s->section)
+        ))->flip();
+
+        return Student::orderBy('last_name')->orderBy('first_name')
+            ->get(['id', 'student_id_number', 'first_name', 'middle_name', 'last_name', 'course', 'grade_level', 'strand', 'section', 'status'])
+            ->reject(fn ($s) => $catalogKeys->has($this->comboKey($s->course, $s->grade_level, $s->section)))
+            ->each(fn ($s) => $s->catalog_issue = match (true) {
+                ! $s->course || ! $s->grade_level || ! $s->section => 'Incomplete placement',
+                ! $courseNames->has(strtolower($s->course)) => 'Course not in catalog',
+                default => 'Section not in catalog',
+            })
+            ->values();
     }
 
     /**
@@ -167,21 +202,35 @@ class CourseController extends Controller
      */
     public function update(Request $request, Course $course)
     {
-        // Own error bag: a failed rename reopens this course's rename form
+        // Own error bag: a failed rename reopens this course's edit form
         // instead of landing under (and pre-filling) Add Course.
         $request->validateWithBag('renameCourse', [
             'name' => ['required', 'string', 'max:255', 'unique:courses,name,' . $course->id],
+            'education_level' => ['nullable', 'string', 'in:Basic Education,College'],
         ]);
 
         $oldName = $course->name;
         $newName = $request->name;
+        $newLevel = $request->education_level ?: $course->education_level;
+        $levelChanged = $newLevel !== $course->education_level;
 
-        if ($oldName === $newName) {
+        if ($levelChanged && ($reason = $this->levelLockReason($course->loadCount('sections'), $this->courseInUse($course)))) {
+            throw ValidationException::withMessages(['education_level' => $reason])->errorBag('renameCourse');
+        }
+
+        if ($oldName === $newName && ! $levelChanged) {
             return redirect()->route('admin.courses.index')->with('success', 'Course updated successfully.');
         }
 
-        DB::transaction(function () use ($course, $oldName, $newName) {
-            $course->update(['name' => $newName]);
+        if ($oldName === $newName) {
+            $course->update(['education_level' => $newLevel]);
+
+            return redirect()->route('admin.courses.index')
+                ->with('success', "\"{$newName}\" is now a {$newLevel} course.");
+        }
+
+        DB::transaction(function () use ($course, $oldName, $newName, $newLevel) {
+            $course->update(['name' => $newName, 'education_level' => $newLevel]);
             Student::where('course', $oldName)->update(['course' => $newName]);
             TeacherAssignment::where('course', $oldName)->update(['course' => $newName]);
         });
@@ -265,6 +314,25 @@ class CourseController extends Controller
         $courseSection->delete();
 
         return redirect()->route('admin.courses.index')->with('success', 'Section deleted successfully.');
+    }
+
+    /**
+     * Why a course's education level can't be changed right now, or null if
+     * it can. Its sections use that level's grade/year list, and students
+     * carry their own education_level — switching under either would leave
+     * "Grade 7" sections on a College course, or students whose level no
+     * longer matches their course. So it's only changeable while the
+     * course is still empty, which is when a wrong pick actually happens.
+     */
+    private function levelLockReason(Course $course, bool $inUse): ?string
+    {
+        $sections = $course->sections_count ?? $course->sections->count();
+
+        return match (true) {
+            $sections > 0 => "Remove its {$sections} section" . ($sections === 1 ? '' : 's') . ' before changing the education level.',
+            $inUse => 'Students or teacher assignments still use this course, so its education level can\'t change.',
+            default => null,
+        };
     }
 
     /**

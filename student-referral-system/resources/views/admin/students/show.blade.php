@@ -423,7 +423,8 @@
 </div>
 
 <!-- Edit Student Modal -->
-<div x-data="{ showEditModal: {{ $errors->any() && old('edit_student_id') == $student->id ? 'true' : 'false' }} }" @open-edit-modal-{{ $student->id }}.window="showEditModal = true">
+{{-- ?edit=1 (e.g. "Fix placement" on Courses & Sections) opens it straight away. --}}
+<div x-data="{ showEditModal: {{ ($errors->any() && old('edit_student_id') == $student->id) || (request()->boolean('edit') && ! $errors->any()) ? 'true' : 'false' }} }" @open-edit-modal-{{ $student->id }}.window="showEditModal = true">
     <div x-show="showEditModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" x-cloak>
         <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div x-show="showEditModal" x-transition.opacity class="fixed inset-0 transition-opacity bg-gray-900/60 backdrop-blur-sm" aria-hidden="true" @click="showEditModal = false"></div>

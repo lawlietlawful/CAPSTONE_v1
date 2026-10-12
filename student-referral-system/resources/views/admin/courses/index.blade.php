@@ -59,7 +59,93 @@
     </form>
 </div>
 
+{{-- ── Students outside the catalog ───────────────────────── --}}
+@if($unmatchedStudents->isNotEmpty())
+    <div class="bg-amber-50/60 border border-amber-200 rounded-2xl overflow-hidden mb-5" x-data="{ open: false }" data-unmatched-students>
+        <button type="button" @click="open = !open" class="w-full px-5 py-4 flex items-center gap-3 text-left">
+            <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                <i class="ti ti-alert-triangle text-amber-600"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-amber-900">
+                    {{ $unmatchedStudents->count() }} student{{ $unmatchedStudents->count() === 1 ? '' : 's' }} {{ $unmatchedStudents->count() === 1 ? "doesn't" : "don't" }} match any section in the catalog
+                </p>
+                <p class="text-xs text-amber-800/80 mt-0.5">They aren't counted under any section below. Open a student to move them into a catalog section, or add the missing course/section here.</p>
+            </div>
+            <i class="ti text-amber-700 shrink-0" :class="open ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+        </button>
+        <div x-show="open" x-cloak class="border-t border-amber-200 bg-white max-h-80 overflow-y-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50/80 text-[11px] uppercase tracking-wide text-gray-400 sticky top-0">
+                    <tr>
+                        <th class="text-left font-medium px-5 py-2">Student</th>
+                        <th class="text-left font-medium px-5 py-2">Recorded As</th>
+                        <th class="text-left font-medium px-5 py-2">Issue</th>
+                        <th class="px-5 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    @foreach($unmatchedStudents as $student)
+                        <tr>
+                            <td class="px-5 py-2.5">
+                                <div class="font-medium text-gray-800">{{ $student->last_name }}, {{ $student->first_name }}</div>
+                                <div class="text-xs text-gray-400">{{ $student->student_id_number ?: 'No ID number' }}@if($student->status !== 'active') · {{ ucfirst($student->status) }}@endif</div>
+                            </td>
+                            <td class="px-5 py-2.5 text-gray-600">
+                                {{ $student->course ?: '—' }}
+                                <span class="text-gray-300">/</span> {{ $student->grade_level ?: '—' }}
+                                @if($student->strand)<span class="text-gray-300">/</span> {{ $student->strand }}@endif
+                                <span class="text-gray-300">/</span> {{ $student->section ?: '—' }}
+                            </td>
+                            <td class="px-5 py-2.5">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-100 whitespace-nowrap">{{ $student->catalog_issue }}</span>
+                            </td>
+                            <td class="px-5 py-2.5 text-right">
+                                <a href="{{ route('admin.students.show', ['student' => $student->id, 'edit' => 1]) }}" class="text-xs font-semibold text-blue-600 hover:text-blue-700 whitespace-nowrap">Fix placement <i class="ti ti-arrow-right"></i></a>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+@endif
+
 {{-- ── Courses List ───────────────────────────────────────── --}}
+@php
+    // What the search box matches, per course and per section (in display
+    // order): name, its abbreviation ("BSIT"), education level, and each
+    // section's "grade strand section" label, with and without the strand.
+    $searchIndex = $courses->map(fn ($c) => [
+        'course' => mb_strtolower($c->name . ' | ' . \App\Models\Course::abbreviate($c->name) . ' | ' . $c->education_level),
+        'sections' => $c->sections->map(fn ($sec) => mb_strtolower(
+            implode(' ', array_filter([$sec->grade_level, $sec->strand, $sec->section])) . ' | ' . "{$sec->grade_level} {$sec->section}"
+        ))->values(),
+    ])->values();
+@endphp
+<div x-data="{
+        q: '',
+        catalog: @js($searchIndex),
+        needle() { return this.q.trim().toLowerCase().replace(/\s+/g, ' '); },
+        courseHit(i) { return ! this.needle() || this.catalog[i].course.includes(this.needle()); },
+        sectionHit(i, j) { return this.courseHit(i) || this.catalog[i].sections[j].includes(this.needle()); },
+        cardHit(i) { return this.courseHit(i) || this.catalog[i].sections.some((_, j) => this.sectionHit(i, j)); },
+        hits() { return this.catalog.filter((_, i) => this.cardHit(i)).length; }
+     }">
+@if($courses->isNotEmpty())
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        <div class="relative flex-1 min-w-[220px] max-w-md">
+            <i class="ti ti-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+            <input type="search" x-model="q" @keydown.escape="q = ''" placeholder="Search courses or sections, e.g. BSIT or Grade 11 STEM" aria-label="Search courses and sections"
+                class="block w-full border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-2 pl-9 pr-3 bg-white">
+        </div>
+        <p x-show="needle()" x-cloak class="text-xs text-gray-500" data-search-summary>
+            <span x-text="hits()"></span> of {{ $courses->count() }} course{{ $courses->count() === 1 ? '' : 's' }} match
+            <button type="button" @click="q = ''" class="ml-1 font-medium text-blue-600 hover:text-blue-700">Clear</button>
+        </p>
+    </div>
+@endif
+
 @forelse($courses as $course)
     @php
         // A failed Rename / Add Section on this course reopens that form
@@ -68,6 +154,7 @@
         $addSectionFailed = $errors->addSection->any() && (string) old('_section_course') === (string) $course->id;
     @endphp
     <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden mb-5"
+         x-show="cardHit({{ $loop->index }})"
          x-data="{
             addingSection: @js($addSectionFailed),
             editingCourse: @js($renameFailed),
@@ -96,19 +183,30 @@
                 @method('PUT')
                 <input type="hidden" name="_rename_course" value="{{ $course->id }}">
                 <div class="flex items-center gap-2">
+                    @php $editLevel = $renameFailed ? old('education_level', $course->education_level) : $course->education_level; @endphp
+                    {{-- Disabled (so not submitted) once the course has sections or students — see CourseController::levelLockReason(). --}}
+                    <select name="education_level" @disabled($course->level_lock_reason) title="{{ $course->level_lock_reason ?? 'Education level' }}"
+                        class="block w-40 shrink-0 border rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-1.5 px-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed {{ $renameFailed && $errors->renameCourse->has('education_level') ? 'border-red-500' : 'border-gray-300' }}">
+                        <option value="College" @selected($editLevel === 'College')>College</option>
+                        <option value="Basic Education" @selected($editLevel === 'Basic Education')>Basic Education</option>
+                    </select>
                     <input type="text" name="name" value="{{ $renameFailed ? old('name') : $course->name }}" required
                         class="block w-full max-w-xs border rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition py-1.5 px-3 {{ $renameFailed ? 'border-red-500' : 'border-gray-300' }}">
                     <button type="submit" class="text-xs font-semibold text-blue-600 hover:text-blue-700 px-2 py-1.5">Save</button>
                     <button type="button" @click="editingCourse = false" class="text-xs font-medium text-gray-500 hover:text-gray-700 px-2 py-1.5">Cancel</button>
                 </div>
                 @if($renameFailed)
-                    <p class="mt-1 text-xs text-red-500">{{ $errors->renameCourse->first('name') }}</p>
+                    @foreach($errors->renameCourse->all() as $message)
+                        <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                    @endforeach
+                @elseif($course->level_lock_reason)
+                    <p class="mt-1 text-[11px] text-gray-400"><i class="ti ti-lock"></i> {{ $course->level_lock_reason }}</p>
                 @endif
             </form>
 
             <div class="flex items-center gap-2 shrink-0" x-show="!editingCourse">
                 <button type="button" @click="editingCourse = true" class="text-xs font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1">
-                    <i class="ti ti-pencil"></i> Rename
+                    <i class="ti ti-pencil"></i> Edit
                 </button>
                 <button type="button" @click="addingSection = !addingSection" class="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
                     <i class="ti ti-plus"></i> Add Section
@@ -186,7 +284,7 @@
             <div class="divide-y divide-gray-50">
                 @foreach($course->sections as $section)
                     @php $editFailed = $errors->editSection->any() && (string) old('_section_id') === (string) $section->id; @endphp
-                    <div class="px-6 py-3 flex items-center justify-between gap-3 hover:bg-gray-50/50 transition" x-data="{ editingSection: @js($editFailed), editGradeLevel: @js($editFailed ? (string) old('grade_level') : $section->grade_level) }">
+                    <div class="px-6 py-3 flex items-center justify-between gap-3 hover:bg-gray-50/50 transition" x-show="sectionHit({{ $loop->parent->index }}, {{ $loop->index }})" x-data="{ editingSection: @js($editFailed), editGradeLevel: @js($editFailed ? (string) old('grade_level') : $section->grade_level) }">
                         <div class="flex items-center gap-3 flex-1 min-w-0" x-show="!editingSection">
                             <div class="flex items-center gap-2 shrink-0">
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
@@ -285,5 +383,18 @@
         </div>
     </div>
 @endforelse
+
+@if($courses->isNotEmpty())
+    <div x-show="hits() === 0" x-cloak class="bg-white border border-gray-100 rounded-2xl shadow-premium" data-search-empty>
+        <div class="flex flex-col items-center justify-center py-14">
+            <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-50 mb-3">
+                <i class="ti ti-search text-xl text-gray-400"></i>
+            </div>
+            <p class="text-sm font-medium text-gray-900 mb-1">No courses or sections match "<span x-text="q.trim()"></span>"</p>
+            <button type="button" @click="q = ''" class="text-xs font-medium text-blue-600 hover:text-blue-700 mt-1">Clear search</button>
+        </div>
+    </div>
+@endif
+</div>
 
 @endsection

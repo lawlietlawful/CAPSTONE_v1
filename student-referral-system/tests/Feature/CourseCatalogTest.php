@@ -303,6 +303,171 @@ class CourseCatalogTest extends TestCase
         $this->assertMatchesRegularExpression('/ti-user-check"><\/i>\s*1 teacher\b/', $html);
     }
 
+    // ── Changing a course's education level ─────────────────────────────
+
+    public function test_an_empty_courses_education_level_can_be_changed(): void
+    {
+        $course = Course::create(['name' => 'Junior High', 'education_level' => 'College']);   // the wrong pick
+
+        $this->actingAs($this->counselor())
+            ->put(route('admin.courses.update', $course->id), ['name' => 'Junior High', 'education_level' => 'Basic Education'])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', '"Junior High" is now a Basic Education course.');
+
+        $this->assertSame('Basic Education', $course->fresh()->education_level);
+    }
+
+    public function test_a_rename_and_level_change_can_happen_together(): void
+    {
+        $course = Course::create(['name' => 'Junoir High', 'education_level' => 'College']);
+
+        $this->actingAs($this->counselor())
+            ->put(route('admin.courses.update', $course->id), ['name' => 'Junior High', 'education_level' => 'Basic Education'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(['Junior High', 'Basic Education'], [$course->fresh()->name, $course->fresh()->education_level]);
+    }
+
+    public function test_the_level_is_locked_once_the_course_has_sections(): void
+    {
+        $course = $this->college();
+        $this->section($course, '1st Year', 'Block 1');
+
+        $this->actingAs($this->counselor())
+            ->put(route('admin.courses.update', $course->id), ['name' => 'BSIT', 'education_level' => 'Basic Education'])
+            ->assertSessionHasErrorsIn('renameCourse', [
+                'education_level' => 'Remove its 1 section before changing the education level.',
+            ]);
+
+        $this->assertSame('College', $course->fresh()->education_level);
+    }
+
+    public function test_the_level_is_locked_while_students_use_the_course(): void
+    {
+        $course = $this->college();
+        Student::factory()->create(['course' => 'BSIT', 'grade_level' => '2nd Year', 'section' => 'Z']);
+
+        $this->actingAs($this->counselor())
+            ->put(route('admin.courses.update', $course->id), ['name' => 'BSIT', 'education_level' => 'Basic Education'])
+            ->assertSessionHasErrorsIn('renameCourse', ['education_level']);
+
+        $this->assertSame('College', $course->fresh()->education_level);
+    }
+
+    public function test_a_locked_course_can_still_be_renamed(): void
+    {
+        // The disabled select isn't submitted, so no education_level arrives.
+        $course = $this->college();
+        $this->section($course, '1st Year', 'Block 1');
+
+        $this->actingAs($this->counselor())
+            ->put(route('admin.courses.update', $course->id), ['name' => 'BS Information Technology'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(['BS Information Technology', 'College'], [$course->fresh()->name, $course->fresh()->education_level]);
+    }
+
+    public function test_the_edit_form_shows_the_level_select_disabled_with_the_reason_only_when_locked(): void
+    {
+        $locked = $this->college();
+        $this->section($locked, '1st Year', 'Block 1');
+        $open = Course::create(['name' => 'New Program', 'education_level' => 'College']);
+
+        $html = $this->actingAs($this->counselor())->get(route('admin.courses.index'))->getContent();
+
+        $this->assertMatchesRegularExpression('/<select name="education_level" disabled title="Remove its 1 section before changing the education level\."/', $html);
+        $this->assertStringContainsString('<select name="education_level"  title="Education level"', $html);
+        $this->assertSame(1, substr_count($html, 'ti-lock'));
+    }
+
+    // ── Search ──────────────────────────────────────────────────────────
+
+    public function test_the_search_index_covers_names_abbreviations_levels_and_sections_in_display_order(): void
+    {
+        $course = Course::create(['name' => 'Bachelor of Science in Information Technology', 'education_level' => 'College']);
+        $this->section($course, '2nd Year', 'Block 1');
+        $this->section($course, '1st Year', 'Block 1');
+        $shs = $this->basicEd();
+        $this->section($shs, 'Grade 11', 'A', 'STEM');
+
+        $response = $this->actingAs($this->counselor())->get(route('admin.courses.index'));
+
+        // Courses by name, sections in school order (1st Year before 2nd).
+        $this->assertSame([
+            ['course' => 'bachelor of science in information technology | bsit | college', 'sections' => ['1st year block 1 | 1st year block 1', '2nd year block 1 | 2nd year block 1']],
+            ['course' => 'basic education | bed | basic education', 'sections' => ['grade 11 stem a | grade 11 a']],
+        ], $this->catalogFromJs($response->getContent()));
+
+        // Cards and rows are bound to it by position.
+        $response->assertSee('x-show="cardHit(0)"', false)
+            ->assertSee('x-show="cardHit(1)"', false)
+            ->assertSee('x-show="sectionHit(0, 1)"', false);
+    }
+
+    /** Decode the `catalog: …` value @js() rendered (a JSON.parse('…') call with \uXXXX escapes). */
+    private function catalogFromJs(string $html): ?array
+    {
+        if (! preg_match("/catalog: JSON\\.parse\\('(.+?)'\\)/", $html, $m)) {
+            return null;
+        }
+
+        return json_decode(json_decode('"' . $m[1] . '"'), true);
+    }
+
+    public function test_no_search_box_when_there_are_no_courses(): void
+    {
+        $this->actingAs($this->counselor())->get(route('admin.courses.index'))
+            ->assertDontSee('Search courses or sections', false)
+            ->assertSee('No courses yet');
+    }
+
+    // ── Students outside the catalog ────────────────────────────────────
+
+    public function test_students_outside_the_catalog_are_listed_with_the_reason(): void
+    {
+        $course = $this->college();
+        $this->section($course, '1st Year', 'Block 1');
+
+        Student::factory()->create(['first_name' => 'Ina', 'last_name' => 'Matched', 'course' => 'bsit', 'grade_level' => '1st Year', 'section' => 'BLOCK 1']);
+        $noCourse = Student::factory()->create(['first_name' => 'Riskyn', 'last_name' => 'Testcase', 'course' => 'BSCS', 'grade_level' => '2nd Year', 'section' => 'A']);
+        $noSection = Student::factory()->create(['first_name' => 'Olo', 'last_name' => 'Blocktwo', 'course' => 'BSIT', 'grade_level' => '1st Year', 'section' => 'Block 2']);
+
+        $html = $this->actingAs($this->counselor())->get(route('admin.courses.index'))->getContent();
+
+        $this->assertStringContainsString('2 students don&#039;t match any section in the catalog', $html);
+        $this->assertStringContainsString('Testcase, Riskyn', $html);
+        $this->assertStringContainsString('Course not in catalog', $html);
+        $this->assertStringContainsString('Blocktwo, Olo', $html);
+        $this->assertStringContainsString('Section not in catalog', $html);
+        // Case differences alone don't make a student "unmatched".
+        $this->assertStringNotContainsString('Matched, Ina', $html);
+        // Each links straight to that student's edit form.
+        $this->assertStringContainsString(route('admin.students.show', ['student' => $noCourse->id, 'edit' => 1]), $html);
+        $this->assertStringContainsString(route('admin.students.show', ['student' => $noSection->id, 'edit' => 1]), $html);
+    }
+
+    public function test_the_unmatched_panel_is_hidden_when_every_student_matches(): void
+    {
+        $course = $this->college();
+        $this->section($course, '1st Year', 'Block 1');
+        Student::factory()->create(['course' => 'BSIT', 'grade_level' => '1st Year', 'section' => 'Block 1']);
+
+        $html = $this->actingAs($this->counselor())->get(route('admin.courses.index'))->getContent();
+
+        $this->assertStringNotContainsString('data-unmatched-students', $html);
+    }
+
+    public function test_fix_placement_opens_the_students_edit_form(): void
+    {
+        $student = Student::factory()->create();
+        $counselor = $this->counselor();
+
+        $this->actingAs($counselor)->get(route('admin.students.show', ['student' => $student->id, 'edit' => 1]))
+            ->assertSee('showEditModal: true', false);
+        $this->actingAs($counselor)->get(route('admin.students.show', $student->id))
+            ->assertSee('showEditModal: false', false);
+    }
+
     // ── Escaping ────────────────────────────────────────────────────────
 
     public function test_a_name_with_quotes_cannot_break_out_of_the_delete_confirmation(): void
