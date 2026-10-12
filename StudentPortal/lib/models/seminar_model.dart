@@ -8,7 +8,8 @@ class SeminarModel {
   final String? speaker;
   final bool isRequired;
   final String assignedBy; // "ml_system" | "manual"
-  final String status;     // "enrolled" | "attended" | "missed"
+  final String status;     // "enrolled" | "attended" | "missed" | "excused"
+  final String sessionStatus; // the seminar itself: "upcoming" | "ongoing" | "completed" | "cancelled"
   final String? attendedAt;
 
   const SeminarModel({
@@ -22,10 +23,20 @@ class SeminarModel {
     required this.isRequired,
     required this.assignedBy,
     required this.status,
+    this.sessionStatus = 'upcoming',
     this.attendedAt,
   });
 
   bool get isAiAssigned => assignedBy == 'ml_system';
+
+  /// How a past seminar turned out for this student: "attended", "missed",
+  /// "excused", "cancelled" (the session itself was called off), or
+  /// "not_recorded" (it happened but attendance wasn't taken).
+  String get outcome {
+    if (sessionStatus == 'cancelled') return 'cancelled';
+    if (status == 'enrolled') return 'not_recorded';
+    return status;
+  }
 
   factory SeminarModel.fromJson(Map<String, dynamic> json) {
     return SeminarModel(
@@ -39,6 +50,7 @@ class SeminarModel {
       isRequired: json['is_required'] as bool? ?? false,
       assignedBy: json['assigned_by'] as String? ?? 'manual',
       status: json['status'] as String? ?? 'enrolled',
+      sessionStatus: json['session_status'] as String? ?? 'upcoming',
       attendedAt: json['attended_at'] as String?,
     );
   }

@@ -37,6 +37,7 @@ abstract class BaseSeminarController extends Controller
             'students',
             'students as attended_count' => fn ($q) => $q->where('student_seminars.status', 'attended'),
             'students as missed_count' => fn ($q) => $q->where('student_seminars.status', 'missed'),
+            'students as pending_count' => fn ($q) => $q->where('student_seminars.status', 'enrolled'),
         ]);
 
         if ($request->filled('search')) {
@@ -108,9 +109,10 @@ abstract class BaseSeminarController extends Controller
 
     public function store(Request $request)
     {
-        Seminar::create($this->validatedSeminar($request));
+        $seminar = Seminar::create($this->validatedSeminar($request));
 
-        return redirect()->route("{$this->prefix}.seminars.index")->with('success', 'Seminar created successfully.');
+        return redirect()->route("{$this->prefix}.seminars.index")
+            ->with('success', 'Seminar created successfully.' . $this->venueClashNote($seminar));
     }
 
     public function show(Request $request, Seminar $seminar)
@@ -145,17 +147,78 @@ abstract class BaseSeminarController extends Controller
 
         $participants = $query->paginate(10)->withQueryString();
 
-        return view("{$this->prefix}.seminars.show", compact('seminar', 'availableStudents', 'participants')
+        // Students who'd be double-booked: already on the roster of another
+        // seminar at the same time — tagged in the Assign Students list.
+        $bookedElsewhere = $this->bookedElsewhere($seminar, $availableStudents->pluck('id')->all());
+
+        return view("{$this->prefix}.seminars.show", compact('seminar', 'availableStudents', 'participants', 'bookedElsewhere')
             + ['courseOptions' => $this->courseOptions()]);
     }
 
-    public function update(Request $request, Seminar $seminar)
+    public function update(Request $request, Seminar $seminar, SmsService $smsService)
     {
+        $before = [
+            'status' => $seminar->status,
+            'when' => $seminar->date->format('Y-m-d') . ' ' . \Carbon\Carbon::parse($seminar->time)->format('H:i'),
+            'venue' => $seminar->venue,
+        ];
+
         $seminar->update($this->validatedSeminar($request, $seminar));
+        $seminar->refresh();
+
+        $wasAhead = in_array($before['status'], ['upcoming', 'ongoing'], true);
+        $isAhead = in_array($seminar->status, ['upcoming', 'ongoing'], true) && ! $seminar->date->isBefore(today());
+        $cancelled = $wasAhead && $seminar->status === 'cancelled';
+        $rescheduled = $wasAhead && $isAhead && (
+            $before['when'] !== $seminar->date->format('Y-m-d') . ' ' . \Carbon\Carbon::parse($seminar->time)->format('H:i')
+            || $before['venue'] !== $seminar->venue
+        );
+
+        $message = 'Seminar updated successfully.' . $this->venueClashNote($seminar);
+
+        // Students still expected to attend were told when and where (by the
+        // assignment SMS and the day-before reminder) — tell them when that
+        // changes, if the counselor left "Text enrolled students" ticked.
+        if (($cancelled || $rescheduled) && $request->boolean('notify_students')) {
+            $sent = $this->textPendingStudents($seminar, $smsService, $cancelled);
+            $message .= $sent > 0
+                ? " SMS sent to {$sent} contact" . ($sent === 1 ? '' : 's') . ' about the ' . ($cancelled ? 'cancellation' : 'change') . '.'
+                : ' No SMS sent — no pending students with contact numbers on file.';
+        }
 
         // Back to wherever the edit modal was opened (the index or the
         // seminar's own page).
-        return redirect()->back()->with('success', 'Seminar updated successfully.');
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Text the students still pending on the roster (and their parents)
+     * that the seminar was cancelled or moved. Returns how many went out.
+     */
+    private function textPendingStudents(Seminar $seminar, SmsService $smsService, bool $cancelled): int
+    {
+        $date = $seminar->date->format('M d, Y');
+        $time = \Carbon\Carbon::parse($seminar->time)->format('h:i A');
+        $sent = 0;
+
+        foreach ($seminar->students()->wherePivot('status', 'enrolled')->get() as $student) {
+            $what = $cancelled
+                ? "has been CANCELLED. There is no need to attend."
+                : "has been moved to {$date} at {$time} ({$seminar->venue}).";
+
+            if ($student->parent_contact) {
+                $sent += (int) $smsService->sendSms($student->parent_contact,
+                    "MU Advisory: The seminar '{$seminar->title}' your child {$student->first_name} is enrolled in {$what} - MU Guidance Office",
+                    $student->id, $student->parent_name ?? 'Parent', 'parent');
+            }
+            if ($student->student_contact) {
+                $sent += (int) $smsService->sendSms($student->student_contact,
+                    "MU Advisory: Your seminar '{$seminar->title}' {$what} - MU Guidance Office",
+                    $student->id, "{$student->first_name} {$student->last_name}", 'student');
+            }
+        }
+
+        return $sent;
     }
 
     public function destroy(Seminar $seminar)
@@ -174,6 +237,18 @@ abstract class BaseSeminarController extends Controller
 
         if ($seminar->status === 'cancelled') {
             return redirect()->back()->with('error', 'This seminar is cancelled — students can\'t be assigned to it.');
+        }
+
+        // The same rules the Assign Students list applies, enforced here too:
+        // requests also come from the Referral page's recommendations, which
+        // know nothing about this seminar's audience.
+        $outside = Student::whereIn('id', $request->student_ids)->get()
+            ->reject(fn ($s) => $s->status === 'active' && $seminar->admits($s));
+        if ($outside->isNotEmpty()) {
+            $names = $outside->map(fn ($s) => "{$s->first_name} {$s->last_name}")->implode(', ');
+
+            return redirect()->back()->with('error',
+                "{$names} can't be assigned — this seminar is for {$seminar->audienceLabel()} (active students only).");
         }
 
         // Students already enrolled would violate the students_seminars
@@ -238,7 +313,57 @@ abstract class BaseSeminarController extends Controller
                 : ' No SMS sent — no contact numbers on file.';
         }
 
+        $doubleBooked = $this->bookedElsewhere($seminar, array_values($newStudentIds));
+        if ($doubleBooked->isNotEmpty()) {
+            $names = Student::whereIn('id', $doubleBooked->keys())->get()
+                ->map(fn ($s) => "{$s->first_name} {$s->last_name} (\"{$doubleBooked[$s->id]->title}\")")
+                ->implode(', ');
+            $message .= ' Heads-up: already booked for another seminar at the same time — ' . $names . '.';
+        }
+
         return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Note for the success message when another seminar is in the same
+     * venue at an overlapping time (a warning, not an error: a big venue
+     * can host two sessions).
+     */
+    private function venueClashNote(Seminar $seminar): string
+    {
+        if ($seminar->status === 'cancelled') {
+            return '';
+        }
+
+        $clash = $seminar->overlapping()
+            ->first(fn ($other) => strcasecmp(trim($other->venue), trim($seminar->venue)) === 0);
+
+        return $clash
+            ? " Heads-up: \"{$clash->title}\" is also in {$clash->venue} at {$clash->startsAt()->format('h:i A')} that day."
+            : '';
+    }
+
+    /**
+     * Of the given students, those already on the roster (pending or
+     * attended) of another seminar at an overlapping time, keyed by student
+     * id => that other seminar.
+     */
+    private function bookedElsewhere(Seminar $seminar, array $studentIds)
+    {
+        $booked = collect();
+        if (empty($studentIds) || $seminar->status === 'cancelled') {
+            return $booked;
+        }
+
+        foreach ($seminar->overlapping() as $other) {
+            $other->students()
+                ->whereIn('students.id', $studentIds)
+                ->wherePivotIn('status', ['enrolled', 'attended'])
+                ->pluck('students.id')
+                ->each(fn ($id) => $booked->put($id, $booked->get($id, $other)));
+        }
+
+        return $booked;
     }
 
     public function updateAttendance(Request $request, Seminar $seminar)

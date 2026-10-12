@@ -421,6 +421,105 @@ class CourseCatalogTest extends TestCase
             ->assertSee('No courses yet');
     }
 
+    // ── Seminars that target a course ───────────────────────────────────
+
+    private function seminarTargeting(string $course, string $status = 'upcoming'): \App\Models\Seminar
+    {
+        return \App\Models\Seminar::create([
+            'title' => 'Study Habits', 'date' => now()->addDays(7)->toDateString(), 'time' => '10:00:00',
+            'venue' => 'AVR', 'is_required' => false, 'trigger_reason' => 'general', 'status' => $status,
+            'target_course' => $course,
+        ]);
+    }
+
+    public function test_renaming_a_course_also_updates_seminars_that_target_it(): void
+    {
+        $course = $this->college();
+        $upcoming = $this->seminarTargeting('BSIT');
+        $past = $this->seminarTargeting('BSIT', 'completed');
+        $other = $this->seminarTargeting('BSN');
+
+        $this->actingAs($this->counselor())
+            ->put(route('admin.courses.update', $course->id), ['name' => 'Bachelor of Science in Information Technology'])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'seminar targets were updated'));
+
+        $this->assertSame('Bachelor of Science in Information Technology', $upcoming->fresh()->target_course);
+        $this->assertSame('Bachelor of Science in Information Technology', $past->fresh()->target_course);
+        $this->assertSame('BSN', $other->fresh()->target_course);
+    }
+
+    public function test_a_course_an_upcoming_seminar_targets_cannot_be_deleted(): void
+    {
+        $course = $this->college();
+        $this->seminarTargeting('BSIT');
+
+        $this->actingAs($this->counselor())->delete(route('admin.courses.destroy', $course->id))
+            ->assertSessionHas('error', fn ($m) => str_contains($m, 'upcoming seminars'));
+
+        $this->assertNotNull($course->fresh());
+    }
+
+    public function test_past_seminars_dont_keep_a_course_from_being_deleted(): void
+    {
+        $course = $this->college();
+        $this->seminarTargeting('BSIT', 'completed');
+
+        $this->actingAs($this->counselor())->delete(route('admin.courses.destroy', $course->id))
+            ->assertSessionHas('success');
+
+        $this->assertNull($course->fresh());
+    }
+
+    public function test_an_upcoming_seminar_locks_the_courses_education_level(): void
+    {
+        $course = $this->college();
+        $this->seminarTargeting('BSIT');
+
+        $this->actingAs($this->counselor())
+            ->put(route('admin.courses.update', $course->id), ['name' => 'BSIT', 'education_level' => 'Basic Education'])
+            ->assertSessionHasErrorsIn('renameCourse', ['education_level']);
+
+        $this->actingAs($this->counselor())->get(route('admin.courses.index'))
+            ->assertSee('upcoming seminars still use this course', false);
+    }
+
+    // ── Teacher assignments outside the catalog ─────────────────────────
+
+    public function test_teacher_assignments_outside_the_catalog_are_listed_with_the_reason(): void
+    {
+        $course = $this->college();
+        $this->section($course, '1st Year', 'Block 1');
+        $ok = User::factory()->teacher()->create(['name' => 'Ana Okay']);
+        $badCourse = User::factory()->teacher()->create(['name' => 'Ben Course']);
+        $badYear = User::factory()->teacher()->create(['name' => 'Cy Year']);
+        $badSection = User::factory()->teacher()->create(['name' => 'Di Section']);
+        TeacherAssignment::factory()->create(['teacher_id' => $ok->id, 'course' => 'bsit', 'grade_level' => '1st Year', 'section' => null]);
+        TeacherAssignment::factory()->create(['teacher_id' => $badCourse->id, 'course' => 'BSCS', 'grade_level' => null, 'section' => null]);
+        TeacherAssignment::factory()->create(['teacher_id' => $badYear->id, 'course' => 'BSIT', 'grade_level' => '3rd Year', 'section' => null]);
+        TeacherAssignment::factory()->create(['teacher_id' => $badSection->id, 'course' => 'BSIT', 'grade_level' => '1st Year', 'section' => 'Block 9']);
+
+        $html = $this->actingAs($this->counselor())->get(route('admin.courses.index'))->getContent();
+
+        $this->assertStringContainsString('data-unmatched-assignments', $html);
+        $this->assertStringContainsString('3 teacher course assignments point outside the catalog', $html);
+        $this->assertStringNotContainsString('Ana Okay', $html);
+        foreach (['Ben Course' => 'Course not in catalog', 'Cy Year' => 'Year level not in catalog', 'Di Section' => 'Section not in catalog'] as $name => $issue) {
+            $row = substr($html, strpos($html, $name), 900);
+            $this->assertStringContainsString($issue, $row, $name);
+        }
+        $this->assertStringContainsString(route('admin.teachers.show', $badCourse->id), $html);
+    }
+
+    public function test_no_teacher_panel_when_every_assignment_matches(): void
+    {
+        $course = $this->college();
+        $this->section($course, '1st Year', 'Block 1');
+        TeacherAssignment::factory()->create(['course' => 'BSIT', 'grade_level' => '1st Year', 'section' => 'Block 1']);
+
+        $this->actingAs($this->counselor())->get(route('admin.courses.index'))
+            ->assertDontSee('data-unmatched-assignments', false);
+    }
+
     // ── Students outside the catalog ────────────────────────────────────
 
     public function test_students_outside_the_catalog_are_listed_with_the_reason(): void

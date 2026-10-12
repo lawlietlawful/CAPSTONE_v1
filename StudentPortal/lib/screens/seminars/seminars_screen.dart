@@ -25,7 +25,7 @@ class SeminarsScreen extends StatelessWidget {
       children: [
         NavyHeader(
           title: 'My seminars',
-          subtitle: '$requiredCount required · $completedCount completed',
+          subtitle: '$requiredCount required · $completedCount past',
           avatarInitials: sp.student?.initials ?? '?',
           onAvatarTap: () => StudentProfileSheet.show(context),
         ),
@@ -138,7 +138,8 @@ class SeminarsScreen extends StatelessWidget {
           // ── Section 2: Completed ───────────────────────────
           if (semp.completed.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('Completed', style: AppTextStyles.sectionTitle),
+            // Attended, missed, excused, cancelled — not only completed ones.
+            Text('Past & Cancelled', style: AppTextStyles.sectionTitle),
             const SizedBox(height: 8),
             ...semp.completed.map(
               (seminar) => Padding(

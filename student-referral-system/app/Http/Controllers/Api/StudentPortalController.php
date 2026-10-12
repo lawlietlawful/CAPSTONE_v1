@@ -103,13 +103,22 @@ class StudentPortalController extends Controller
                 'is_required' => (bool) $seminar->is_required,
                 'assigned_by' => $seminar->pivot->assigned_by,
                 'status' => $seminar->pivot->status,
+                // The seminar's own lifecycle, so the app can tell a
+                // cancelled session from one the student attended/missed.
+                'session_status' => $seminar->status,
                 'attended_at' => optional($seminar->pivot->attended_at)->toIso8601String(),
             ];
         };
 
-        $required = $seminars->where('pivot.status', 'enrolled')->map($format)->values();
-        $completed = $seminars->whereIn('pivot.status', ['attended', 'missed', 'excused'])
-            ->map($format)->values();
+        // "Required" = still to attend: enrolled in a seminar that hasn't
+        // happened and wasn't cancelled. Everything else — attended, missed,
+        // excused, cancelled, or past without attendance taken — is history.
+        $stillAhead = fn ($seminar) => $seminar->pivot->status === 'enrolled'
+            && in_array($seminar->status, ['upcoming', 'ongoing'], true)
+            && ! $seminar->date->isBefore(today());
+
+        $required = $seminars->filter($stillAhead)->map($format)->values();
+        $completed = $seminars->reject($stillAhead)->sortByDesc('date')->map($format)->values();
 
         return response()->json([
             'required' => $required,

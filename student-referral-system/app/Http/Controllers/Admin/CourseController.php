@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\CourseSection;
+use App\Models\Seminar;
 use App\Models\Student;
 use App\Models\TeacherAssignment;
 use Illuminate\Http\Request;
@@ -36,10 +37,12 @@ class CourseController extends Controller
         // course" or "whole grade level" — see User::advisedStudentsQuery()).
         $teacherAssignments = TeacherAssignment::all(['teacher_id', 'course', 'grade_level', 'section']);
 
-        // Course names any student or teacher assignment still uses — such a
-        // course's education level is locked (see levelLockReason()).
+        // Course names any student, teacher assignment or upcoming seminar
+        // still uses — such a course's education level is locked (see
+        // levelLockReason()).
         $usedCourseNames = Student::distinct()->pluck('course')
             ->merge($teacherAssignments->pluck('course'))
+            ->merge(Seminar::whereIn('status', ['upcoming', 'ongoing'])->distinct()->pluck('target_course'))
             ->filter()
             ->mapWithKeys(fn ($name) => [strtolower($name) => true]);
 
@@ -64,8 +67,9 @@ class CourseController extends Controller
         }
 
         $unmatchedStudents = $this->studentsOutsideCatalog($courses);
+        $unmatchedAssignments = $this->assignmentsOutsideCatalog($courses);
 
-        return view('admin.courses.index', compact('courses', 'totalCourses', 'totalSections', 'unmatchedStudents'))
+        return view('admin.courses.index', compact('courses', 'totalCourses', 'totalSections', 'unmatchedStudents', 'unmatchedAssignments'))
             ->with([
                 'collegeYearLevels' => Course::COLLEGE_YEAR_LEVELS,
                 'basicEdGradeLevels' => Course::BASIC_ED_GRADE_LEVELS,
@@ -92,6 +96,35 @@ class CourseController extends Controller
      * without this list they'd be invisible here. Each gets a reason:
      * the course itself isn't in the catalog, or only the section isn't.
      */
+    private function assignmentsOutsideCatalog(Collection $courses): Collection
+    {
+        // Same idea for teachers: an assignment names a course, and optionally
+        // a year level and a section (blank = the whole course / year). It's
+        // out of the catalog when what it names doesn't exist — then the
+        // teacher's "My Students" list silently matches nobody.
+        $byCourse = $courses->keyBy(fn ($c) => strtolower($c->name));
+
+        return TeacherAssignment::with('teacher:id,name')->get()
+            ->map(function ($a) use ($byCourse) {
+                $course = $byCourse->get(strtolower((string) $a->course));
+                $sections = $course?->sections ?? collect();
+                $a->catalog_issue = match (true) {
+                    ! $course => 'Course not in catalog',
+                    $a->grade_level && ! $sections->contains(fn ($s) => strcasecmp($s->grade_level, $a->grade_level) === 0)
+                        => 'Year level not in catalog',
+                    $a->section && ! $sections->contains(fn ($s) => strcasecmp($s->section, $a->section) === 0
+                            && (! $a->grade_level || strcasecmp($s->grade_level, $a->grade_level) === 0))
+                        => 'Section not in catalog',
+                    default => null,
+                };
+
+                return $a;
+            })
+            ->filter(fn ($a) => $a->catalog_issue !== null)
+            ->sortBy(fn ($a) => strtolower($a->teacher?->name ?? ''))
+            ->values();
+    }
+
     private function studentsOutsideCatalog(Collection $courses): Collection
     {
         $courseNames = $courses->mapWithKeys(fn ($c) => [strtolower($c->name) => true]);
@@ -233,17 +266,20 @@ class CourseController extends Controller
             $course->update(['name' => $newName, 'education_level' => $newLevel]);
             Student::where('course', $oldName)->update(['course' => $newName]);
             TeacherAssignment::where('course', $oldName)->update(['course' => $newName]);
+            // Seminars target a course by name too — without this a renamed
+            // course's seminars would target a name nobody has any more.
+            Seminar::where('target_course', $oldName)->update(['target_course' => $newName]);
         });
 
         return redirect()->route('admin.courses.index')
-            ->with('success', "Course renamed to \"{$newName}\". Existing students and teacher assignments were updated to match.");
+            ->with('success', "Course renamed to \"{$newName}\". Existing students, teacher assignments and seminar targets were updated to match.");
     }
 
     public function destroy(Course $course)
     {
         if ($this->courseInUse($course)) {
             return redirect()->route('admin.courses.index')
-                ->with('error', "Cannot delete \"{$course->name}\" — it is still referenced by existing students or teacher assignments.");
+                ->with('error', "Cannot delete \"{$course->name}\" — it is still referenced by existing students, teacher assignments or upcoming seminars.");
         }
 
         $course->delete();
@@ -330,20 +366,22 @@ class CourseController extends Controller
 
         return match (true) {
             $sections > 0 => "Remove its {$sections} section" . ($sections === 1 ? '' : 's') . ' before changing the education level.',
-            $inUse => 'Students or teacher assignments still use this course, so its education level can\'t change.',
+            $inUse => 'Students, teacher assignments or upcoming seminars still use this course, so its education level can\'t change.',
             default => null,
         };
     }
 
     /**
-     * Whether any real student or teacher assignment still references this
-     * course by name, so deleting it wouldn't silently orphan a reference
-     * that's still meaningful elsewhere in the system.
+     * Whether any real student, teacher assignment or upcoming seminar still
+     * references this course by name, so deleting it wouldn't silently
+     * orphan a reference that's still meaningful elsewhere in the system.
+     * Past seminars don't count: they keep their target as history.
      */
     private function courseInUse(Course $course): bool
     {
         return Student::where('course', $course->name)->exists()
-            || TeacherAssignment::where('course', $course->name)->exists();
+            || TeacherAssignment::where('course', $course->name)->exists()
+            || Seminar::where('target_course', $course->name)->whereIn('status', ['upcoming', 'ongoing'])->exists();
     }
 
     /**

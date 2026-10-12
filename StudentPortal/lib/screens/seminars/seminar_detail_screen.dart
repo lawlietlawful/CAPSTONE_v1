@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/utils/date_utils.dart';
-import '../../core/utils/string_utils.dart';
 import '../../models/seminar_model.dart';
 import '../../widgets/seminars/ai_assigned_badge.dart';
 
@@ -54,9 +53,9 @@ class SeminarDetailScreen extends StatelessWidget {
                             : AppColors.greenText,
                       ),
                       _Chip(
-                        label: _statusLabel(seminar.status),
-                        bg: _statusBg(seminar.status),
-                        textColor: _statusText(seminar.status),
+                        label: _statusLabel(_displayStatus),
+                        bg: _statusBg(_displayStatus),
+                        textColor: _statusText(_displayStatus),
                       ),
                     ],
                   ),
@@ -97,7 +96,7 @@ class SeminarDetailScreen extends StatelessWidget {
                   _DetailRow(
                     icon: Icons.info_outlined,
                     label: 'Status',
-                    value: AppStringUtils.capitalize(seminar.status),
+                    value: _statusLabel(_displayStatus).replaceAll('✓ ', ''),
                   ),
                 ],
               ),
@@ -140,12 +139,20 @@ class SeminarDetailScreen extends StatelessWidget {
     );
   }
 
+  /// A cancelled session reads "Cancelled" whatever the student's own status.
+  String get _displayStatus =>
+      seminar.sessionStatus == 'cancelled' ? 'cancelled' : seminar.status;
+
   String _statusLabel(String status) {
     switch (status) {
       case 'attended':
         return '✓ Attended';
       case 'missed':
         return 'Missed';
+      case 'excused':
+        return 'Excused';
+      case 'cancelled':
+        return 'Cancelled';
       default:
         return 'Enrolled';
     }
@@ -157,6 +164,10 @@ class SeminarDetailScreen extends StatelessWidget {
         return AppColors.greenBg;
       case 'missed':
         return AppColors.redBg;
+      case 'excused':
+        return AppColors.amberBg;
+      case 'cancelled':
+        return AppColors.background;
       default:
         return AppColors.accentLight;
     }
@@ -168,6 +179,10 @@ class SeminarDetailScreen extends StatelessWidget {
         return AppColors.greenText;
       case 'missed':
         return AppColors.redText;
+      case 'excused':
+        return AppColors.amberText;
+      case 'cancelled':
+        return AppColors.text2;
       default:
         return AppColors.accentDark;
     }

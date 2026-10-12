@@ -161,5 +161,21 @@
             <label class="block text-xs font-semibold text-gray-600 mb-1">Description</label>
             <textarea name="description" rows="3" class="{{ $input }} {{ $bad('description') }}">{{ $val('description', $seminar?->description) }}</textarea>
         </div>
+
+        {{-- Editing a seminar people are waiting for: offer to tell them
+             if this cancels it or moves its date, time or venue. --}}
+        @if($seminar)
+            @php $pending = $seminar->pending_count ?? $seminar->students->where('pivot.status', 'enrolled')->count(); @endphp
+            @if($pending > 0)
+                <label class="flex items-start gap-2.5 p-3 rounded-xl bg-blue-50/60 border border-blue-100 cursor-pointer" data-notify-students>
+                    <input type="checkbox" name="notify_students" value="1" @checked($useOld ? old('notify_students') : true)
+                           class="mt-0.5 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <span class="text-xs text-blue-900 leading-relaxed">
+                        <span class="font-semibold">Text the {{ $pending }} pending {{ $pending === 1 ? 'student' : 'students' }}</span> and their parents
+                        if this cancels the seminar or changes its date, time or venue.
+                    </span>
+                </label>
+            @endif
+        @endif
     </div>
 </div>

@@ -111,6 +111,56 @@
     </div>
 @endif
 
+{{-- ── Teacher assignments outside the catalog ─────────────── --}}
+@if($unmatchedAssignments->isNotEmpty())
+    <div class="bg-amber-50/60 border border-amber-200 rounded-2xl overflow-hidden mb-5" x-data="{ open: false }" data-unmatched-assignments>
+        <button type="button" @click="open = !open" class="w-full px-5 py-4 flex items-center gap-3 text-left">
+            <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                <i class="ti ti-user-exclamation text-amber-600"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-amber-900">
+                    {{ $unmatchedAssignments->count() }} teacher course assignment{{ $unmatchedAssignments->count() === 1 ? '' : 's' }} {{ $unmatchedAssignments->count() === 1 ? 'points' : 'point' }} outside the catalog
+                </p>
+                <p class="text-xs text-amber-800/80 mt-0.5">Those teachers' "My Students" lists match nobody for these. Open the teacher to fix the assignment, or add the missing course/section here.</p>
+            </div>
+            <i class="ti text-amber-700 shrink-0" :class="open ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+        </button>
+        <div x-show="open" x-cloak class="border-t border-amber-200 bg-white max-h-80 overflow-y-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50/80 text-[11px] uppercase tracking-wide text-gray-400 sticky top-0">
+                    <tr>
+                        <th class="text-left font-medium px-5 py-2">Teacher</th>
+                        <th class="text-left font-medium px-5 py-2">Assigned To</th>
+                        <th class="text-left font-medium px-5 py-2">Issue</th>
+                        <th class="px-5 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    @foreach($unmatchedAssignments as $assignment)
+                        <tr>
+                            <td class="px-5 py-2.5 font-medium text-gray-800">{{ $assignment->teacher?->name ?? 'Unknown teacher' }}</td>
+                            <td class="px-5 py-2.5 text-gray-600">
+                                {{ $assignment->course ?: '—' }}
+                                <span class="text-gray-300">/</span> {{ $assignment->grade_level ?: 'All years' }}
+                                <span class="text-gray-300">/</span> {{ $assignment->section ?: 'All sections' }}
+                            </td>
+                            <td class="px-5 py-2.5">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-100 whitespace-nowrap">{{ $assignment->catalog_issue }}</span>
+                            </td>
+                            <td class="px-5 py-2.5 text-right">
+                                @if($assignment->teacher)
+                                    <a href="{{ route('admin.teachers.show', $assignment->teacher_id) }}" class="text-xs font-semibold text-blue-600 hover:text-blue-700 whitespace-nowrap">Fix assignment <i class="ti ti-arrow-right"></i></a>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+@endif
+
 {{-- ── Courses List ───────────────────────────────────────── --}}
 @php
     // What the search box matches, per course and per section (in display

@@ -540,6 +540,213 @@ class SeminarManagementTest extends TestCase
             ->assertSee('No one left to assign');
     }
 
+    // ── Assign enforces the audience (whatever page it comes from) ──────
+
+    public function test_assigning_a_student_outside_the_target_audience_is_refused(): void
+    {
+        $seminar = $this->seminar(['target_course' => 'Bachelor of Science in Nursing']);
+        $outsider = Student::factory()->create(['first_name' => 'Ivan', 'last_name' => 'Tech', 'course' => 'BSIT']);
+
+        $this->actingAs($this->counselor())->post(route('counselor.seminars.assign', $seminar), ['student_ids' => [$outsider->id]])
+            ->assertSessionHas('error', "Ivan Tech can't be assigned — this seminar is for Bachelor of Science in Nursing (active students only).");
+
+        $this->assertNull($this->pivot($seminar, $outsider));
+    }
+
+    public function test_an_inactive_student_cannot_be_assigned(): void
+    {
+        $seminar = $this->seminar();
+        $graduate = Student::factory()->create(['status' => 'graduated']);
+
+        $this->actingAs($this->counselor())->post(route('counselor.seminars.assign', $seminar), ['student_ids' => [$graduate->id]])
+            ->assertSessionHas('error');
+
+        $this->assertNull($this->pivot($seminar, $graduate));
+    }
+
+    // ── Referral page recommendations ───────────────────────────────────
+
+    private function referralWithTag(Student $student, string $tag = 'general')
+    {
+        $assessment = RiskAssessment::create([
+            'student_id' => $student->id, 'risk_score' => 60, 'risk_level' => 'moderate', 'assessed_at' => now(),
+            'risk_factors' => ['recommended_seminar_tag' => $tag],
+        ]);
+
+        return \App\Models\Referral::factory()->create(['student_id' => $student->id, 'risk_assessment_id' => $assessment->id]);
+    }
+
+    public function test_recommendations_only_list_seminars_the_student_can_join(): void
+    {
+        $student = Student::factory()->create(['course' => 'Bachelor of Science in Nursing', 'status' => 'active']);
+        $referral = $this->referralWithTag($student);
+        $open = $this->seminar(['title' => 'Open To All']);
+        $nursing = $this->seminar(['title' => 'Nursing Only', 'target_course' => 'Bachelor of Science in Nursing']);
+        $itOnly = $this->seminar(['title' => 'IT Only', 'target_course' => 'BSIT']);
+        $full = $this->seminar(['title' => 'Already Full', 'max_participants' => 1]);
+        $full->students()->attach(Student::factory()->create()->id, ['status' => 'enrolled']);
+
+        $html = $this->actingAs($this->counselor())->get(route('counselor.referrals.show', $referral))->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-recommended-seminar="' . $open->id . '"', $html);
+        $this->assertStringContainsString('data-recommended-seminar="' . $nursing->id . '"', $html);
+        $this->assertStringNotContainsString('data-recommended-seminar="' . $itOnly->id . '"', $html);
+        // A full seminar is listed as Full, without an Assign button.
+        $fullBlock = substr($html, strpos($html, 'data-recommended-seminar="' . $full->id . '"'), 1500);
+        $this->assertStringContainsString('no slots left', $fullBlock);
+        $this->assertStringNotContainsString(route('counselor.seminars.assign', $full), $fullBlock);
+    }
+
+    // ── A full seminar ──────────────────────────────────────────────────
+
+    public function test_a_full_seminar_shows_a_full_state_instead_of_the_checklist(): void
+    {
+        $seminar = $this->seminar(['max_participants' => 1]);
+        $seminar->students()->attach(Student::factory()->create()->id, ['status' => 'enrolled']);
+        Student::factory()->create(['status' => 'active']);   // still eligible
+
+        $this->actingAs($this->counselor())->get(route('counselor.seminars.show', $seminar))
+            ->assertSee('data-assign-full', false)
+            ->assertSee('Raise capacity')
+            ->assertDontSee('data-assign-list', false);
+    }
+
+    // ── Cancel / reschedule notifications ───────────────────────────────
+
+    private function rosterOfTwo(Seminar $seminar): array
+    {
+        $pending = Student::factory()->create(['first_name' => 'Pia', 'parent_contact' => '09171111111', 'student_contact' => '09182222222']);
+        $done = Student::factory()->create(['parent_contact' => '09173333333']);
+        $seminar->students()->attach($pending->id, ['status' => 'enrolled']);
+        $seminar->students()->attach($done->id, ['status' => 'excused']);
+
+        return [$pending, $done];
+    }
+
+    public function test_cancelling_texts_the_students_still_pending(): void
+    {
+        $seminar = $this->seminar(['title' => 'Peer Support']);
+        [$pending] = $this->rosterOfTwo($seminar);
+
+        $this->actingAs($this->counselor())->put(route('counselor.seminars.update', $seminar), $this->payload([
+            'title' => 'Peer Support', 'date' => $seminar->date->toDateString(), 'time' => '10:00', 'venue' => 'AVR',
+            'status' => 'cancelled', 'notify_students' => '1',
+        ]))->assertSessionHas('success', 'Seminar updated successfully. SMS sent to 2 contacts about the cancellation.');
+
+        // Only the pending student (parent + student), not the excused one.
+        $this->assertSame(2, SmsLog::count());
+        $this->assertEqualsCanonicalizing([$pending->id], SmsLog::pluck('student_id')->unique()->all());
+        $this->assertStringContainsString("'Peer Support' has been CANCELLED", SmsLog::where('recipient_type', 'student')->first()->message);
+    }
+
+    public function test_rescheduling_texts_the_new_date_time_and_venue(): void
+    {
+        $seminar = $this->seminar(['title' => 'Peer Support']);
+        $this->rosterOfTwo($seminar);
+        $newDate = now()->addDays(9);
+
+        $this->actingAs($this->counselor())->put(route('counselor.seminars.update', $seminar), $this->payload([
+            'title' => 'Peer Support', 'date' => $newDate->toDateString(), 'time' => '15:30', 'venue' => 'Gym',
+            'notify_students' => '1',
+        ]))->assertSessionHas('success', 'Seminar updated successfully. SMS sent to 2 contacts about the change.');
+
+        $this->assertStringContainsString(
+            'has been moved to ' . $newDate->format('M d, Y') . ' at 03:30 PM (Gym)',
+            SmsLog::where('recipient_type', 'student')->first()->message
+        );
+    }
+
+    public function test_no_texts_when_unticked_or_when_nothing_students_need_changed(): void
+    {
+        $seminar = $this->seminar(['title' => 'Peer Support', 'venue' => 'AVR']);
+        $this->rosterOfTwo($seminar);
+        $counselor = $this->counselor();
+
+        // Unticked: cancelled, but no SMS.
+        $this->actingAs($counselor)->put(route('counselor.seminars.update', $seminar), $this->payload([
+            'date' => $seminar->date->toDateString(), 'time' => '10:00', 'venue' => 'AVR', 'status' => 'cancelled',
+        ]))->assertSessionHas('success', 'Seminar updated successfully.');
+
+        // Ticked, but only the description changed.
+        $other = $this->seminar(['title' => 'Other', 'venue' => 'AVR']);
+        $this->rosterOfTwo($other);
+        $this->actingAs($counselor)->put(route('counselor.seminars.update', $other), $this->payload([
+            'title' => 'Other', 'date' => $other->date->toDateString(), 'time' => '10:00', 'venue' => 'AVR',
+            'description' => 'Typo fixed', 'notify_students' => '1',
+        ]))->assertSessionHas('success', 'Seminar updated successfully.');
+
+        $this->assertSame(0, SmsLog::count());
+    }
+
+    public function test_the_edit_form_offers_to_text_pending_students(): void
+    {
+        $seminar = $this->seminar();
+        $this->rosterOfTwo($seminar);
+        $empty = $this->seminar(['title' => 'Nobody Yet']);
+
+        $this->actingAs($this->counselor())->get(route('counselor.seminars.show', $seminar))
+            ->assertSee('data-notify-students', false)
+            ->assertSee('Text the 1 pending student');
+        $this->actingAs($this->counselor())->get(route('counselor.seminars.show', $empty))
+            ->assertDontSee('data-notify-students', false);
+    }
+
+    // ── Clashes ─────────────────────────────────────────────────────────
+
+    public function test_a_venue_clash_is_flagged_but_not_blocked(): void
+    {
+        $date = now()->addDays(6)->toDateString();
+        $this->seminar(['title' => 'Morning Talk', 'date' => $date, 'time' => '09:00:00', 'venue' => 'AVR']);
+
+        $this->actingAs($this->counselor())->post(route('counselor.seminars.store'), $this->payload([
+            'date' => $date, 'time' => '10:00', 'venue' => 'avr',
+        ]))->assertSessionHas('success', 'Seminar created successfully. Heads-up: "Morning Talk" is also in AVR at 09:00 AM that day.');
+
+        // Far enough apart, or a different venue: no note.
+        $this->actingAs($this->counselor())->post(route('counselor.seminars.store'), $this->payload([
+            'date' => $date, 'time' => '13:00', 'venue' => 'AVR',
+        ]))->assertSessionHas('success', 'Seminar created successfully.');
+
+        $this->assertSame(3, Seminar::count());
+    }
+
+    public function test_double_booked_students_are_tagged_and_flagged(): void
+    {
+        $date = now()->addDays(6)->toDateString();
+        $other = $this->seminar(['title' => 'Morning Talk', 'date' => $date, 'time' => '09:00:00', 'venue' => 'AVR']);
+        $seminar = $this->seminar(['title' => 'Overlap', 'date' => $date, 'time' => '10:00:00', 'venue' => 'Gym']);
+        $busy = Student::factory()->create(['first_name' => 'Bea', 'last_name' => 'Busy', 'status' => 'active']);
+        $free = Student::factory()->create(['status' => 'active']);
+        $other->students()->attach($busy->id, ['status' => 'enrolled']);
+
+        $html = $this->actingAs($this->counselor())->get(route('counselor.seminars.show', $seminar))->getContent();
+        $this->assertSame(1, substr_count($html, 'data-booked-elsewhere'));
+
+        $this->actingAs($this->counselor())->post(route('counselor.seminars.assign', $seminar), ['student_ids' => [$busy->id, $free->id]])
+            ->assertSessionHas('success', '2 students assigned successfully. Heads-up: already booked for another seminar at the same time — Bea Busy ("Morning Talk").');
+    }
+
+    // ── Student Portal API ──────────────────────────────────────────────
+
+    public function test_the_student_portal_only_lists_seminars_still_ahead_as_required(): void
+    {
+        $student = Student::factory()->create();
+        $ahead = $this->seminar(['title' => 'Ahead']);
+        $cancelled = $this->seminar(['title' => 'Called Off', 'status' => 'cancelled']);
+        $past = $this->seminar(['title' => 'Not Recorded', 'date' => now()->subDays(3)->toDateString(), 'status' => 'completed']);
+        $missed = $this->seminar(['title' => 'Missed One', 'date' => now()->subDays(10)->toDateString(), 'status' => 'completed']);
+        foreach ([$ahead, $cancelled, $past] as $s) {
+            $s->students()->attach($student->id, ['status' => 'enrolled']);
+        }
+        $missed->students()->attach($student->id, ['status' => 'missed']);
+
+        $json = $this->actingAs($student->user, 'sanctum')->getJson('/api/student/seminars')->assertOk()->json();
+
+        $this->assertSame(['Ahead'], collect($json['required'])->pluck('title')->all());
+        $this->assertEqualsCanonicalizing(['Called Off', 'Not Recorded', 'Missed One'], collect($json['completed'])->pluck('title')->all());
+        $this->assertSame('cancelled', collect($json['completed'])->firstWhere('title', 'Called Off')['session_status']);
+    }
+
     // ── Pages ───────────────────────────────────────────────────────────
 
     public function test_there_are_no_standalone_create_or_edit_pages(): void

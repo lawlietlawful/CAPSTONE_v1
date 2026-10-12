@@ -113,9 +113,17 @@ class ReferralController extends Controller
             if ($tag) {
                 // stillAhead(): a past seminar whose status was never rolled
                 // over must not be recommended.
-                $recommendedSeminars = \App\Models\Seminar::where('trigger_reason', $tag)
+                // ...and only seminars this student is in the audience for
+                // (an active student, in the target course/year), with the
+                // roster count so a full one shows as Full, not as an
+                // Assign button that can only fail.
+                $recommendedSeminars = $referral->student->status !== 'active' ? collect() : \App\Models\Seminar::where('trigger_reason', $tag)
                     ->stillAhead()
-                    ->get();
+                    ->withCount('students')
+                    ->orderBy('date')->orderBy('time')
+                    ->get()
+                    ->filter(fn ($seminar) => $seminar->admits($referral->student))
+                    ->values();
             }
         }
 

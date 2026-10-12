@@ -199,14 +199,24 @@
                     </h5>
                     <div class="space-y-3">
                         @foreach($recommendedSeminars as $seminar)
-                            <div class="flex items-center justify-between p-3 rounded-lg border border-indigo-100 bg-indigo-50/30">
-                                <div>
-                                    <div class="font-medium text-indigo-900 text-sm">{{ $seminar->title }}</div>
-                                    <div class="text-xs text-indigo-600/70">{{ \Carbon\Carbon::parse($seminar->date)->format('M d, Y') }}</div>
+                            @php $slotsLeft = $seminar->slotsLeft(); @endphp
+                            <div class="flex items-center justify-between gap-3 p-3 rounded-lg border border-indigo-100 bg-indigo-50/30" data-recommended-seminar="{{ $seminar->id }}">
+                                <div class="min-w-0">
+                                    <a href="{{ route('counselor.seminars.show', $seminar->id) }}" class="font-medium text-indigo-900 text-sm hover:underline">{{ $seminar->title }}</a>
+                                    <div class="text-xs text-indigo-600/70">
+                                        {{ \Carbon\Carbon::parse($seminar->date)->format('M d, Y') }} · {{ \Carbon\Carbon::parse($seminar->time)->format('h:i A') }} · {{ $seminar->venue }}
+                                        @if($slotsLeft !== null && ! in_array($seminar->id, $enrolledSeminarIds))
+                                            · {{ $slotsLeft === 0 ? 'no slots left' : $slotsLeft . ' slot' . ($slotsLeft === 1 ? '' : 's') . ' left' }}
+                                        @endif
+                                    </div>
                                 </div>
                                 @if(in_array($seminar->id, $enrolledSeminarIds))
-                                    <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-100 rounded">
+                                    <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-100 rounded shrink-0">
                                         <i class="ti ti-check"></i> Already Enrolled
+                                    </span>
+                                @elseif($slotsLeft === 0)
+                                    <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-100 rounded shrink-0" title="Raise its capacity on the seminar page to add more students">
+                                        <i class="ti ti-users"></i> Full
                                     </span>
                                 @else
                                     <form action="{{ route('counselor.seminars.assign', $seminar->id) }}" method="POST">

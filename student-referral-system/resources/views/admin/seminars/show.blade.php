@@ -61,7 +61,7 @@
     ])->filter()->implode(' · ');
 @endphp
 
-<div class="mb-6 flex flex-wrap items-center justify-between gap-3" x-data="{ showQrModal: false, showEditModal: {{ $errors->any() && old('id') ? 'true' : 'false' }} }">
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3" x-data="{ showQrModal: false, showEditModal: {{ $errors->any() && old('id') ? 'true' : 'false' }} }" @open-edit-seminar.window="showEditModal = true">
     <a href="{{ route('admin.seminars.index') }}" class="text-sm font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1">
         <i class="ti ti-arrow-left"></i> Back to Seminars
     </a>
@@ -332,6 +332,15 @@
                         <p class="text-sm font-medium text-gray-900">This seminar is cancelled</p>
                         <p class="text-xs text-gray-500 mt-1">Students can't be assigned to it. Change its status in Edit Details to reopen it.</p>
                     </div>
+                @elseif($slotsLeft === 0)
+                    <div class="flex-grow flex flex-col items-center justify-center text-center py-10" data-assign-full>
+                        <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-400 mb-3"><i class="ti ti-armchair-off text-xl"></i></div>
+                        <p class="text-sm font-medium text-gray-900">This seminar is full</p>
+                        <p class="text-xs text-gray-500 mt-1 max-w-sm">All {{ $seminar->max_participants }} seats are taken. Raise the capacity, or remove someone from the roster to free a seat.</p>
+                        <button type="button" x-data @click="$dispatch('open-edit-seminar')" class="mt-4 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center gap-1.5">
+                            <i class="ti ti-pencil"></i> Raise capacity
+                        </button>
+                    </div>
                 @elseif($availableStudents->isEmpty())
                     <div class="flex-grow flex flex-col items-center justify-center text-center py-10" data-assign-empty>
                         <div class="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 mb-3"><i class="ti ti-users-group text-xl"></i></div>
@@ -366,6 +375,13 @@
                                 <span class="min-w-0 flex-1">
                                     <span class="block text-sm font-medium text-gray-900 truncate">{{ $student->last_name }}, {{ $student->first_name }}</span>
                                     <span class="block text-xs text-gray-500 truncate" title="{{ $student->course }}">{{ $placement($student) ?: 'No placement on file' }}</span>
+                                    @if($bookedElsewhere->has($student->id))
+                                        @php $other = $bookedElsewhere[$student->id]; @endphp
+                                        <span class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5" data-booked-elsewhere
+                                              title="Already on the roster of “{{ $other->title }}” at {{ $other->startsAt()->format('h:i A') }}, {{ $other->venue }}">
+                                            <i class="ti ti-calendar-exclamation"></i> Booked: {{ \Illuminate\Support\Str::limit($other->title, 28) }} · {{ $other->startsAt()->format('h:i A') }}
+                                        </span>
+                                    @endif
                                 </span>
                                 @if($student->student_id_number)
                                     <span class="text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">{{ $student->student_id_number }}</span>

@@ -121,18 +121,31 @@ class SeminarCard extends StatelessWidget {
                 ),
               ),
             ] else
-              const Padding(
-                padding: EdgeInsets.fromLTRB(14, 0, 14, 12),
-                child: _Chip(
-                  label: '✓ Attended',
-                  bg: AppColors.greenBg,
-                  textColor: AppColors.greenText,
-                ),
+              // The real outcome — this used to say "Attended" for every
+              // past seminar, missed and cancelled ones included.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: _outcomeChip(seminar.outcome),
               ),
           ],
         ),
       ),
     );
+  }
+}
+
+Widget _outcomeChip(String outcome) {
+  switch (outcome) {
+    case 'attended':
+      return const _Chip(label: '✓ Attended', bg: AppColors.greenBg, textColor: AppColors.greenText);
+    case 'missed':
+      return const _Chip(label: 'Missed', bg: AppColors.redBg, textColor: AppColors.redText);
+    case 'excused':
+      return const _Chip(label: 'Excused', bg: AppColors.amberBg, textColor: AppColors.amberText);
+    case 'cancelled':
+      return const _Chip(label: 'Cancelled', bg: AppColors.background, textColor: AppColors.text2);
+    default:
+      return const _Chip(label: 'Attendance not recorded', bg: AppColors.background, textColor: AppColors.text2);
   }
 }
 
