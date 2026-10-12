@@ -102,10 +102,13 @@ class RiskController extends Controller
         }
 
         // Summary counts based on latest assessments
-        $totalAssessed = count($latestRiskIds);
-        $highRiskCount = RiskAssessment::whereIn('id', $latestRiskIds)->where('risk_level', 'high')->count();
-        $moderateRiskCount = RiskAssessment::whereIn('id', $latestRiskIds)->where('risk_level', 'moderate')->count();
-        $lowRiskCount = RiskAssessment::whereIn('id', $latestRiskIds)->where('risk_level', 'low')->count();
+        // One grouped query for all four numbers.
+        $levelCounts = RiskAssessment::whereIn('id', $latestRiskIds)
+            ->selectRaw('risk_level, count(*) as total')->groupBy('risk_level')->pluck('total', 'risk_level');
+        $totalAssessed = (int) $levelCounts->sum();
+        $highRiskCount = (int) ($levelCounts['high'] ?? 0);
+        $moderateRiskCount = (int) ($levelCounts['moderate'] ?? 0);
+        $lowRiskCount = (int) ($levelCounts['low'] ?? 0);
 
         // How many students sit in each "needs attention" group (within the
         // current scope, ignoring the other filters so the numbers are stable).
@@ -230,11 +233,8 @@ class RiskController extends Controller
     private function assignCounselor(array $ids, int $counselorId)
     {
         // Stale-tab check is against the true latest, whatever the student's status.
-        $latestIds = RiskAssessment::latestIds(null, false);
-
-        $selected = RiskAssessment::whereIn('id', $ids)->get();
-        $assessments = $selected->whereIn('id', $latestIds);
-        $outdated = $selected->count() - $assessments->count();
+        $assessments = RiskAssessment::whereIn('id', $ids)->whereIn('id', RiskAssessment::latestIds(null, false))->get();
+        $outdated = RiskAssessment::whereIn('id', $ids)->count() - $assessments->count();
 
         $created = $reassigned = $unchanged = $notYours = 0;
 

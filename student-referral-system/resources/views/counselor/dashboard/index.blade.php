@@ -77,7 +77,21 @@
                 .catch(() => { window.location.href = link.href; });
         });
 
-        setInterval(refreshDashboard, 20000);
+        // Refresh every 20 s — but only while the tab is visible: a dashboard
+        // left open in a background tab was re-rendered all day for nobody.
+        // Coming back to a stale tab refreshes it right away.
+        let lastRefresh = Date.now();
+        setInterval(function () {
+            if (document.hidden) { return; }
+            lastRefresh = Date.now();
+            refreshDashboard();
+        }, 20000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden && Date.now() - lastRefresh > 20000) {
+                lastRefresh = Date.now();
+                refreshDashboard();
+            }
+        });
     })();
 </script>
 @endpush

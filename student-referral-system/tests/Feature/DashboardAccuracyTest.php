@@ -284,7 +284,7 @@ class DashboardAccuracyTest extends TestCase
         $old = $this->assess($s, 'high', 90, now()->subDays(3));
         $new = $this->assess($s, 'low', 10);
 
-        $ids = RiskAssessment::latestIds();
+        $ids = RiskAssessment::latestIds()->pluck('id');   // latestIds() is a subquery now
 
         $this->assertTrue($ids->contains($new->id));
         $this->assertFalse($ids->contains($old->id));
@@ -295,8 +295,8 @@ class DashboardAccuracyTest extends TestCase
         $gone = Student::factory()->create(['status' => 'graduated']);
         $a = $this->assess($gone);
 
-        $this->assertFalse(RiskAssessment::latestIds()->contains($a->id));
-        $this->assertTrue(RiskAssessment::latestIds(null, false)->contains($a->id));
+        $this->assertFalse(RiskAssessment::latestIds()->pluck('id')->contains($a->id));
+        $this->assertTrue(RiskAssessment::latestIds(null, false)->pluck('id')->contains($a->id));
     }
 
     // ── Auto-refresh script ──────────────────────────────────────────────

@@ -76,6 +76,10 @@ Route::prefix('admin')
     // pointing to it; edit had no controller method at all and would 500 if
     // ever visited — mirrors the same exclusion already applied to Teacher's
     // behavioral-reports/referrals resources for the same reason.
+    // Student picker search (Submit New Referral) — before the resource so
+    // "lookup" isn't read as a {student} id.
+    Route::get('/students/lookup', [StudentController::class, 'lookup'])
+         ->name('students.lookup');
     Route::resource('students', StudentController::class)->except(['create', 'edit']);
     Route::post('/students/{student}/activation-code', [StudentController::class, 'regenerateActivationCode'])
          ->name('students.activation-code');
@@ -140,6 +144,8 @@ Route::prefix('admin')
         Route::resource('seminars', SeminarController::class)->except(['create', 'edit']);
         Route::post('seminars/{seminar}/assign', [SeminarController::class, 'assignStudents'])
              ->name('seminars.assign');
+        Route::get('seminars/{seminar}/eligible', [SeminarController::class, 'eligibleStudents'])
+             ->name('seminars.eligible');
         Route::delete('seminars/{seminar}/students/{student}', [SeminarController::class, 'removeStudent'])
              ->name('seminars.students.remove');
         Route::patch('seminars/{seminar}/attendance', [SeminarController::class, 'updateAttendance'])
@@ -281,6 +287,8 @@ Route::prefix('counselor')
     Route::resource('seminars', \App\Http\Controllers\Counselor\SeminarController::class)->except(['create', 'edit']);
     Route::post('seminars/{seminar}/assign', [\App\Http\Controllers\Counselor\SeminarController::class, 'assignStudents'])
          ->name('seminars.assign');
+    Route::get('seminars/{seminar}/eligible', [\App\Http\Controllers\Counselor\SeminarController::class, 'eligibleStudents'])
+         ->name('seminars.eligible');
     Route::delete('seminars/{seminar}/students/{student}', [\App\Http\Controllers\Counselor\SeminarController::class, 'removeStudent'])
          ->name('seminars.students.remove');
     Route::patch('seminars/{seminar}/attendance', [\App\Http\Controllers\Counselor\SeminarController::class, 'updateAttendance'])

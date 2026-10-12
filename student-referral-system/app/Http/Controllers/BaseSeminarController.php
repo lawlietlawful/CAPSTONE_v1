@@ -123,16 +123,11 @@ abstract class BaseSeminarController extends Controller
 
         $seminar->load('students');
 
-        // The assignable list is narrowed to the seminar's target audience
-        // when one is set, so "Target Course / Year" actually scopes who can
-        // be enrolled instead of being a purely cosmetic label. Blank targets
-        // mean "open to all".
-        $availableStudents = Student::where('status', 'active')
-            ->whereNotIn('id', $seminar->students->pluck('id'))
-            ->when($seminar->target_course, fn ($q) => $q->where('course', $seminar->target_course))
-            ->when($seminar->target_grade_level, fn ($q) => $q->where('grade_level', $seminar->target_grade_level))
-            ->orderBy('last_name')
-            ->get();
+        // Assign Students gets the first page of eligible students with the
+        // page and searches the rest on demand (eligibleStudents()) — it
+        // used to render every eligible student, an 8.9 MB page at 6,000.
+        $eligibleTotal = $this->eligibleQuery($seminar)->count();
+        $assignable = $this->assignableRows($seminar, $this->eligibleQuery($seminar)->limit(self::PICKER_PAGE)->get());
 
         $query = $seminar->students();
 
@@ -147,12 +142,57 @@ abstract class BaseSeminarController extends Controller
 
         $participants = $query->paginate(10)->withQueryString();
 
-        // Students who'd be double-booked: already on the roster of another
-        // seminar at the same time — tagged in the Assign Students list.
-        $bookedElsewhere = $this->bookedElsewhere($seminar, $availableStudents->pluck('id')->all());
+        return view("{$this->prefix}.seminars.show", compact('seminar', 'eligibleTotal', 'assignable', 'participants')
+            + ['courseOptions' => $this->courseOptions(), 'pickerPage' => self::PICKER_PAGE]);
+    }
 
-        return view("{$this->prefix}.seminars.show", compact('seminar', 'availableStudents', 'participants', 'bookedElsewhere')
-            + ['courseOptions' => $this->courseOptions()]);
+    /** How many students a picker shows at once. */
+    private const PICKER_PAGE = 50;
+
+    /**
+     * Assign Students' search: eligible students matching ?q=, as JSON.
+     */
+    public function eligibleStudents(Request $request, Seminar $seminar)
+    {
+        $query = $this->eligibleQuery($seminar)->pickerSearch($request->query('q'));
+
+        return response()->json([
+            'total'    => (clone $query)->count(),
+            'students' => $this->assignableRows($seminar, $query->limit(self::PICKER_PAGE)->get()),
+        ]);
+    }
+
+    /**
+     * Students who can be added to this seminar's roster: active, not on it
+     * already, and in its target audience (blank targets mean everyone),
+     * alphabetical. A query, so callers can count, page or search it.
+     */
+    private function eligibleQuery(Seminar $seminar)
+    {
+        return Student::where('status', 'active')
+            ->whereNotIn('id', $seminar->students()->select('students.id'))
+            ->when($seminar->target_course, fn ($q) => $q->where('course', $seminar->target_course))
+            ->when($seminar->target_grade_level, fn ($q) => $q->where('grade_level', $seminar->target_grade_level))
+            ->orderBy('last_name')->orderBy('first_name');
+    }
+
+    /**
+     * Picker rows, each tagged when the student is already on another
+     * seminar's roster at the same time (double-booking).
+     */
+    private function assignableRows(Seminar $seminar, $students): array
+    {
+        $booked = $this->bookedElsewhere($seminar, $students->pluck('id')->all());
+
+        return $students->map(function ($s) use ($booked) {
+            $other = $booked->get($s->id);
+
+            return $s->toPickerArray() + ['booked' => $other ? [
+                'title' => $other->title,
+                'time'  => $other->startsAt()->format('h:i A'),
+                'venue' => $other->venue,
+            ] : null];
+        })->values()->all();
     }
 
     public function update(Request $request, Seminar $seminar, SmsService $smsService)

@@ -179,18 +179,25 @@ class CounselorDashboardController extends Controller
         // or a threat) belongs here even when the model scored them Moderate,
         // and goes first; the rest are high-risk students by score.
         $safetyFlags = \App\Support\SafetyFlags::forStudents();
-        $watchlistAssessments = RiskAssessment::with('student')
-            ->whereIn('id', $latestRiskIds)
-            ->where(fn ($q) => $q->where('risk_level', 'high')->orWhereIn('student_id', array_keys($safetyFlags)))
-            ->get()
-            ->sortByDesc(fn ($a) => (isset($safetyFlags[$a->student_id]) ? 1000 : 0) + (float) $a->risk_score)
-            ->values();
+        $flaggedIds = array_map('intval', array_keys($safetyFlags));
+        $watchQuery = fn () => RiskAssessment::whereIn('id', $latestRiskIds)
+            ->where(fn ($q) => $q->where('risk_level', 'high')->when($flaggedIds, fn ($q) => $q->orWhereIn('student_id', $flaggedIds)));
 
-        // Paged 3 at a time (?watch_page=N), flagged students first across pages.
-        $watchPage = $this->clampPage(request()->integer('watch_page', 1), $watchlistAssessments->count());
+        // Paged 3 at a time (?watch_page=N), flagged students first across
+        // pages, then by score — sorted and paged in the database. It used
+        // to load every high-risk student (about 1,700 at 6,000 students)
+        // just to show three.
+        $watchTotal = $watchQuery()->count();
+        $watchPage = $this->clampPage(request()->integer('watch_page', 1), $watchTotal);
+        $watchItems = $watchQuery()->with('student')
+            ->when($flaggedIds, fn ($q) => $q->orderByRaw('student_id IN (' . implode(',', $flaggedIds) . ') DESC'))
+            ->orderByDesc('risk_score')
+            ->orderByDesc('id')
+            ->forPage($watchPage, self::CARD_PAGE_SIZE)
+            ->get();
         $watchlistAssessments = (new LengthAwarePaginator(
-            $watchlistAssessments->forPage($watchPage, self::CARD_PAGE_SIZE)->values(),
-            $watchlistAssessments->count(),
+            $watchItems,
+            $watchTotal,
             self::CARD_PAGE_SIZE,
             $watchPage,
             ['path' => route('counselor.dashboard'), 'pageName' => 'watch_page']

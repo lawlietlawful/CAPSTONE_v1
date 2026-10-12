@@ -809,4 +809,19 @@ class StudentController extends Controller
             return back()->with('error', 'The student could not be deleted.');
         }
     }
+
+    /**
+     * Student picker search (JSON): active students matching ?q=, first 20.
+     * The picker loads matches as you type rather than every student.
+     */
+    public function lookup(Request $request)
+    {
+        $query = Student::where('status', 'active')->pickerSearch($request->query('q'))
+            ->orderBy('last_name')->orderBy('first_name');
+
+        return response()->json([
+            'total'    => (clone $query)->count(),
+            'students' => $query->limit(20)->get()->map->toPickerArray()->values(),
+        ]);
+    }
 }

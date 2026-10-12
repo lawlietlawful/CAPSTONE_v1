@@ -294,28 +294,40 @@
 
     <div class="lg:col-span-2 flex flex-col gap-6">
         {{-- ── Assign Students ─────────────────────────────────── --}}
-        @php
-            $assignable = $availableStudents->map(fn ($s) => [
-                'id' => (string) $s->id,
-                's' => mb_strtolower("{$s->last_name} {$s->first_name} {$s->first_name} {$s->last_name} {$s->student_id_number} {$s->course} " . \App\Models\Course::abbreviate($s->course) . " {$s->grade_level} {$s->section}"),
-            ])->values();
-        @endphp
+        {{-- The first page of eligible students comes with the page; typing
+             searches the rest on the server (seminars.eligible) instead of
+             shipping every student. Picks survive new searches (hidden inputs). --}}
         <div class="bg-white border border-gray-100 rounded-2xl shadow-premium overflow-hidden flex flex-col flex-grow"
              x-data="{
                 q: '',
                 selected: [],
-                students: @js($assignable),
+                loading: false,
+                timer: null,
+                results: @js($assignable),
+                matching: @js($eligibleTotal),
                 slotsLeft: @js($slotsLeft),
-                matches(text) { const n = this.q.trim().toLowerCase(); return ! n || text.includes(n); },
-                shown() { return this.students.filter(s => this.matches(s.s)); },
-                selectShown() { this.shown().forEach(s => { if (! this.selected.includes(s.id)) this.selected.push(s.id); }); },
+                url: @js(route('admin.seminars.eligible', $seminar->id)),
+                tones: ['bg-blue-50 text-blue-600', 'bg-violet-50 text-violet-600', 'bg-emerald-50 text-emerald-600', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-cyan-50 text-cyan-600'],
+                search() { clearTimeout(this.timer); this.timer = setTimeout(() => this.fetchResults(), 250); },
+                async fetchResults() {
+                    this.loading = true;
+                    try {
+                        const res = await fetch(this.url + '?q=' + encodeURIComponent(this.q.trim()), { headers: { Accept: 'application/json' } });
+                        const data = await res.json();
+                        this.results = data.students;
+                        this.matching = data.total;
+                    } finally { this.loading = false; }
+                },
+                toggle(id) { const i = this.selected.indexOf(id); i >= 0 ? this.selected.splice(i, 1) : this.selected.push(id); },
+                selectShown() { this.results.forEach(s => { if (! this.selected.includes(s.id)) this.selected.push(s.id); }); },
+                initials(label) { const parts = label.split(', '); return ((parts[1] || '').charAt(0) + (parts[0] || '').charAt(0)).toUpperCase(); },
                 overCapacity() { return this.slotsLeft !== null && this.selected.length > this.slotsLeft; }
              }">
             <div class="bg-gray-50/50 px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
                 <div>
                     <h4 class="font-semibold text-gray-800 flex items-center gap-2"><i class="ti ti-user-plus text-emerald-600"></i> Assign Students</h4>
-                    <p class="text-xs text-gray-400 mt-0.5">
-                        {{ $availableStudents->count() }} eligible {{ $availableStudents->count() === 1 ? 'student' : 'students' }}
+                    <p class="text-xs text-gray-400 mt-0.5" data-eligible-total="{{ $eligibleTotal }}">
+                        {{ number_format($eligibleTotal) }} eligible {{ $eligibleTotal === 1 ? 'student' : 'students' }}
                         @if($seminar->target_course || $seminar->target_grade_level) · limited to {{ $audience }} @endif
                     </p>
                 </div>
@@ -341,7 +353,7 @@
                             <i class="ti ti-pencil"></i> Raise capacity
                         </button>
                     </div>
-                @elseif($availableStudents->isEmpty())
+                @elseif($eligibleTotal === 0)
                     <div class="flex-grow flex flex-col items-center justify-center text-center py-10" data-assign-empty>
                         <div class="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 mb-3"><i class="ti ti-users-group text-xl"></i></div>
                         <p class="text-sm font-medium text-gray-900">No one left to assign</p>
@@ -352,44 +364,48 @@
                 @else
                 <form action="{{ route('admin.seminars.assign', $seminar->id) }}" method="POST" class="flex flex-col flex-grow">
                     @csrf
+                    <template x-for="id in selected" :key="'sel-' + id">
+                        <input type="hidden" name="student_ids[]" :value="id">
+                    </template>
+
                     <div class="flex flex-wrap items-center gap-2 mb-3">
                         <div class="relative flex-1 min-w-[200px]">
-                            <i class="ti ti-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                            <input type="search" x-model="q" placeholder="Search name, ID, course or section..." aria-label="Search students to assign"
+                            <i class="ti absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" :class="loading ? 'ti-loader-2 animate-spin' : 'ti-search'"></i>
+                            <input type="search" x-model="q" @input="search()" @keydown.enter.prevent="fetchResults()" placeholder="Search name, ID, course or section..." aria-label="Search students to assign"
                                 class="block w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm shadow-sm transition">
                         </div>
                         <button type="button" @click="selectShown()" class="px-3 py-2 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition">
-                            Select <span x-text="q.trim() ? 'shown' : 'all'"></span> (<span x-text="shown().length"></span>)
+                            Select shown (<span x-text="results.length"></span>)
                         </button>
-                        <button type="button" x-show="selected.length" x-cloak @click="selected = []" class="px-3 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition">Clear</button>
+                        <button type="button" x-show="selected.length" x-cloak @click="selected = []" class="px-3 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition">Clear (<span x-text="selected.length"></span>)</button>
                     </div>
 
                     <div class="border border-gray-100 rounded-xl divide-y divide-gray-50 overflow-y-auto max-h-72 flex-grow" data-assign-list>
-                        @foreach($availableStudents as $i => $student)
+                        <template x-for="s in results" :key="s.id">
                             <label class="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer hover:bg-gray-50/80 transition"
-                                   x-show="matches(students[{{ $i }}].s)"
-                                   :class="selected.includes('{{ $student->id }}') ? 'bg-blue-50/60 hover:bg-blue-50' : ''">
-                                <input type="checkbox" name="student_ids[]" value="{{ $student->id }}" x-model="selected" data-assignable
+                                   :class="selected.includes(s.id) ? 'bg-blue-50/60 hover:bg-blue-50' : ''">
+                                <input type="checkbox" :checked="selected.includes(s.id)" @change="toggle(s.id)" data-assignable
                                        class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                <span class="w-8 h-8 rounded-full {{ $avatarColors[$student->id % count($avatarColors)] }} flex items-center justify-center text-[11px] font-bold shrink-0">{{ $initials($student) }}</span>
+                                <span class="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" :class="tones[s.id % tones.length]" x-text="initials(s.label)"></span>
                                 <span class="min-w-0 flex-1">
-                                    <span class="block text-sm font-medium text-gray-900 truncate">{{ $student->last_name }}, {{ $student->first_name }}</span>
-                                    <span class="block text-xs text-gray-500 truncate" title="{{ $student->course }}">{{ $placement($student) ?: 'No placement on file' }}</span>
-                                    @if($bookedElsewhere->has($student->id))
-                                        @php $other = $bookedElsewhere[$student->id]; @endphp
+                                    <span class="block text-sm font-medium text-gray-900 truncate" x-text="s.label"></span>
+                                    <span class="block text-xs text-gray-500 truncate" :title="s.course" x-text="s.meta || 'No placement on file'"></span>
+                                    <template x-if="s.booked">
                                         <span class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5" data-booked-elsewhere
-                                              title="Already on the roster of “{{ $other->title }}” at {{ $other->startsAt()->format('h:i A') }}, {{ $other->venue }}">
-                                            <i class="ti ti-calendar-exclamation"></i> Booked: {{ \Illuminate\Support\Str::limit($other->title, 28) }} · {{ $other->startsAt()->format('h:i A') }}
+                                              :title="'Already on the roster of “' + s.booked.title + '” at ' + s.booked.time + ', ' + s.booked.venue">
+                                            <i class="ti ti-calendar-exclamation"></i>
+                                            <span x-text="'Booked: ' + (s.booked.title.length > 28 ? s.booked.title.slice(0, 27) + '…' : s.booked.title) + ' · ' + s.booked.time"></span>
                                         </span>
-                                    @endif
+                                    </template>
                                 </span>
-                                @if($student->student_id_number)
-                                    <span class="text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">{{ $student->student_id_number }}</span>
-                                @endif
+                                <span x-show="s.idNo" class="text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0" x-text="s.idNo"></span>
                             </label>
-                        @endforeach
-                        <p x-show="shown().length === 0" x-cloak class="px-4 py-8 text-center text-sm text-gray-400">No students match "<span x-text="q.trim()"></span>".</p>
+                        </template>
+                        <p x-show="! loading && results.length === 0" x-cloak class="px-4 py-8 text-center text-sm text-gray-400">No students match "<span x-text="q.trim()"></span>".</p>
                     </div>
+                    <p x-show="matching > results.length" x-cloak class="mt-2 text-[11px] text-gray-400" data-picker-more>
+                        Showing <span x-text="results.length"></span> of <span x-text="matching.toLocaleString()"></span> — search to narrow it down.
+                    </p>
 
                     @if($sendsSms)
                         <div class="mt-4 p-3 bg-red-50 rounded-lg text-sm text-red-700 flex gap-2 border border-red-100">

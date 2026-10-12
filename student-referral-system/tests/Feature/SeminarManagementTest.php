@@ -254,9 +254,11 @@ class SeminarManagementTest extends TestCase
         $other = Student::factory()->create(['course' => 'Something Else', 'grade_level' => '1st Year', 'status' => 'active']);
         $seminar = $this->seminar(['target_course' => 'Bachelor of Science in Nursing']);
 
-        $this->actingAs($this->counselor())->get(route('counselor.seminars.show', $seminar))
-            ->assertSee('name="student_ids[]" value="' . $nurse->id . '"', false)
-            ->assertDontSee('name="student_ids[]" value="' . $other->id . '"', false);
+        $ids = collect($this->actingAs($this->counselor())
+            ->getJson(route('counselor.seminars.eligible', $seminar))->assertOk()->json('students'))->pluck('id');
+
+        $this->assertTrue($ids->contains((string) $nurse->id));
+        $this->assertFalse($ids->contains((string) $other->id));
     }
 
     public function test_an_older_off_catalog_target_is_kept_when_editing(): void
@@ -719,8 +721,10 @@ class SeminarManagementTest extends TestCase
         $free = Student::factory()->create(['status' => 'active']);
         $other->students()->attach($busy->id, ['status' => 'enrolled']);
 
-        $html = $this->actingAs($this->counselor())->get(route('counselor.seminars.show', $seminar))->getContent();
-        $this->assertSame(1, substr_count($html, 'data-booked-elsewhere'));
+        $rows = collect($this->actingAs($this->counselor())
+            ->getJson(route('counselor.seminars.eligible', $seminar))->json('students'))->keyBy('id');
+        $this->assertSame(['title' => 'Morning Talk', 'time' => '09:00 AM', 'venue' => 'AVR'], $rows[(string) $busy->id]['booked']);
+        $this->assertNull($rows[(string) $free->id]['booked']);
 
         $this->actingAs($this->counselor())->post(route('counselor.seminars.assign', $seminar), ['student_ids' => [$busy->id, $free->id]])
             ->assertSessionHas('success', '2 students assigned successfully. Heads-up: already booked for another seminar at the same time — Bea Busy ("Morning Talk").');

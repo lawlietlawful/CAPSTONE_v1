@@ -38,7 +38,7 @@
             }).then(() => this.poll());
         },
      }"
-     x-init="setInterval(() => poll(), 20000)"
+     x-init="setInterval(() => { if (! document.hidden) poll(); }, 20000); document.addEventListener('visibilitychange', () => { if (! document.hidden) poll(); })"
      @click.away="open = false">
 
     <button @click="open = !open" type="button" class="{{ $buttonClass }}">

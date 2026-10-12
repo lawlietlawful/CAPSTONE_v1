@@ -10,14 +10,10 @@
     $field = 'w-full rounded-xl border bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm';
     $border = fn (string $name) => $errors->has($name) ? 'border-red-500' : 'border-gray-300';
 
-    // Searchable student picker data: label, a secondary line, and what the
-    // search box matches (name either way round, ID number, course).
-    $studentOptions = $students->map(fn ($s) => [
-        'id' => (string) $s->id,
-        'label' => "{$s->last_name}, {$s->first_name}",
-        'meta' => collect([$s->student_id_number, $s->course ? \App\Models\Course::abbreviate($s->course) : null, $s->grade_level, $s->section])->filter()->implode(' · '),
-        's' => mb_strtolower("{$s->last_name} {$s->first_name} {$s->first_name} {$s->last_name} {$s->student_id_number} {$s->course} " . \App\Models\Course::abbreviate($s->course) . " {$s->grade_level} {$s->section}"),
-    ])->values();
+    // Student picker: the first 20 students (plus whoever the form arrived
+    // with) come with the page; typing searches the rest on the server
+    // (admin.students.lookup) instead of loading every student.
+    $studentOptions = $students->map->toPickerArray()->values();
 @endphp
 
 <div class="bg-white border border-gray-100 rounded-2xl shadow-premium max-w-4xl">
@@ -42,9 +38,26 @@
                         q: '',
                         selected: @js((string) old('student_id', request('student_id'))),
                         students: @js($studentOptions),
-                        chosen() { return this.students.find(s => s.id === this.selected) || null; },
-                        filtered() { const n = this.q.trim().toLowerCase(); return n ? this.students.filter(s => s.s.includes(n)) : this.students; },
-                        pick(s) { this.selected = s.id; this.open = false; this.q = ''; }
+                        total: @js($studentTotal),
+                        picked: null,
+                        loading: false,
+                        timer: null,
+                        url: @js(route('admin.students.lookup')),
+                        init() { this.picked = this.students.find(s => s.id === this.selected) || null; },
+                        chosen() { return this.picked; },
+                        filtered() { return this.students; },
+                        search() { clearTimeout(this.timer); this.timer = setTimeout(() => this.fetchResults(), 250); },
+                        async fetchResults() {
+                            this.loading = true;
+                            try {
+                                const res = await fetch(this.url + '?q=' + encodeURIComponent(this.q.trim()), { headers: { Accept: 'application/json' } });
+                                const data = await res.json();
+                                this.students = data.students;
+                                this.total = data.total;
+                            } finally { this.loading = false; }
+                        },
+                        line(s) { return [s.idNo, s.meta].filter(Boolean).join(' · '); },
+                        pick(s) { this.selected = s.id; this.picked = s; this.open = false; this.q = ''; }
                      }"
                      @click.outside="open = false" @keydown.escape="open = false" data-student-picker>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Student <span class="text-red-500">*</span></label>
@@ -53,15 +66,15 @@
                             class="{{ $field }} {{ $border('student_id') }} flex items-center justify-between gap-3 text-left" aria-haspopup="listbox" :aria-expanded="open">
                         <span class="min-w-0">
                             <span class="block truncate" :class="chosen() ? 'text-gray-900' : 'text-gray-400'" x-text="chosen() ? chosen().label : 'Select a student...'">Select a student...</span>
-                            <span class="block text-xs text-gray-400 truncate" x-show="chosen()" x-cloak x-text="chosen() ? chosen().meta : ''"></span>
+                            <span class="block text-xs text-gray-400 truncate" x-show="chosen()" x-cloak x-text="chosen() ? line(chosen()) : ''"></span>
                         </span>
                         <i class="ti ti-selector text-gray-400 shrink-0"></i>
                     </button>
                     <div x-show="open" x-cloak x-transition.opacity.duration.100ms class="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
                         <div class="p-2 border-b border-gray-100">
                             <div class="relative">
-                                <i class="ti ti-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                                <input type="search" x-ref="search" x-model="q" placeholder="Search name, ID number or course..." aria-label="Search students"
+                                <i class="ti absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" :class="loading ? 'ti-loader-2 animate-spin' : 'ti-search'"></i>
+                                <input type="search" x-ref="search" x-model="q" @input="search()" placeholder="Search name, ID number or course..." aria-label="Search students"
                                        @keydown.enter.prevent="if (filtered().length) pick(filtered()[0])"
                                        class="block w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring focus:ring-blue-100 focus:border-blue-500 text-sm">
                             </div>
@@ -73,14 +86,17 @@
                                             :class="s.id === selected ? 'bg-blue-50/70' : ''" role="option" :aria-selected="s.id === selected">
                                         <span class="min-w-0">
                                             <span class="block text-sm font-medium text-gray-900 truncate" x-text="s.label"></span>
-                                            <span class="block text-xs text-gray-500 truncate" x-text="s.meta"></span>
+                                            <span class="block text-xs text-gray-500 truncate" x-text="line(s)"></span>
                                         </span>
                                         <i class="ti ti-check text-blue-600" x-show="s.id === selected"></i>
                                     </button>
                                 </li>
                             </template>
-                            <li x-show="filtered().length === 0" class="px-4 py-6 text-center text-sm text-gray-400">No active students match "<span x-text="q.trim()"></span>".</li>
+                            <li x-show="! loading && filtered().length === 0" class="px-4 py-6 text-center text-sm text-gray-400">No active students match "<span x-text="q.trim()"></span>".</li>
                         </ul>
+                        <p x-show="total > filtered().length" x-cloak class="px-4 py-2 border-t border-gray-100 text-[11px] text-gray-400" data-picker-more>
+                            Showing <span x-text="filtered().length"></span> of <span x-text="total.toLocaleString()"></span> — type to search.
+                        </p>
                     </div>
                     @error('student_id') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
                 </div>

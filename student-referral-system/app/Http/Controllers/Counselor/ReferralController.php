@@ -64,10 +64,18 @@ class ReferralController extends Controller
      */
     public function create()
     {
-        $students = Student::where('status', 'active')->orderBy('last_name')->get();
+        // The picker starts with the first 20 students (plus whoever the
+        // form arrived with) and searches the rest via admin.students.lookup.
+        $students = Student::where('status', 'active')->orderBy('last_name')->orderBy('first_name')->limit(20)->get();
+        $preselected = old('student_id', request('student_id'));
+        if ($preselected && ! $students->contains('id', (int) $preselected)) {
+            $students->prepend(Student::find($preselected));
+        }
+        $students = $students->filter()->values();
+        $studentTotal = Student::where('status', 'active')->count();
         $counselors = User::where('role', 'admin')->orderBy('name')->get();
 
-        return view('counselor.referrals.create', compact('students', 'counselors'));
+        return view('counselor.referrals.create', compact('students', 'studentTotal', 'counselors'));
     }
 
     /**

@@ -36,6 +36,10 @@ class CourseController extends Controller
         // section are either an exact match or blank (blank means "whole
         // course" or "whole grade level" — see User::advisedStudentsQuery()).
         $teacherAssignments = TeacherAssignment::all(['teacher_id', 'course', 'grade_level', 'section']);
+        // Grouped by course once, so each section only checks its own
+        // course's assignments (every section × every assignment was 72,000
+        // comparisons at 120 sections and 600 assignments — ~0.4 s).
+        $assignmentsByCourse = $teacherAssignments->groupBy(fn ($a) => mb_strtolower((string) $a->course));
 
         // Course names any student, teacher assignment or upcoming seminar
         // still uses — such a course's education level is locked (see
@@ -55,9 +59,8 @@ class CourseController extends Controller
                 $section->student_count = (int) $studentCounts->get($key, 0);
                 // Case-insensitive, like the student count above — the
                 // columns are free text, and MySQL matches them that way too.
-                $section->teacher_count = $teacherAssignments
-                    ->filter(fn ($a) => strcasecmp((string) $a->course, $course->name) === 0
-                        && (! $a->grade_level || strcasecmp($a->grade_level, $section->grade_level) === 0)
+                $section->teacher_count = $assignmentsByCourse->get(mb_strtolower($course->name), collect())
+                    ->filter(fn ($a) => (! $a->grade_level || strcasecmp($a->grade_level, $section->grade_level) === 0)
                         && (! $a->section || strcasecmp($a->section, $section->section) === 0))
                     ->pluck('teacher_id')
                     ->unique()
@@ -127,17 +130,27 @@ class CourseController extends Controller
 
     private function studentsOutsideCatalog(Collection $courses): Collection
     {
-        $courseNames = $courses->mapWithKeys(fn ($c) => [strtolower($c->name) => true]);
-        $catalogKeys = $courses->flatMap(fn ($c) => $c->sections->map(
-            fn ($s) => $this->comboKey($c->name, $s->grade_level, $s->section)
-        ))->flip();
-
-        return Student::orderBy('last_name')->orderBy('first_name')
-            ->get(['id', 'student_id_number', 'first_name', 'middle_name', 'last_name', 'course', 'grade_level', 'strand', 'section', 'status'])
-            ->reject(fn ($s) => $catalogKeys->has($this->comboKey($s->course, $s->grade_level, $s->section)))
+        // One query: join each student to the catalog section it names and
+        // keep those with no match. (It used to load every student into
+        // PHP to compare.) The default collation compares case-insensitively,
+        // so "bsit" still matches "BSIT".
+        return Student::query()
+            ->leftJoin('courses as catalog_course', 'catalog_course.name', '=', 'students.course')
+            ->leftJoin('course_sections as catalog_section', function ($join) {
+                $join->on('catalog_section.course_id', '=', 'catalog_course.id')
+                     ->on('catalog_section.grade_level', '=', 'students.grade_level')
+                     ->on('catalog_section.section', '=', 'students.section');
+            })
+            ->whereNull('catalog_section.id')
+            ->orderBy('students.last_name')->orderBy('students.first_name')
+            ->get([
+                'students.id', 'students.student_id_number', 'students.first_name', 'students.middle_name', 'students.last_name',
+                'students.course', 'students.grade_level', 'students.strand', 'students.section', 'students.status',
+                'catalog_course.id as catalog_course_id',
+            ])
             ->each(fn ($s) => $s->catalog_issue = match (true) {
                 ! $s->course || ! $s->grade_level || ! $s->section => 'Incomplete placement',
-                ! $courseNames->has(strtolower($s->course)) => 'Course not in catalog',
+                ! $s->catalog_course_id => 'Course not in catalog',
                 default => 'Section not in catalog',
             })
             ->values();

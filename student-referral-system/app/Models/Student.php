@@ -104,6 +104,54 @@ class Student extends Model
         });
     }
 
+    /**
+     * The search behind the student pickers (Assign Students on a seminar,
+     * Submit New Referral): matchingSearch() plus course, year and section,
+     * and a course abbreviation ("BSIT") for its full catalog name. The
+     * pickers fetch results as you type instead of loading every student.
+     */
+    public function scopePickerSearch($query, ?string $term)
+    {
+        $term = trim((string) $term);
+        if ($term === '') {
+            return $query;
+        }
+
+        // Every word must match something ("BSN 2nd" = a BSN student in 2nd
+        // Year; "maria santos" = first and last name), each word against
+        // name, ID, course (or its abbreviation), year and section.
+        $courseNames = Course::pluck('name');
+
+        foreach (preg_split('/\s+/', $term) as $word) {
+            $like = '%' . $word . '%';
+            $abbreviated = $courseNames
+                ->filter(fn ($name) => str_starts_with(mb_strtolower(Course::abbreviate($name)), mb_strtolower($word)))
+                ->values()->all();
+
+            $query->where(function ($w) use ($word, $like, $abbreviated) {
+                $w->matchingSearch($word)
+                  ->orWhere('course', 'like', $like)
+                  ->orWhere('grade_level', 'like', $like)
+                  ->orWhere('section', 'like', $like)
+                  ->when($abbreviated, fn ($q) => $q->orWhereIn('course', $abbreviated));
+            });
+        }
+
+        return $query;
+    }
+
+    /** One row for a student picker (JSON). */
+    public function toPickerArray(): array
+    {
+        return [
+            'id'    => (string) $this->id,
+            'label' => "{$this->last_name}, {$this->first_name}",
+            'idNo'  => $this->student_id_number,
+            'meta'  => collect([$this->course ? Course::abbreviate($this->course) : null, $this->grade_level, $this->section])->filter()->implode(' · '),
+            'course' => $this->course,
+        ];
+    }
+
     public function getFullNameAttribute()
     {
         return $this->first_name . ' ' . $this->last_name;
