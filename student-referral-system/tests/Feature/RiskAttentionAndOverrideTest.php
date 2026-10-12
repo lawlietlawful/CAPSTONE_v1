@@ -328,7 +328,7 @@ class RiskAttentionAndOverrideTest extends TestCase
 
         $this->assertStringContainsString('data-case-summary', $html);
         $this->assertStringContainsString('in progress', $html);
-        $this->assertStringContainsString(route('admin.referrals.show', $r->id), $html);
+        $this->assertStringContainsString(route('counselor.referrals.show', $r->id), $html);
     }
 
     public function test_the_profile_shows_the_three_newest_referrals_and_counts_the_rest(): void
@@ -341,8 +341,8 @@ class RiskAttentionAndOverrideTest extends TestCase
         $html = $this->actingAs($c)->get(route('admin.risk.show', $s->id))->getContent();
 
         $this->assertStringContainsString('+ 2 older in the full record', $html);
-        $this->assertStringContainsString(route('admin.referrals.show', $ids[4]), $html, 'newest is listed');
-        $this->assertStringNotContainsString(route('admin.referrals.show', $ids[0]), $html, 'oldest is left to the full record');
+        $this->assertStringContainsString(route('counselor.referrals.show', $ids[4]), $html, 'newest is listed');
+        $this->assertStringNotContainsString(route('counselor.referrals.show', $ids[0]), $html, 'oldest is left to the full record');
 
         $few = Student::factory()->create();
         $this->assess($few);

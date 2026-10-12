@@ -509,6 +509,9 @@ class InterventionController extends Controller
             abort(403);
         }
 
+        $intervention->loadMissing('referral.student');
+        \App\Models\AuditLog::record('intervention.deleted', $intervention,
+            "Deleted intervention log #{$intervention->id} ({$intervention->intervention_type}, {$intervention->intervention_date?->format('M d, Y')}) for {$intervention->referral?->student?->full_name}");
         $intervention->delete();
 
         return redirect()->route('counselor.interventions.index')

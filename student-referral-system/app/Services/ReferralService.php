@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\Intervention;
 use App\Models\Referral;
 use App\Models\Student;
@@ -93,16 +94,22 @@ class ReferralService
             $data['resolved_at'] = null;
         }
 
-        $statusChanged = $referral->status !== $status;
-        $reassigned = $counselorId && (int) $counselorId !== (int) $referral->counselor_id;
+        $oldStatus = $referral->status;
+        $oldCounselorId = $referral->counselor_id;
+        $statusChanged = $oldStatus !== $status;
+        $reassigned = $counselorId && (int) $counselorId !== (int) $oldCounselorId;
 
         $referral->update($data);
 
         if ($reassigned) {
-            $this->notificationService->referralAssigned($referral->fresh(), auth()->id());
+            $this->afterReassignment($referral, $oldCounselorId);
         }
 
         if ($statusChanged) {
+            AuditLog::record('referral.status', $referral,
+                "Referral #{$referral->id} ({$this->studentName($referral)}) status: "
+                . str_replace('_', ' ', $oldStatus) . ' → ' . str_replace('_', ' ', $status));
+
             $this->notificationService->referralStatusChanged($referral->fresh());
 
             if ($referral->behavioralReport) {
@@ -159,4 +166,28 @@ class ReferralService
         );
     }
 
+
+    /**
+     * After a referral's counselor changed — from any path (referral page,
+     * the super admin's edit modal or bulk assign, At-Risk bulk assign):
+     * record it in the audit log and tell the new counselor.
+     */
+    public function afterReassignment(Referral $referral, ?int $fromCounselorId): void
+    {
+        $referral = $referral->fresh(['counselor', 'student']);
+        $from = $fromCounselorId ? (User::find($fromCounselorId)?->name ?? "user #{$fromCounselorId}") : 'Unassigned';
+        $to = $referral->counselor?->name ?? 'Unassigned';
+
+        AuditLog::record('referral.reassigned', $referral,
+            "Referral #{$referral->id} ({$this->studentName($referral)}) reassigned from {$from} to {$to}");
+
+        if ($referral->counselor_id) {
+            $this->notificationService->referralAssigned($referral, auth()->id());
+        }
+    }
+
+    private function studentName(Referral $referral): string
+    {
+        return $referral->student?->full_name ?? "student #{$referral->student_id}";
+    }
 }

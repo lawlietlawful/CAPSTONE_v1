@@ -166,6 +166,10 @@ abstract class BaseSeminarController extends Controller
         $seminar->update($this->validatedSeminar($request, $seminar));
         $seminar->refresh();
 
+        if ($before['status'] !== 'cancelled' && $seminar->status === 'cancelled') {
+            \App\Models\AuditLog::record('seminar.cancelled', $seminar, "Cancelled seminar \"{$seminar->title}\" ({$seminar->date->format('M d, Y')})");
+        }
+
         $wasAhead = in_array($before['status'], ['upcoming', 'ongoing'], true);
         $isAhead = in_array($seminar->status, ['upcoming', 'ongoing'], true) && ! $seminar->date->isBefore(today());
         $cancelled = $wasAhead && $seminar->status === 'cancelled';
@@ -223,6 +227,9 @@ abstract class BaseSeminarController extends Controller
 
     public function destroy(Seminar $seminar)
     {
+        $roster = $seminar->students()->count();
+        \App\Models\AuditLog::record('seminar.deleted', $seminar,
+            "Deleted seminar \"{$seminar->title}\" ({$seminar->date->format('M d, Y')}) with a roster of {$roster}");
         $seminar->delete();
 
         return redirect()->route("{$this->prefix}.seminars.index")->with('success', 'Seminar deleted successfully.');

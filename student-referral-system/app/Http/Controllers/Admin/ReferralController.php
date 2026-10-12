@@ -169,12 +169,27 @@ class ReferralController extends Controller
         $action = $request->action;
 
         if ($action === 'delete') {
-            Referral::whereIn('id', $ids)->delete();
+            foreach (Referral::with('student')->whereIn('id', $ids)->get() as $referral) {
+                \App\Models\AuditLog::record('referral.deleted', $referral,
+                    "Deleted referral #{$referral->id} ({$referral->student?->full_name}, {$referral->referral_type_label}, " . str_replace('_', ' ', $referral->status) . ') — bulk action');
+                $referral->delete();
+            }
             return redirect()->back()->with('success', 'Selected referrals deleted successfully.');
         } elseif ($action === 'export_selected') {
             return $this->exportSelected($ids);
         } elseif ($action === 'assign_counselor') {
-            Referral::whereIn('id', $ids)->update(['counselor_id' => $request->assign_counselor_id]);
+            // One at a time through the shared service so each new
+            // counselor is notified and each change is audited (a single
+            // mass UPDATE did neither).
+            $referralService = app(ReferralService::class);
+            foreach (Referral::whereIn('id', $ids)->get() as $referral) {
+                if ((int) $referral->counselor_id === (int) $request->assign_counselor_id) {
+                    continue;
+                }
+                $from = $referral->counselor_id;
+                $referral->update(['counselor_id' => $request->assign_counselor_id]);
+                $referralService->afterReassignment($referral, $from);
+            }
             return redirect()->back()->with('success', 'Counselor assigned to selected referrals successfully.');
         } else {
             // Per-row via the shared service (not a single mass UPDATE): each
@@ -253,7 +268,11 @@ class ReferralController extends Controller
         ]);
 
         // Everything except the status is a plain field edit...
+        $fromCounselor = $referral->counselor_id;
         $referral->update($request->only(['referral_type', 'referral_type_other', 'reason', 'priority', 'counselor_id']));
+        if ((int) $fromCounselor !== (int) $referral->counselor_id) {
+            $referralService->afterReassignment($referral, $fromCounselor);
+        }
 
         // ...but the status goes through the shared service like every other
         // status change (dropdown, bulk action, Counselor pages). Saving it
@@ -268,6 +287,9 @@ class ReferralController extends Controller
 
     public function destroy(Referral $referral)
     {
+        $referral->loadMissing('student');
+        \App\Models\AuditLog::record('referral.deleted', $referral,
+            "Deleted referral #{$referral->id} ({$referral->student?->full_name}, {$referral->referral_type_label}, " . str_replace('_', ' ', $referral->status) . ')');
         $referral->delete();
         return redirect()->route('admin.referrals.index')->with('success', 'Referral deleted successfully.');
     }

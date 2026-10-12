@@ -40,7 +40,7 @@
                      x-data="{
                         open: false,
                         q: '',
-                        selected: @js((string) old('student_id')),
+                        selected: @js((string) old('student_id', request('student_id'))),
                         students: @js($studentOptions),
                         chosen() { return this.students.find(s => s.id === this.selected) || null; },
                         filtered() { const n = this.q.trim().toLowerCase(); return n ? this.students.filter(s => s.s.includes(n)) : this.students; },

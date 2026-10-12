@@ -28,7 +28,7 @@ class BehavioralReportNotificationGuardTest extends TestCase
         $report = $this->reportBy($teacher, 'reviewed');
 
         $this->actingAs(User::factory()->counselor()->create())
-            ->patch(route('admin.behavioral-reports.updateStatus', $report->id), [
+            ->patch(route('counselor.behavioral-reports.updateStatus', $report->id), [
                 'status' => 'reviewed', 'counselor_notes' => 'Just a note.',
             ]);
 
@@ -42,7 +42,7 @@ class BehavioralReportNotificationGuardTest extends TestCase
         $report = $this->reportBy($teacher, 'reviewed');
 
         $this->actingAs(User::factory()->counselor()->create())
-            ->post(route('admin.behavioral-reports.bulkAction'), [
+            ->post(route('counselor.behavioral-reports.bulkAction'), [
                 'ids' => [$report->id], 'action' => 'mark_reviewed',
             ]);
 
@@ -55,7 +55,7 @@ class BehavioralReportNotificationGuardTest extends TestCase
         $report = $this->reportBy($teacher, 'pending');
 
         $this->actingAs(User::factory()->counselor()->create())
-            ->patch(route('admin.behavioral-reports.updateStatus', $report->id), ['status' => 'reviewed']);
+            ->patch(route('counselor.behavioral-reports.updateStatus', $report->id), ['status' => 'reviewed']);
 
         $this->assertSame(1, Notification::where('user_id', $teacher->id)->count());
     }

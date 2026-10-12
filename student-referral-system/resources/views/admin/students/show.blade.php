@@ -20,7 +20,7 @@
                 <i class="ti ti-bolt"></i> Quick Actions <i class="ti ti-chevron-down text-xs"></i>
             </button>
             <div x-show="open" x-transition class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden" style="display: none;" x-cloak>
-                <a href="{{ route('admin.referrals.create', ['student_id' => $student->id]) }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
+                <a href="{{ \App\Support\RoleRoute::to('referrals.create', ['student_id' => $student->id]) }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
                     <i class="ti ti-file-description text-blue-500 text-lg"></i> Create Referral
                 </a>
                 @if($student->latestRiskAssessment)
@@ -41,7 +41,7 @@
                     <i class="ti ti-send text-indigo-500 text-lg"></i> Send Notice
                 </a>
                 <div class="border-t border-gray-100"></div>
-                <a href="{{ route('admin.seminars.index', ['student' => $student->id]) }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
+                <a href="{{ \App\Support\RoleRoute::to('seminars.index', ['student' => $student->id]) }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
                     <i class="ti ti-users text-amber-500 text-lg"></i> Assign Seminar
                 </a>
             </div>
@@ -328,7 +328,7 @@
                         <h4 class="text-[11px] font-bold text-gray-800 uppercase tracking-widest flex items-center gap-2">
                             <i class="ti ti-file-description text-blue-500 text-lg"></i> Referral History
                         </h4>
-                        <a href="{{ route('admin.referrals.create', ['student_id' => $student->id]) }}" class="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors print:hidden">
+                        <a href="{{ \App\Support\RoleRoute::to('referrals.create', ['student_id' => $student->id]) }}" class="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors print:hidden">
                             + New Referral
                         </a>
                     </div>
@@ -354,7 +354,7 @@
                                             </span>
                                         </td>
                                         <td class="py-3 px-4 print:hidden">
-                                            <a href="{{ route('admin.referrals.show', $ref->id) }}" class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="View Referral">
+                                            <a href="{{ \App\Support\RoleRoute::to('referrals.show', $ref->id) }}" class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="View Referral">
                                                 <i class="ti ti-eye"></i>
                                             </a>
                                         </td>

@@ -17,6 +17,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Per-request memo for Setting::get() (fresh for every request/app instance).
+        $this->app->scoped('settings.memo', fn () => new \ArrayObject());
         //
     }
 
@@ -25,7 +27,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Every "choose a password" form (staff Change Password, password
+        // reset links, teacher/student activation): at least 8 characters
+        // with both letters and numbers.
+        \Illuminate\Validation\Rules\Password::defaults(fn () => \Illuminate\Validation\Rules\Password::min(8)->letters()->numbers());
+
         $this->configureRateLimiting();
+        $this->auditSignIns();
         $this->composeNotificationBell();
         $this->composeNavBadges();
     }
@@ -91,6 +99,25 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(5)->by($email . '|' . $request->ip()),
                 Limit::perMinute(20)->by($request->ip()),
             ];
+        });
+    }
+
+    /**
+     * Web sign-ins in the audit log: who signed in, and lockouts after too
+     * many attempts. Failed attempts are recorded in LoginRequest, which
+     * checks the password itself (so Laravel's Failed event never fires).
+     */
+    private function auditSignIns(): void
+    {
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Login::class, function ($event) {
+            if ($event->guard === 'web') {
+                \App\Models\AuditLog::record('auth.login', null, 'Signed in', $event->user);
+            }
+        });
+
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Lockout::class, function ($event) {
+            \App\Models\AuditLog::record('auth.lockout', null,
+                'Sign-in locked after too many attempts for ' . ($event->request->input('email') ?? 'unknown'), null);
         });
     }
 }

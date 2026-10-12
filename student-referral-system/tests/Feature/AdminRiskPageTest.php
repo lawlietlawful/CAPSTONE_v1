@@ -420,7 +420,7 @@ class AdminRiskPageTest extends TestCase
         $s = Student::factory()->create();
         Referral::factory()->create(['student_id' => $s->id, 'status' => 'in_progress']);
 
-        $this->actingAs($this->counselor())->post(route('admin.referrals.store'), $this->referPayload($s))
+        $this->actingAs($this->counselor())->post(route('counselor.referrals.store'), $this->referPayload($s))
             ->assertSessionHas('error');
 
         $this->assertSame(1, Referral::where('student_id', $s->id)->count());
@@ -432,7 +432,7 @@ class AdminRiskPageTest extends TestCase
         $s = Student::factory()->create();
         Referral::factory()->create(['student_id' => $s->id, 'status' => 'pending']);
 
-        $this->actingAs($this->counselor())->post(route('admin.referrals.store'), $this->referPayload($s, ['confirm_duplicate' => 1]))
+        $this->actingAs($this->counselor())->post(route('counselor.referrals.store'), $this->referPayload($s, ['confirm_duplicate' => 1]))
             ->assertSessionHas('success');
 
         $this->assertSame(2, Referral::where('student_id', $s->id)->count());
@@ -444,7 +444,7 @@ class AdminRiskPageTest extends TestCase
         $s = Student::factory()->create();
         Referral::factory()->create(['student_id' => $s->id, 'status' => 'resolved']);
 
-        $this->actingAs($this->counselor())->post(route('admin.referrals.store'), $this->referPayload($s))
+        $this->actingAs($this->counselor())->post(route('counselor.referrals.store'), $this->referPayload($s))
             ->assertSessionHas('success');
 
         $this->assertSame(2, Referral::where('student_id', $s->id)->count());
@@ -459,7 +459,7 @@ class AdminRiskPageTest extends TestCase
         // The plain Referrals-page form never sends guard_duplicate.
         $payload = $this->referPayload($s);
         unset($payload['guard_duplicate']);
-        $this->actingAs($this->counselor())->post(route('admin.referrals.store'), $payload)->assertSessionHas('success');
+        $this->actingAs($this->counselor())->post(route('counselor.referrals.store'), $payload)->assertSessionHas('success');
 
         $this->assertSame(2, Referral::where('student_id', $s->id)->count());
     }

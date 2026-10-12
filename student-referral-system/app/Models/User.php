@@ -20,6 +20,7 @@ class User extends Authenticatable
         'account_activated_at',
         'activation_code',
         'deactivated_at',
+        'must_change_password',
     ];
 
     protected $hidden = [
@@ -57,6 +58,7 @@ class User extends Authenticatable
     protected $casts = [
         'account_activated_at' => 'datetime',
         'deactivated_at' => 'datetime',
+        'must_change_password' => 'boolean',
     ];
 
     // Relationships

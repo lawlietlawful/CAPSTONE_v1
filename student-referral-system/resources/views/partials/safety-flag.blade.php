@@ -9,7 +9,7 @@
         <div class="flex items-center gap-1.5">
             <i class="ti ti-alert-octagon text-sm text-red-600"></i>
             <span class="text-xs font-bold text-red-800">Safety flag</span>
-            <a href="{{ $safetyFlag['source'] === 'referral' ? route('admin.referrals.show', $safetyFlag['id']) : route('admin.behavioral-reports.show', $safetyFlag['id']) }}"
+            <a href="{{ $safetyFlag['source'] === 'referral' ? \App\Support\RoleRoute::to('referrals.show', $safetyFlag['id']) : \App\Support\RoleRoute::to('behavioral-reports.show', $safetyFlag['id']) }}"
                class="ml-auto text-[10px] font-semibold text-red-700 underline underline-offset-2 hover:text-red-900 whitespace-nowrap">
                 Open the {{ $safetyFlag['source'] }}
             </a>

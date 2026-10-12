@@ -19,6 +19,12 @@ class ExportFilterParityTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** The admin.* exports and lists are the super admin's (counselors have their own). */
+    private function superAdmin(): User
+    {
+        return User::factory()->create(['role' => 'super_admin']);
+    }
+
     private function counselor(): User
     {
         return User::factory()->counselor()->create();
@@ -48,7 +54,7 @@ class ExportFilterParityTest extends TestCase
     {
         $this->twoStudentsWithReports();
 
-        $csv = $this->actingAs($this->counselor())
+        $csv = $this->actingAs($this->superAdmin())
             ->get(route('admin.behavioral-reports.export', ['search' => 'Zeldaxyz']))
             ->streamedContent();
 
@@ -61,7 +67,7 @@ class ExportFilterParityTest extends TestCase
         $description = 'He said "no", then left, quietly';
         BehavioralReport::factory()->create(['description' => $description]);
 
-        $csv = $this->actingAs($this->counselor())
+        $csv = $this->actingAs($this->superAdmin())
             ->get(route('admin.behavioral-reports.export'))
             ->streamedContent();
 
@@ -80,7 +86,7 @@ class ExportFilterParityTest extends TestCase
         Referral::factory()->create(['student_id' => $mine->id, 'counselor_id' => $c1->id]);
         Referral::factory()->create(['student_id' => $theirs->id, 'counselor_id' => $c2->id]);
 
-        $csv = $this->actingAs($c1)
+        $csv = $this->actingAs($this->superAdmin())
             ->get(route('admin.referrals.export', ['counselor_id' => $c1->id]))
             ->streamedContent();
 
@@ -95,7 +101,7 @@ class ExportFilterParityTest extends TestCase
         Referral::factory()->create(['student_id' => $old->id, 'created_at' => now()->subMonths(3)]);
         Referral::factory()->create(['student_id' => $new->id, 'created_at' => now()]);
 
-        $csv = $this->actingAs($this->counselor())
+        $csv = $this->actingAs($this->superAdmin())
             ->get(route('admin.referrals.export', ['date_range' => 'this_month']))
             ->streamedContent();
 
@@ -110,7 +116,7 @@ class ExportFilterParityTest extends TestCase
         $this->travelTo(now()->setDate(2026, 10, 31)->setTime(10, 0));
         Referral::factory()->create(['created_at' => '2026-09-15 09:00:00']);
 
-        $index = $this->actingAs($this->counselor())
+        $index = $this->actingAs($this->superAdmin())
             ->get(route('admin.referrals.index', ['date_range' => 'last_month']));
         $this->assertSame(1, $index->viewData('referrals')->total());
     }

@@ -61,7 +61,7 @@ class AdminTeacherProfileTest extends TestCase
         $this->assertStringContainsString('Recent Referrals', $html);
         $this->assertStringContainsString('Fernandez, Angelo', $html);
         $this->assertStringContainsString('Referrals Filed', $html);
-        $this->assertStringContainsString(route('admin.referrals.show', $referral->id), $html, 'links to the referral');
+        $this->assertStringContainsString(route('counselor.referrals.show', $referral->id), $html, 'links to the referral');
     }
 
     public function test_the_referrals_filed_stat_counts_the_whole_history_not_just_the_recent_ten(): void

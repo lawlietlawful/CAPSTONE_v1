@@ -97,10 +97,21 @@
 
                     <div>
                         <label for="sms_api_key" class="block text-sm font-medium text-gray-700 mb-1">Semaphore API Key</label>
-                        <input type="password" name="sms_api_key" id="sms_api_key" 
-                            value="{{ $settings->get('sms_api_key')->value ?? '' }}" placeholder="Enter API Key here..."
-                            class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm font-mono text-sm">
-                        <p class="text-xs text-gray-500 mt-1">Leave blank to simulate SMS sending (saved to logs without actual API call).</p>
+                        @php $hasSmsKey = \App\Models\Setting::hasSecret('sms_api_key'); @endphp
+                        {{-- The saved key is never printed into the page; it's encrypted at rest. --}}
+                        <input type="password" name="sms_api_key" id="sms_api_key" value="" autocomplete="off"
+                            placeholder="{{ $hasSmsKey ? 'A key is saved — enter a new one to replace it' : 'Enter API Key here...' }}"
+                            class="w-full rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 transition shadow-sm font-mono text-sm px-3 py-2">
+                        @if($hasSmsKey)
+                            <div class="mt-1.5 flex items-center justify-between gap-3">
+                                <p class="text-xs text-emerald-700 flex items-center gap-1" data-sms-key-saved><i class="ti ti-lock"></i> A key is saved (encrypted). Leave blank to keep it.</p>
+                                <label class="text-xs text-gray-500 flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" name="clear_sms_api_key" value="1" class="rounded border-gray-300 text-red-600"> Remove saved key
+                                </label>
+                            </div>
+                        @else
+                            <p class="text-xs text-gray-500 mt-1">No key saved — SMS are simulated (logged, not sent).</p>
+                        @endif
                     </div>
                     
                     <div>

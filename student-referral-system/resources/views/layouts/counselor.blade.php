@@ -73,7 +73,10 @@
                     <p class="text-white text-xs font-medium truncate">{{ auth()->user()->name }}</p>
                     <p class="text-white/40 text-[11px]">Guidance Counselor</p>
                 </div>
-                <form method="POST" action="{{ route('logout') }}" class="ml-auto">
+                <a href="{{ route('account.password.edit') }}" class="ml-auto text-white/40 hover:text-white/80 transition-colors" title="Change password" data-change-password-link>
+                    <i class="ti ti-key text-base"></i>
+                </a>
+                <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit" class="text-white/40 hover:text-white/80 transition-colors" title="Logout">
                         <i class="ti ti-logout text-base"></i>

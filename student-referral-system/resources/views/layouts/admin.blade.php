@@ -147,6 +147,12 @@
                 <i class="ti ti-message text-base w-5"></i> SMS Logs
             </a>
 
+            <a href="{{ route('admin.activity.index') }}"
+               class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
+                      {{ request()->routeIs('admin.activity.*') ? 'active text-white' : 'text-white/60' }}">
+                <i class="ti ti-history text-base w-5"></i> Activity Log
+            </a>
+
 
             <a href="{{ route('admin.settings.index') }}"
                class="nav-item flex items-center gap-2.5 px-3 mx-2 py-2.5 rounded-lg text-sm
@@ -170,7 +176,10 @@
                     <p class="text-white text-xs font-medium truncate">{{ auth()->user()->name }}</p>
                     <p class="text-white/40 text-[11px]">{{ auth()->user()->role === 'super_admin' ? 'Administrator' : 'Guidance Counselor' }}</p>
                 </div>
-                <form method="POST" action="{{ route('logout') }}" class="ml-auto">
+                <a href="{{ route('account.password.edit') }}" class="ml-auto text-white/40 hover:text-white/80 transition-colors" title="Change password" data-change-password-link>
+                    <i class="ti ti-key text-base"></i>
+                </a>
+                <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit" class="text-white/40 hover:text-white/80 transition-colors" title="Logout">
                         <i class="ti ti-logout text-base"></i>
@@ -250,6 +259,49 @@
                     <button @click="show = false" class="text-gray-400 hover:text-gray-600 transition flex-shrink-0">
                         <i class="ti ti-x text-lg"></i>
                     </button>
+                </div>
+            @endif
+
+            {{-- Temporary password — shown ONCE after resetting a staff account. --}}
+            @if(session('temporary_password'))
+                @php($tmp = session('temporary_password'))
+                <div x-data="{ show: true, copied: false }" x-show="show" x-cloak data-temporary-password
+                     class="fixed inset-0 z-[110] flex items-center justify-center p-4 print:hidden">
+                    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" @click="show = false"></div>
+                    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 overflow-hidden">
+                        <div class="px-6 py-5 border-b border-gray-100 bg-indigo-50/60 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                                <i class="ti ti-key text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900">Temporary password</h3>
+                                <p class="text-xs text-gray-500">For {{ $tmp['name'] }} — shown only once.</p>
+                            </div>
+                        </div>
+                        <div class="p-6 space-y-4">
+                            <div>
+                                <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1">Email</p>
+                                <p class="text-gray-900">{{ $tmp['email'] }}</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1">Temporary password</p>
+                                <div class="flex items-center gap-2">
+                                    <code class="font-mono text-xl font-bold text-indigo-700 bg-indigo-50 px-4 py-2 rounded-xl tracking-wider">{{ $tmp['password'] }}</code>
+                                    <button type="button"
+                                        @click="navigator.clipboard && navigator.clipboard.writeText(@js($tmp['password'])); copied = true; setTimeout(() => copied = false, 1500)"
+                                        class="p-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 transition" title="Copy password">
+                                        <i class="ti" :class="copied ? 'ti-check text-emerald-600' : 'ti-copy'"></i>
+                                    </button>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2 leading-relaxed">
+                                    They've been signed out everywhere. When they sign in with this, they'll be asked to choose their own password before anything else. It won't be shown again — reset again if it's lost.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-end">
+                            <button @click="show = false" class="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">Done</button>
+                        </div>
+                    </div>
                 </div>
             @endif
 

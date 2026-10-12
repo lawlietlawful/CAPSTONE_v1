@@ -17,9 +17,20 @@ return Application::configure(basePath: dirname(__DIR__))
         // API group carried no rate limiting at all.
         $middleware->throttleApi();
 
+        // X-Frame-Options, nosniff, Referrer-Policy… on every response.
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
         // A deactivated account loses any session it still has open — see
         // EnsureAccountIsActive.
         $middleware->web(append: [\App\Http\Middleware\EnsureAccountIsActive::class]);
+
+        // Changing a password (or the super admin resetting it) signs that
+        // account out of every other session; then a reset account is kept
+        // on Change Password until it picks its own.
+        $middleware->web(append: [
+            \Illuminate\Session\Middleware\AuthenticateSession::class,
+            \App\Http\Middleware\EnsurePasswordIsChanged::class,
+        ]);
         $middleware->api(append: [\App\Http\Middleware\EnsureAccountIsActive::class]);
 
         $middleware->alias([

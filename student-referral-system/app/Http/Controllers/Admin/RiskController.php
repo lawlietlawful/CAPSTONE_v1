@@ -188,6 +188,9 @@ class RiskController extends Controller
             return redirect()->route('admin.risk.index')->with('error', $e->getMessage());
         }
 
+        \App\Models\AuditLog::record('risk.override', $student,
+            "Overrode {$student->full_name}'s risk level to " . ucfirst($assessment->risk_level) . ': ' . trim($data['note']));
+
         return redirect()->route('admin.risk.show', $student->id)
             ->with('success', 'Risk level set to ' . ucfirst($assessment->risk_level) . ' (' . number_format($assessment->risk_score, 1) . ') and recorded in the assessment history.');
     }
@@ -233,7 +236,7 @@ class RiskController extends Controller
         $assessments = $selected->whereIn('id', $latestIds);
         $outdated = $selected->count() - $assessments->count();
 
-        $created = $reassigned = $unchanged = 0;
+        $created = $reassigned = $unchanged = $notYours = 0;
 
         foreach ($assessments as $assessment) {
             $open = Referral::where('student_id', $assessment->student_id)
@@ -244,9 +247,14 @@ class RiskController extends Controller
             if ($open) {
                 if ($open->counselor_id === $counselorId) {
                     $unchanged++;
+                } elseif (! $open->editableBy(auth()->user())) {
+                    // A colleague's case: only its counselor (or the super
+                    // admin) can hand it on — see Referral::editableBy().
+                    $notYours++;
                 } else {
+                    $from = $open->counselor_id;
                     $open->update(['counselor_id' => $counselorId]);
-                    app(NotificationService::class)->referralAssigned($open->fresh(), auth()->id());
+                    app(\App\Services\ReferralService::class)->afterReassignment($open, $from);
                     $reassigned++;
                 }
                 continue;
@@ -273,6 +281,7 @@ class RiskController extends Controller
         if ($created)    $parts[] = "$created new referral(s) created";
         if ($reassigned) $parts[] = "$reassigned existing open referral(s) reassigned";
         if ($unchanged)  $parts[] = "$unchanged already with this counselor";
+        if ($notYours)   $parts[] = "$notYours skipped (open case belongs to another counselor)";
         if ($outdated)   $parts[] = "$outdated skipped (assessment no longer the latest — refresh the page)";
 
         if (! $created && ! $reassigned) {

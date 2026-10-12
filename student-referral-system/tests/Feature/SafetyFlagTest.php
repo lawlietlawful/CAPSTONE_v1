@@ -263,7 +263,7 @@ class SafetyFlagTest extends TestCase
         foreach ([route('admin.risk.show', $s->id), route('admin.students.show', $s->id)] as $url) {
             $html = $this->actingAs($c)->get($url)->getContent();
             $this->assertStringContainsString('data-safety-flag', $html);
-            $this->assertStringContainsString(route('admin.referrals.show', $referral->id), $html);
+            $this->assertStringContainsString(route('counselor.referrals.show', $referral->id), $html);
         }
     }
 
@@ -276,7 +276,7 @@ class SafetyFlagTest extends TestCase
         $html = $this->actingAs($this->counselor())->get(route('admin.students.show', $s->id))->getContent();
 
         $this->assertStringContainsString('data-safety-flag', $html);
-        $this->assertStringContainsString(route('admin.behavioral-reports.show', $report->id), $html);
+        $this->assertStringContainsString(route('counselor.behavioral-reports.show', $report->id), $html);
     }
 
     public function test_an_unflagged_student_shows_no_alert(): void

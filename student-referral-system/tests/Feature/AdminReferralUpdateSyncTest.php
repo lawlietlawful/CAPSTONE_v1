@@ -24,7 +24,7 @@ class AdminReferralUpdateSyncTest extends TestCase
 
     private function admin(): User
     {
-        return User::factory()->counselor()->create();
+        return User::factory()->create(['role' => 'super_admin']); // the super admin's own pages (admin.*) — off-limits to counselors
     }
 
     private function editPayload(Referral $referral, string $status, array $extra = []): array

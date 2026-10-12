@@ -33,6 +33,11 @@ Route::get('/dashboard', function () {
     };
 })->middleware('auth')->name('dashboard');
 
+// ─── Account (staff) ──────────────────────────────────────────
+Route::get('/account/password', [\App\Http\Controllers\AccountPasswordController::class, 'edit'])
+    ->middleware(['auth', 'admin'])
+    ->name('account.password.edit');
+
 // ─── Admin Routes ─────────────────────────────────────────────
 Route::prefix('admin')
     ->middleware(['auth', 'admin'])
@@ -75,30 +80,33 @@ Route::prefix('admin')
     Route::post('/students/{student}/activation-code', [StudentController::class, 'regenerateActivationCode'])
          ->name('students.activation-code');
 
-    // Referrals (admin management)
-    Route::get('/referrals/export', [AdminReferralController::class, 'export'])
-         ->name('referrals.export');
-    Route::post('/referrals/bulk-action', [AdminReferralController::class, 'bulkAction'])
-         ->name('referrals.bulkAction');
-    Route::get('/referrals', [AdminReferralController::class, 'index'])
-         ->name('referrals.index');
-    Route::get('/referrals/create', [AdminReferralController::class, 'create'])
-         ->name('referrals.create');
-    Route::post('/referrals', [AdminReferralController::class, 'store'])
-         ->name('referrals.store');
-    Route::get('/referrals/{referral}', [AdminReferralController::class, 'show'])
-         ->name('referrals.show');
-    // No standalone edit page/route: editing is an inline modal on the index
-    // page that posts straight to update() below. edit() used to point at a
-    // view file (admin.referrals.edit) that was never created, so visiting
-    // the route directly 500'd — the same "orphaned and broken" pattern
-    // already found and fixed on the Students page.
-    Route::put('/referrals/{referral}', [AdminReferralController::class, 'update'])
-         ->name('referrals.update');
-    Route::delete('/referrals/{referral}', [AdminReferralController::class, 'destroy'])
-         ->name('referrals.destroy');
-    Route::patch('/referrals/{referral}/status', [AdminReferralController::class, 'updateStatus'])
-         ->name('referrals.updateStatus');
+    // Super admin only — counselors use counselor.referrals.* (scoped, with case ownership).
+    Route::middleware(['super_admin'])->group(function () {
+        // Referrals (admin management)
+        Route::get('/referrals/export', [AdminReferralController::class, 'export'])
+             ->name('referrals.export');
+        Route::post('/referrals/bulk-action', [AdminReferralController::class, 'bulkAction'])
+             ->name('referrals.bulkAction');
+        Route::get('/referrals', [AdminReferralController::class, 'index'])
+             ->name('referrals.index');
+        Route::get('/referrals/create', [AdminReferralController::class, 'create'])
+             ->name('referrals.create');
+        Route::post('/referrals', [AdminReferralController::class, 'store'])
+             ->name('referrals.store');
+        Route::get('/referrals/{referral}', [AdminReferralController::class, 'show'])
+             ->name('referrals.show');
+        // No standalone edit page/route: editing is an inline modal on the index
+        // page that posts straight to update() below. edit() used to point at a
+        // view file (admin.referrals.edit) that was never created, so visiting
+        // the route directly 500'd — the same "orphaned and broken" pattern
+        // already found and fixed on the Students page.
+        Route::put('/referrals/{referral}', [AdminReferralController::class, 'update'])
+             ->name('referrals.update');
+        Route::delete('/referrals/{referral}', [AdminReferralController::class, 'destroy'])
+             ->name('referrals.destroy');
+        Route::patch('/referrals/{referral}/status', [AdminReferralController::class, 'updateStatus'])
+             ->name('referrals.updateStatus');
+    });
 
     // At-Risk Students
     Route::get('/risk/export', [\App\Http\Controllers\Admin\RiskController::class, 'export'])
@@ -114,46 +122,52 @@ Route::prefix('admin')
 
 
 
-    // Analytics
-    Route::get('/analytics', [\App\Http\Controllers\Admin\AnalyticsController::class, 'index'])
-         ->name('analytics.index');
-    Route::get('/analytics/export-pdf', [\App\Http\Controllers\Admin\AnalyticsController::class, 'exportPdf'])
-         ->name('analytics.export-pdf');
+    // Super admin only — counselors use counselor.seminars.*; Analytics and SMS Logs (every parent's number) are the super admin's.
+    Route::middleware(['super_admin'])->group(function () {
+        // Analytics
+        Route::get('/analytics', [\App\Http\Controllers\Admin\AnalyticsController::class, 'index'])
+             ->name('analytics.index');
+        Route::get('/analytics/export-pdf', [\App\Http\Controllers\Admin\AnalyticsController::class, 'exportPdf'])
+             ->name('analytics.export-pdf');
 
-    // SMS Logs
-    Route::get('/sms-logs', [SmsLogController::class, 'index'])
-         ->name('sms-logs.index');
+        // SMS Logs
+        Route::get('/sms-logs', [SmsLogController::class, 'index'])
+             ->name('sms-logs.index');
 
-    // Seminars
-    // Create and edit are handled by modals (on the index page and the
-    // seminar detail page), so the standalone create/edit routes are excluded.
-    Route::resource('seminars', SeminarController::class)->except(['create', 'edit']);
-    Route::post('seminars/{seminar}/assign', [SeminarController::class, 'assignStudents'])
-         ->name('seminars.assign');
-    Route::delete('seminars/{seminar}/students/{student}', [SeminarController::class, 'removeStudent'])
-         ->name('seminars.students.remove');
-    Route::patch('seminars/{seminar}/attendance', [SeminarController::class, 'updateAttendance'])
-         ->name('seminars.attendance');
-    Route::get('seminars/{seminar}/print', [SeminarController::class, 'printRoster'])
-         ->name('seminars.print');
-    Route::get('seminars/{seminar}/export-roster', [SeminarController::class, 'exportRoster'])
-         ->name('seminars.export');
+        // Seminars
+        // Create and edit are handled by modals (on the index page and the
+        // seminar detail page), so the standalone create/edit routes are excluded.
+        Route::resource('seminars', SeminarController::class)->except(['create', 'edit']);
+        Route::post('seminars/{seminar}/assign', [SeminarController::class, 'assignStudents'])
+             ->name('seminars.assign');
+        Route::delete('seminars/{seminar}/students/{student}', [SeminarController::class, 'removeStudent'])
+             ->name('seminars.students.remove');
+        Route::patch('seminars/{seminar}/attendance', [SeminarController::class, 'updateAttendance'])
+             ->name('seminars.attendance');
+        Route::get('seminars/{seminar}/print', [SeminarController::class, 'printRoster'])
+             ->name('seminars.print');
+        Route::get('seminars/{seminar}/export-roster', [SeminarController::class, 'exportRoster'])
+             ->name('seminars.export');
+    });
 
-    // Behavioral Reports (read-only monitoring)
-    Route::get('/behavioral-reports/export', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'export'])
-         ->name('behavioral-reports.export');
-    Route::post('/behavioral-reports/bulk-action', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'bulkAction'])
-         ->name('behavioral-reports.bulkAction');
-    Route::get('/behavioral-reports', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'index'])
-         ->name('behavioral-reports.index');
-    Route::get('/behavioral-reports/{behavioral_report}/print', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'print'])
-         ->name('behavioral-reports.print');
-    Route::get('/behavioral-reports/{behavioral_report}', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'show'])
-         ->name('behavioral-reports.show');
-    Route::patch('/behavioral-reports/{behavioral_report}/status', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'updateStatus'])
-         ->name('behavioral-reports.updateStatus');
-    Route::post('/behavioral-reports/{behavioral_report}/refer', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'refer'])
-         ->name('behavioral-reports.refer');
+    // Super admin only — counselors use counselor.behavioral-reports.*.
+    Route::middleware(['super_admin'])->group(function () {
+        // Behavioral Reports (read-only monitoring)
+        Route::get('/behavioral-reports/export', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'export'])
+             ->name('behavioral-reports.export');
+        Route::post('/behavioral-reports/bulk-action', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'bulkAction'])
+             ->name('behavioral-reports.bulkAction');
+        Route::get('/behavioral-reports', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'index'])
+             ->name('behavioral-reports.index');
+        Route::get('/behavioral-reports/{behavioral_report}/print', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'print'])
+             ->name('behavioral-reports.print');
+        Route::get('/behavioral-reports/{behavioral_report}', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'show'])
+             ->name('behavioral-reports.show');
+        Route::patch('/behavioral-reports/{behavioral_report}/status', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'updateStatus'])
+             ->name('behavioral-reports.updateStatus');
+        Route::post('/behavioral-reports/{behavioral_report}/refer', [\App\Http\Controllers\Admin\BehavioralReportController::class, 'refer'])
+             ->name('behavioral-reports.refer');
+    });
 
     // Teachers
     Route::get('/teachers/export', [\App\Http\Controllers\Admin\TeacherController::class, 'export'])
@@ -200,6 +214,10 @@ Route::prefix('admin')
 
     // ─── Super Admin Only ───────────────────────────────────────
     Route::middleware(['super_admin'])->group(function () {
+
+        // Activity Log (audit trail)
+        Route::get('/activity-log', [\App\Http\Controllers\Admin\ActivityLogController::class, 'index'])
+             ->name('activity.index');
 
         // Settings
         Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index'])

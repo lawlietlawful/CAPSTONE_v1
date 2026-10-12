@@ -279,7 +279,7 @@
                         @forelse($recentReferrals as $referral)
                             <tr class="hover:bg-gray-50/50 transition">
                                 <td class="px-5 py-2.5">
-                                    <a href="{{ route('admin.referrals.show', $referral->id) }}" class="font-medium text-gray-900 hover:text-blue-600 hover:underline transition">
+                                    <a href="{{ \App\Support\RoleRoute::to('referrals.show', $referral->id) }}" class="font-medium text-gray-900 hover:text-blue-600 hover:underline transition">
                                         {{ $referral->student->last_name }}, {{ $referral->student->first_name }}
                                     </a>
                                 </td>

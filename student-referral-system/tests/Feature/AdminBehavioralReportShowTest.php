@@ -23,7 +23,7 @@ class AdminBehavioralReportShowTest extends TestCase
 
     private function admin(): User
     {
-        return User::factory()->create(['role' => 'admin']);
+        return User::factory()->create(['role' => 'super_admin']); // the super admin's own pages (admin.*) — off-limits to counselors
     }
 
     public function test_updating_status_notifies_the_reporting_teacher(): void

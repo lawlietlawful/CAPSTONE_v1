@@ -37,13 +37,15 @@ class SmsService
         $cleanNumber = preg_replace('/[^0-9]/', '', $recipientNumber);
 
         if (!$smsEnabled) {
-            Log::info("SMS sending is disabled in settings. Skipped sending to {$cleanNumber}");
+            Log::info('SMS sending is disabled in settings. Skipped sending to ' . self::maskNumber($cleanNumber));
             return false;
         }
 
         if (empty($apiKey)) {
             // Simulated Success (Development Mode)
-            Log::info("SIMULATED SMS to {$cleanNumber}: {$message}");
+            // Never the message text or the full number in the log file —
+            // both are kept in sms_logs (super admin only).
+            Log::info('SIMULATED SMS to ' . self::maskNumber($cleanNumber) . ' (' . mb_strlen($message) . ' chars)');
             SmsLog::create([
                 'referral_id'      => $referralId,
                 'student_id'       => $studentId,
@@ -116,5 +118,19 @@ class SmsService
 
             return false;
         }
+    }
+
+    /**
+     * "09171234567" → "0917•••••67": enough to tell numbers apart in a log
+     * line without writing a parent's phone number to disk.
+     */
+    public static function maskNumber(?string $number): string
+    {
+        $digits = preg_replace('/[^0-9]/', '', (string) $number);
+        if (strlen($digits) < 7) {
+            return str_repeat('•', strlen($digits));
+        }
+
+        return substr($digits, 0, 4) . str_repeat('•', strlen($digits) - 6) . substr($digits, -2);
     }
 }

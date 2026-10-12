@@ -18,7 +18,19 @@ class SettingController extends Controller
 
     public function update(Request $request)
     {
-        $data = $request->except(['_token', '_method']);
+        // Secrets are handled on their own: encrypted at rest, and a blank
+        // field means "keep the saved one" (the form never shows it).
+        $data = $request->except(array_merge(['_token', '_method', 'clear_sms_api_key'], Setting::ENCRYPTED_KEYS));
+        $before = Setting::whereNotIn('key', Setting::ENCRYPTED_KEYS)->pluck('value', 'key');
+        $changed = [];
+
+        if ($request->boolean('clear_sms_api_key')) {
+            Setting::set('sms_api_key', '');
+            $changed[] = 'SMS API key removed';
+        } elseif ($request->filled('sms_api_key')) {
+            Setting::set('sms_api_key', $request->input('sms_api_key'));
+            $changed[] = 'SMS API key replaced';
+        }
 
         foreach ($data as $key => $value) {
             // Determine type loosely
@@ -49,6 +61,17 @@ class SettingController extends Controller
                     ['value' => '0', 'type' => 'boolean']
                 );
             }
+        }
+
+        // Which settings changed — names only, never values.
+        $after = Setting::whereNotIn('key', Setting::ENCRYPTED_KEYS)->pluck('value', 'key');
+        foreach ($after as $key => $value) {
+            if ((string) ($before[$key] ?? '') !== (string) $value) {
+                $changed[] = $key;
+            }
+        }
+        if ($changed) {
+            \App\Models\AuditLog::record('settings.updated', null, 'Changed settings: ' . implode(', ', $changed));
         }
 
         return redirect()->route('admin.settings.index')->with('success', 'System settings updated successfully.');

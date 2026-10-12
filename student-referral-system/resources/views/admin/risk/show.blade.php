@@ -239,7 +239,7 @@
                             };
                         @endphp
                         <div class="flex items-center gap-3 py-1.5 text-sm">
-                            <a href="{{ route('admin.referrals.show', $referral->id) }}" class="font-medium text-gray-900 hover:text-blue-600 whitespace-nowrap">{{ $referral->created_at->format('M d, Y') }}</a>
+                            <a href="{{ \App\Support\RoleRoute::to('referrals.show', $referral->id) }}" class="font-medium text-gray-900 hover:text-blue-600 whitespace-nowrap">{{ $referral->created_at->format('M d, Y') }}</a>
                             <span class="text-gray-500 truncate flex-1" title="{{ $referral->display_reason }}">{{ $referral->referral_type_label }}</span>
                             <span class="inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap {{ $stClass }}">{{ str_replace('_', ' ', $referral->status) }}</span>
                         </div>
@@ -384,7 +384,7 @@
                             <i class="ti ti-x text-xl"></i>
                         </button>
                     </div>
-                    <form action="{{ route('admin.referrals.store') }}" method="POST">
+                    <form action="{{ \App\Support\RoleRoute::to('referrals.store') }}" method="POST">
                         @csrf
                         <input type="hidden" name="student_id" value="{{ $student->id }}">
                         {{-- Tells the server to refuse a second open referral unless the counselor explicitly confirms it. --}}
@@ -398,7 +398,7 @@
                                     <ul class="mt-2 space-y-1 text-xs text-amber-800">
                                         @foreach($openReferrals as $open)
                                             <li>
-                                                <a href="{{ route('admin.referrals.show', $open->id) }}" class="underline font-medium">#{{ $open->id }}</a>
+                                                <a href="{{ \App\Support\RoleRoute::to('referrals.show', $open->id) }}" class="underline font-medium">#{{ $open->id }}</a>
                                                 &middot; {{ $open->referral_type_label }} &middot; {{ ucwords(str_replace('_', ' ', $open->status)) }}
                                                 &middot; {{ $open->counselor?->name ?? 'Unassigned' }}
                                             </li>

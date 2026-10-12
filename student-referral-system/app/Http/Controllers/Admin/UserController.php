@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Course;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
+use App\Models\AuditLog;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -84,6 +85,7 @@ class UserController extends Controller
         }
 
         $user = User::create($attrs);
+        AuditLog::record('user.created', $user, "Created {$this->roleLabel($user->role)} account {$user->name} ({$user->email})");
 
         if ($isTeacher) {
             $user->syncTeacherAssignments($request->input('assignments', []));
@@ -156,7 +158,26 @@ class UserController extends Controller
             $data['password'] = Hash::make($request->password);
         }
 
+        $changes = [];
+        if ($user->role !== $request->role) {
+            $changes[] = "role {$this->roleLabel($user->role)} → {$this->roleLabel($request->role)}";
+        }
+        if ($user->name !== $request->name) {
+            $changes[] = "name \"{$user->name}\" → \"{$request->name}\"";
+        }
+        if ($user->email !== $request->email) {
+            $changes[] = "email {$user->email} → {$request->email}";
+        }
+        if ($request->filled('password')) {
+            $changes[] = 'password set';
+        }
+
         $user->update($data);
+
+        if ($changes) {
+            AuditLog::record($user->wasChanged('role') ? 'user.role_changed' : 'user.updated', $user,
+                "Edited {$user->name}: " . implode('; ', $changes));
+        }
 
         if ($request->role === 'teacher') {
             $user->syncTeacherAssignments($request->input('assignments', []));
@@ -190,6 +211,7 @@ class UserController extends Controller
                 'activation_code'      => Hash::make(User::canonicalActivationCode($plainCode)),
             ]);
             $user->tokens()->delete(); // sign out any existing mobile sessions
+            AuditLog::record('user.password_reset', $user, "Reset teacher {$user->name}'s account (new activation code issued)");
 
             return redirect()->route('admin.users.index')
                 ->with('success', "{$user->name}'s account was reset. Share the new activation code below.")
@@ -198,12 +220,26 @@ class UserController extends Controller
                 ]);
         }
 
-        // Admin / counselor: a standard default password.
-        $user->update([
-            'password' => Hash::make('password123')
-        ]);
+        // Admin / counselor: a random temporary password, shown once, that
+        // they must replace at next sign-in (EnsurePasswordIsChanged). It used
+        // to be "password123" for everyone, kept indefinitely. Changing the
+        // hash also signs them out everywhere (AuthenticateSession).
+        if ($user->id === auth()->id()) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'To change your own password, use Change Password in the sidebar.');
+        }
 
-        return redirect()->route('admin.users.index')->with('success', "Password for {$user->name} has been reset to 'password123'.");
+        $temporary = Str::password(12, symbols: false);
+        $user->update([
+            'password' => Hash::make($temporary),
+            'must_change_password' => true,
+        ]);
+        $user->tokens()->delete();
+        AuditLog::record('user.password_reset', $user, "Reset {$user->name}'s password (temporary password issued, change required)");
+
+        return redirect()->route('admin.users.index')
+            ->with('success', "{$user->name}'s password was reset. Share the temporary password below — they'll choose a new one when they sign in.")
+            ->with('temporary_password', ['name' => $user->name, 'email' => $user->email, 'password' => $temporary]);
     }
 
     /**
@@ -229,6 +265,7 @@ class UserController extends Controller
                 "{$user->name} has " . implode(', ', $onFile) . ' on file, which deleting would erase. Deactivate the account instead.');
         }
 
+        AuditLog::record('user.deleted', $user, "Deleted {$this->roleLabel($user->role)} account {$user->name} ({$user->email})");
         $user->delete();
 
         return redirect()->route('admin.users.index')->with('success', 'User deleted successfully.');
@@ -258,6 +295,7 @@ class UserController extends Controller
         }
 
         $user->update(['deactivated_at' => now()]);
+        AuditLog::record('user.deactivated', $user, "Deactivated {$user->name}'s account");
         $user->tokens()->delete(); // sign out of the portal apps right away
 
         return back()->with('success', "{$user->name}'s account was deactivated. Everything they filed is kept.");
@@ -275,6 +313,7 @@ class UserController extends Controller
         }
 
         $user->update(['deactivated_at' => null]);
+        AuditLog::record('user.reactivated', $user, "Reactivated {$user->name}'s account");
 
         return back()->with('success', "{$user->name}'s account was reactivated.");
     }
@@ -302,5 +341,16 @@ class UserController extends Controller
         }
 
         return $parts;
+    }
+
+    private function roleLabel(?string $role): string
+    {
+        return match ($role) {
+            'super_admin' => 'Super Admin',
+            'admin'       => 'Counselor',
+            'teacher'     => 'Teacher',
+            'student'     => 'Student',
+            default       => (string) $role,
+        };
     }
 }

@@ -110,7 +110,7 @@ class ReferralBehavioralReportStatusSyncTest extends TestCase
         $referralA = $this->escalatedReferral(referralStatus: 'pending', reportStatus: 'pending');
         $referralB = $this->escalatedReferral(referralStatus: 'in_progress', reportStatus: 'reviewed');
 
-        $this->actingAs($this->counselor())->post(route('admin.referrals.bulkAction'), [
+        $this->actingAs(User::factory()->create(['role' => 'super_admin']))->post(route('admin.referrals.bulkAction'), [
             'referral_ids' => [$referralA->id, $referralB->id],
             'action'       => 'resolved',
         ])->assertRedirect();

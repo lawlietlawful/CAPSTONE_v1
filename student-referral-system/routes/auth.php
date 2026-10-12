@@ -12,10 +12,9 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])
-        ->name('register');
-
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    // No public sign-up: accounts are created by the super admin (staff) or
+    // through activation codes (teachers, students). Breeze's open
+    // /register made a 'student' account for anyone who could reach the site.
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

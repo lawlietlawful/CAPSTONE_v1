@@ -490,6 +490,9 @@ class StudentController extends Controller
         }
 
         $cachedData['imported'] = ($cachedData['imported'] ?? 0) + $imported;
+        if ($imported > 0) {
+            \App\Models\AuditLog::record('student.imported', null, "Imported {$imported} student(s) from CSV (batch {$page} of " . max(1, $totalPages) . ')');
+        }
         $cachedData['failed'] = array_merge($cachedData['failed'] ?? [], $failedRows);
         \Illuminate\Support\Facades\Cache::put($cacheKey, $cachedData, now()->addHours(2));
 
@@ -786,7 +789,9 @@ class StudentController extends Controller
             DB::beginTransaction();
             
             $user = $student->user;
-            
+
+            \App\Models\AuditLog::record('student.deleted', $student,
+                "Deleted student {$student->full_name} ({$student->student_id_number}) and all their records");
             $student->delete();
             
             if ($user) {

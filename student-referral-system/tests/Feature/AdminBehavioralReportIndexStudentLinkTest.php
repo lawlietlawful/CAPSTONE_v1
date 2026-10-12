@@ -18,7 +18,7 @@ class AdminBehavioralReportIndexStudentLinkTest extends TestCase
 
     private function admin(): User
     {
-        return User::factory()->create(['role' => 'admin']);
+        return User::factory()->create(['role' => 'super_admin']); // the super admin's own pages (admin.*) — off-limits to counselors
     }
 
     public function test_student_name_links_to_that_rows_own_report(): void

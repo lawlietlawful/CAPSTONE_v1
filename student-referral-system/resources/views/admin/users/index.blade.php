@@ -312,6 +312,26 @@
                                         </div>
                                     </div>
                                 </div>
+                                {{-- Staff password reset (super admin only): a one-time temporary
+                                     password they must replace at sign-in. Teachers reset through
+                                     activation codes on the Teachers page instead. --}}
+                                @if($isSuper && ! $isSelf && in_array($user->role, ['admin', 'super_admin'], true) && ! $user->isDeactivated())
+                                    <form id="reset-password-{{ $user->id }}" action="{{ route('admin.users.reset-password', $user->id) }}" method="POST" class="inline-block">
+                                        @csrf
+                                        <button type="button" @click="$dispatch('open-confirm-modal', {
+                                                formId: 'reset-password-{{ $user->id }}',
+                                                title: 'Reset Password',
+                                                message: @js("Reset {$user->name}'s password? They're signed out everywhere and get a temporary password (shown to you once) that they must change when they sign in."),
+                                                confirmText: 'Yes, Reset Password',
+                                                buttonClass: 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200',
+                                                iconClass: 'ti-key text-indigo-600',
+                                                iconBgClass: 'bg-indigo-50'
+                                            })" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Reset password" data-reset-password="{{ $user->id }}">
+                                            <i class="ti ti-key text-lg"></i>
+                                        </button>
+                                    </form>
+                                @endif
+
                                 @if(! $isSelf && $user->isDeactivated())
                                     <form id="reactivate-user-{{ $user->id }}" action="{{ route('admin.users.reactivate', $user->id) }}" method="POST" class="inline-block">
                                         @csrf

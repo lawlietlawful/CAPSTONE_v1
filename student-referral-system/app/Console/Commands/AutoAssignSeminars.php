@@ -110,7 +110,7 @@ class AutoAssignSeminars extends Command
                                 'parent'
                             );
                         } catch (\Exception $e) {
-                            Log::error("Failed to send auto-assign SMS to {$student->parent_contact}: " . $e->getMessage());
+                            Log::error('Failed to send auto-assign SMS to ' . \App\Services\SmsService::maskNumber($student->parent_contact) . ': ' . $e->getMessage());
                         }
                     }
                 }

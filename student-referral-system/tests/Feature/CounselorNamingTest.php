@@ -110,6 +110,6 @@ class CounselorNamingTest extends TestCase
     {
         $c = $this->counselor();
 
-        $this->assertSame('Referrals', $this->heading($this->actingAs($c)->get(route('admin.referrals.index'))->getContent()));
+        $this->assertSame('Referrals', $this->heading($this->actingAs($c)->get(route('counselor.referrals.index'))->getContent()));
     }
 }

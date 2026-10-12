@@ -20,7 +20,7 @@ class AdminBehavioralReportFilterTest extends TestCase
 
     private function admin(): User
     {
-        return User::factory()->create(['role' => 'admin']);
+        return User::factory()->create(['role' => 'super_admin']); // the super admin's own pages (admin.*) — off-limits to counselors
     }
 
     public function test_filtering_by_reported_by_id_does_not_throw_and_filters_correctly(): void

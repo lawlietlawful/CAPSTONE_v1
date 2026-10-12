@@ -262,6 +262,8 @@ class CourseController extends Controller
                 ->with('success', "\"{$newName}\" is now a {$newLevel} course.");
         }
 
+        \App\Models\AuditLog::record('course.renamed', $course, "Renamed course \"{$oldName}\" to \"{$newName}\" (students, teacher assignments and seminar targets updated)");
+
         DB::transaction(function () use ($course, $oldName, $newName, $newLevel) {
             $course->update(['name' => $newName, 'education_level' => $newLevel]);
             Student::where('course', $oldName)->update(['course' => $newName]);
@@ -282,6 +284,7 @@ class CourseController extends Controller
                 ->with('error', "Cannot delete \"{$course->name}\" — it is still referenced by existing students, teacher assignments or upcoming seminars.");
         }
 
+        \App\Models\AuditLog::record('course.deleted', $course, "Deleted course \"{$course->name}\" and its sections");
         $course->delete();
 
         return redirect()->route('admin.courses.index')->with('success', 'Course deleted successfully.');

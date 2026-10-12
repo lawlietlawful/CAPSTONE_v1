@@ -59,6 +59,8 @@ class LoginRequest extends FormRequest
 
         if (! $user || ! Hash::check((string) $this->input('password'), $user->password)) {
             RateLimiter::hit($this->throttleKey());
+            // The identifier tried — never the password.
+            \App\Models\AuditLog::record('auth.failed', null, "Failed sign-in attempt for {$identifier}", null);
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
@@ -68,6 +70,8 @@ class LoginRequest extends FormRequest
         // Checked only after the password matches, so this message can't be
         // used to probe which accounts exist.
         if ($user->isDeactivated()) {
+            \App\Models\AuditLog::record('auth.failed', $user, "Sign-in attempt by deactivated account {$user->name} ({$identifier})", null);
+
             throw ValidationException::withMessages([
                 'email' => User::DEACTIVATED_MESSAGE,
             ]);

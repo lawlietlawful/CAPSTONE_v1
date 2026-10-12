@@ -18,7 +18,7 @@
         <i class="ti {{ $caseStatus['icon'] }} text-sm"></i>
         <span class="text-xs font-bold">{{ $caseStatus['label'] }}</span>
         @if($caseStatus['referral_id'])
-            <a href="{{ route('admin.referrals.show', $caseStatus['referral_id']) }}" class="ml-auto text-[10px] font-semibold underline underline-offset-2 opacity-90 hover:opacity-100 whitespace-nowrap">
+            <a href="{{ \App\Support\RoleRoute::to('referrals.show', $caseStatus['referral_id']) }}" class="ml-auto text-[10px] font-semibold underline underline-offset-2 opacity-90 hover:opacity-100 whitespace-nowrap">
                 View referral #{{ $caseStatus['referral_id'] }}
             </a>
         @endif
