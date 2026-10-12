@@ -81,6 +81,17 @@ class ReferralController extends Controller
             'referral_type_other' => 'nullable|required_if:referral_type,Other|string|max:255',
             'reason'              => 'required|string',
             'counselor_id'        => ['nullable', AssignableCounselor::rule()],
+        ], [
+            'student_id.required'          => 'Choose a student.',
+            'student_id.exists'            => 'Choose a student from the list.',
+            'referral_type.required'       => 'Choose a referral type.',
+            'referral_type_other.required_if' => 'Say what kind of referral this is.',
+            'reason.required'              => 'Describe the reason for the referral.',
+        ], [
+            'student_id'          => 'student',
+            'referral_type'       => 'referral type',
+            'referral_type_other' => 'referral type',
+            'counselor_id'        => 'counselor',
         ]);
 
         // Goes through the same service the teacher-filed flow uses, so a
@@ -223,6 +234,11 @@ class ReferralController extends Controller
      */
     public function updateStatus(Request $request, Referral $referral, ReferralService $referralService)
     {
+        if (! $referral->editableBy(auth()->user())) {
+            return redirect()->back()->with('error',
+                "This case is assigned to {$referral->counselor->name} — only they can update its status, notes or assignment.");
+        }
+
         $request->validate([
             'status'          => 'required|in:pending,in_progress,resolved,cancelled',
             'counselor_id'    => ['nullable', AssignableCounselor::rule($referral->counselor_id)],

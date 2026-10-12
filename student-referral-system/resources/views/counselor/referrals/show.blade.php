@@ -11,6 +11,9 @@
     // must not silently reopen or blank out the others.
     $interventionFailed = $errors->hasAny(['intervention_type', 'intervention_date', 'description', 'outcome', 'follow_up_date', 'follow_up_notes']);
     $parentContactFailed = $errors->hasAny(['contact_method', 'summary']);
+    // Anyone can view a referral; only the assigned counselor works it
+    // (Referral::editableBy()) — status/notes/assignment and new sessions.
+    $canEdit = $referral->editableBy(auth()->user());
 @endphp
 
 <div x-data="{ activeModal: {!! $interventionFailed ? "'intervention'" : 'null' !!} }">
@@ -26,9 +29,15 @@
         <button onclick="document.getElementById('parent-contact-modal').classList.remove('hidden')" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition shadow-sm flex items-center gap-2">
             <i class="ti ti-headset"></i> Log Parent Contact
         </button>
-        <button type="button" @click="activeModal = 'intervention'" class="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition shadow-sm flex items-center gap-2">
-            <i class="ti ti-plus"></i> Log Intervention
-        </button>
+        @if($canEdit)
+            <button type="button" @click="activeModal = 'intervention'" class="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition shadow-sm flex items-center gap-2">
+                <i class="ti ti-plus"></i> Log Intervention
+            </button>
+        @else
+            <span class="px-4 py-2 bg-gray-100 text-gray-400 text-sm font-medium rounded-lg flex items-center gap-2 cursor-not-allowed" title="Assigned to {{ $referral->counselor->name }} — only they can log sessions on this case" data-intervention-locked>
+                <i class="ti ti-lock"></i> Log Intervention
+            </span>
+        @endif
     </div>
 </div>
 
@@ -349,6 +358,13 @@
                 <h4 class="font-semibold text-gray-800">Update Referral</h4>
             </div>
             <div class="p-5 flex flex-col flex-1">
+                @if(! $canEdit)
+                    <div class="flex-1 flex flex-col items-center justify-center text-center py-8" data-referral-locked>
+                        <div class="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 mb-3"><i class="ti ti-lock text-xl"></i></div>
+                        <p class="text-sm font-medium text-gray-900">Assigned to {{ $referral->counselor->name }}</p>
+                        <p class="text-xs text-gray-500 mt-1 max-w-xs">Only they can update this case's status, notes or assignment. You can still view it, print it and log parent contact.</p>
+                    </div>
+                @else
                 <form action="{{ route('counselor.referrals.updateStatus', $referral->id) }}" method="POST" class="flex flex-col flex-1">
                     @csrf
                     @method('PATCH')
@@ -384,6 +400,7 @@
                         </button>
                     </div>
                 </form>
+                @endif
             </div>
         </div>
     </div>

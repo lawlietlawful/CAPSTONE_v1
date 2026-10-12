@@ -148,6 +148,36 @@ class Referral extends Model
         return $this->belongsTo(User::class, 'counselor_id');
     }
 
+    /**
+     * Whether $user may work this case — change its status or notes,
+     * reassign it, or log an intervention on it. Anyone can view any
+     * referral (a shared caseload), but only the assigned counselor edits
+     * it: otherwise a colleague could silently overwrite their notes or
+     * take the case. Unassigned cases are open to every counselor (that's
+     * how they get claimed), as is a case whose counselor has been
+     * deactivated, so it never gets stranded. The super admin can always.
+     */
+    public function editableBy(User $user): bool
+    {
+        if ($user->role === 'super_admin' || ! $this->counselor_id || $this->counselor_id === $user->id) {
+            return true;
+        }
+
+        return (bool) $this->counselor?->deactivated_at;
+    }
+
+    /** Query counterpart of editableBy(), for a counselor. */
+    public function scopeEditableBy($query, User $user)
+    {
+        if ($user->role === 'super_admin') {
+            return $query;
+        }
+
+        return $query->where(fn ($q) => $q->whereNull('counselor_id')
+            ->orWhere('counselor_id', $user->id)
+            ->orWhereHas('counselor', fn ($c) => $c->whereNotNull('deactivated_at')));
+    }
+
     public function riskAssessment()
     {
         return $this->belongsTo(RiskAssessment::class);

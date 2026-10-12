@@ -246,6 +246,7 @@ class RiskController extends Controller
                     $unchanged++;
                 } else {
                     $open->update(['counselor_id' => $counselorId]);
+                    app(NotificationService::class)->referralAssigned($open->fresh(), auth()->id());
                     $reassigned++;
                 }
                 continue;

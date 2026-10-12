@@ -94,8 +94,13 @@ class ReferralService
         }
 
         $statusChanged = $referral->status !== $status;
+        $reassigned = $counselorId && (int) $counselorId !== (int) $referral->counselor_id;
 
         $referral->update($data);
+
+        if ($reassigned) {
+            $this->notificationService->referralAssigned($referral->fresh(), auth()->id());
+        }
 
         if ($statusChanged) {
             $this->notificationService->referralStatusChanged($referral->fresh());

@@ -228,7 +228,11 @@ Route::prefix('counselor')
 
     Route::get('referrals/{referral}/print', [ReferralController::class, 'print'])->name('referrals.print');
     Route::post('referrals/{referral}/log-parent-contact', [ReferralController::class, 'logParentContact'])->name('referrals.logParentContact');
-    Route::resource('referrals', ReferralController::class);
+    // Only the actions that exist: changes go through updateStatus() below
+    // (from the referral page), and referrals are never deleted. A bare
+    // resource() registered edit/update/destroy with no controller methods
+    // behind them, so those URLs 500'd.
+    Route::resource('referrals', ReferralController::class)->only(['index', 'create', 'store', 'show']);
     Route::patch('referrals/{referral}/status',
         [ReferralController::class, 'updateStatus'])
          ->name('referrals.updateStatus');

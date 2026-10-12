@@ -10,6 +10,28 @@ use App\Models\Referral;
 class InterventionController extends Controller
 {
     /**
+     * Plain-language validation messages — the defaults read "The referral
+     * id field is required." for a field labelled "Target Student / Referral".
+     */
+    private const MESSAGES = [
+        'referral_id.required'          => 'Choose the student / referral this session is for.',
+        'intervention_type.required'    => 'Choose an intervention type.',
+        'intervention_date.required'    => 'Enter the date of the intervention.',
+        'description.required'          => 'Write a few notes about the session.',
+        'follow_up_date.after_or_equal' => 'The follow-up date cannot be before the intervention date.',
+    ];
+
+    private const ATTRIBUTES = [
+        'referral_id'       => 'student / referral',
+        'intervention_type' => 'intervention type',
+        'intervention_date' => 'date of intervention',
+        'description'       => 'session notes',
+        'outcome'           => 'outcome',
+        'follow_up_date'    => 'follow-up date',
+        'follow_up_notes'   => 'follow-up notes',
+    ];
+
+    /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
@@ -43,8 +65,11 @@ class InterventionController extends Controller
      */
     private function referralOptions()
     {
+        // Only cases this counselor may work — logging a session moves the
+        // referral along (and claims it if pending), see Referral::editableBy().
         return Referral::with('student')
             ->whereIn('status', ['pending', 'in_progress'])
+            ->editableBy(auth()->user())
             ->orderBy('created_at', 'desc')
             ->get();
     }
@@ -220,7 +245,14 @@ class InterventionController extends Controller
             'outcome'           => 'nullable|in:improving,no_change,worsening,resolved',
             'follow_up_date'    => 'nullable|date|after_or_equal:intervention_date',
             'follow_up_notes'   => 'nullable|string',
-        ]);
+        ], self::MESSAGES, self::ATTRIBUTES);
+
+        $target = Referral::with('counselor')->find($request->referral_id);
+        if (! $target->editableBy(auth()->user())) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'referral_id' => "This case is assigned to {$target->counselor->name} — only they can log sessions on it.",
+            ]);
+        }
 
         $intervention = Intervention::create([
             'referral_id'       => $request->referral_id,
@@ -402,7 +434,7 @@ class InterventionController extends Controller
             'outcome'           => 'nullable|in:improving,no_change,worsening,resolved',
             'follow_up_date'    => 'nullable|date|after_or_equal:intervention_date',
             'follow_up_notes'   => 'nullable|string',
-        ]);
+        ], self::MESSAGES, self::ATTRIBUTES);
 
         $intervention->update($request->only([
             'intervention_type', 'intervention_date', 'description',
@@ -444,7 +476,7 @@ class InterventionController extends Controller
         $request->validate([
             'outcome'        => 'nullable|in:improving,no_change,worsening,resolved',
             'follow_up_date' => $followUpRule,
-        ]);
+        ], self::MESSAGES, self::ATTRIBUTES);
 
         $oldFollowUpDate = $intervention->follow_up_date?->format('Y-m-d');
 

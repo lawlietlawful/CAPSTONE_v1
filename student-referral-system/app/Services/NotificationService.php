@@ -140,6 +140,33 @@ class NotificationService
     }
 
     /**
+     * Tell a counselor an existing referral was handed to them (from the
+     * referral page or the At-Risk bulk assign). newPendingReferral() only
+     * fires when a referral is created, so without this a reassigned case
+     * just appeared in their list unannounced. No-op when assigning to
+     * yourself, or to a deactivated account.
+     */
+    public function referralAssigned(Referral $referral, ?int $assignedById): void
+    {
+        $counselor = $referral->counselor;
+        if (! $counselor || $counselor->id === $assignedById || $counselor->deactivated_at) {
+            return;
+        }
+
+        $name = $referral->student?->full_name ?? 'A student';
+        $by = $assignedById ? User::find($assignedById)?->name : null;
+
+        $this->notify(
+            $counselor->id,
+            'Referral assigned to you',
+            "{$name}'s referral ({$referral->referral_type_label}) was assigned to you" . ($by ? " by {$by}." : '.'),
+            'referral_assigned',
+            'referral',
+            $referral->id,
+        );
+    }
+
+    /**
      * Tell the logging counselor a scheduled follow-up is due today or has
      * gone overdue. The caller (SendInterventionFollowUpReminders) gates this
      * with follow_up_notified_at so the same record is only ever notified
