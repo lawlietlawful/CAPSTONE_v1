@@ -36,6 +36,14 @@ return new class extends Migration
         foreach ($this->indexes as $table => $sets) {
             Schema::table($table, function (Blueprint $t) use ($table, $sets) {
                 foreach ($sets as $columns) {
+                    // MySQL/MariaDB silently drop a foreign key's own index
+                    // once another index starts with the same column, so the
+                    // composite may now be what the foreign key relies on and
+                    // can't be dropped alone. Put a single-column index back
+                    // first in that case.
+                    if (count($columns) > 1 && ! Schema::hasIndex($table, [$columns[0]])) {
+                        $t->index([$columns[0]]);
+                    }
                     $t->dropIndex($this->name($table, $columns));
                 }
             });
