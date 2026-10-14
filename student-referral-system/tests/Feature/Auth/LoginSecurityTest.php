@@ -48,7 +48,7 @@ class LoginSecurityTest extends TestCase
     {
         $this->get(route('login'))->assertOk()
             ->assertSee('Misamis University')
-            ->assertSee('Welcome back')
+            ->assertSee('Student Referral System')
             ->assertSee('data-toggle-password', false)
             ->assertSee('data-caps-warning', false)
             ->assertSee('autocomplete="current-password"', false)
