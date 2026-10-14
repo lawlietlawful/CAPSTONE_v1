@@ -126,11 +126,25 @@ class Referral extends Model
         'status',
         'counselor_notes',
         'resolved_at',
+        'teacher_followup_outcome',
+        'teacher_followup_note',
+        'teacher_followup_at',
     ];
 
     protected $casts = [
         'resolved_at' => 'datetime',
+        'teacher_followup_at' => 'datetime',
     ];
+
+    /** How the referring teacher says the student is doing after resolution. */
+    public const FOLLOWUP_OUTCOMES = [
+        'improved'  => 'Improved',
+        'no_change' => 'No change',
+        'worse'     => 'Worse',
+    ];
+
+    /** Statuses where Guidance is still working on the case. */
+    public const OPEN_STATUSES = ['pending', 'in_progress'];
 
     // Relationships
     public function student()
@@ -239,6 +253,16 @@ class Referral extends Model
      * but no UI should show it verbatim to a teacher — what follows the
      * marker is already exactly what they wrote on the original report.
      */
+    /**
+     * The reason as the teacher wrote it, without any system-written tags
+     * ("[AUTO-ESCALATED ...]", "[Flagged: ...]"). Those explain priority to
+     * counselors; the Teacher Portal shows this instead.
+     */
+    public function getPlainReasonAttribute(): string
+    {
+        return preg_replace('/^(\s*\[[^\]]*\]\s*)+/u', '', (string) $this->reason);
+    }
+
     public function getDisplayReasonAttribute()
     {
         return preg_replace(

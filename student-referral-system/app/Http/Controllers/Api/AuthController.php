@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\LoginLocked;
+use App\Support\LoginThrottle;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -17,41 +22,9 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        $request->validate([
-            'email' => 'required|string',
-            'password' => 'required|string',
-        ]);
-
-        $identifier = trim($request->input('email'));
-
-        $user = User::where('role', 'student')
-            ->where(function ($q) use ($identifier) {
-                $q->where('email', $identifier)
-                  ->orWhere('username', $identifier);
-            })
-            ->first();
-
-        if (!$user) {
-            return response()->json([
-                'message' => 'Invalid Student ID or password.',
-            ], 401);
-        }
-
-        if (!$user->isActivated()) {
-            return response()->json([
-                'message' => 'Please activate your account first using your Student ID and activation code.',
-            ], 403);
-        }
-
-        if (!Hash::check($request->input('password'), $user->password)) {
-            return response()->json([
-                'message' => 'Invalid Student ID or password.',
-            ], 401);
-        }
-
-        // After the credential check, so it can't be used to probe accounts.
-        if ($user->isDeactivated()) {
-            return response()->json(['message' => User::DEACTIVATED_MESSAGE], 403);
+        $user = $this->portalSignIn($request, 'student', 'Student Portal', 'Student ID');
+        if ($user instanceof JsonResponse) {
+            return $user;
         }
 
         $student = $user->student;
@@ -83,9 +56,9 @@ class AuthController extends Controller
     public function activate(Request $request)
     {
         $request->validate([
-            'student_id_number' => ['required', 'string'],
-            'activation_code' => ['required', 'string'],
-            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
+            'student_id_number' => ['required', 'string', 'max:255'],
+            'activation_code' => ['required', 'string', 'max:255'],
+            'new_password' => ['required', 'string', 'max:255', 'confirmed', Password::defaults()],
         ]);
 
         $mismatch = response()->json([
@@ -123,6 +96,7 @@ class AuthController extends Controller
             'account_activated_at' => now(),
             'activation_code' => null, // one-time — consumed on activation
         ]);
+        AuditLog::record('auth.login', null, 'Activated their account and signed in to the Student Portal', $user);
 
         $token = $user->createToken('student-portal')->plainTextToken;
 
@@ -135,47 +109,13 @@ class AuthController extends Controller
     /**
      * Teacher mobile login. Teachers sign in with their Employee ID (mirrored
      * into users.username) — or their email — plus the password they chose at
-     * activation. Accounts must be activated first (see teacherActivate).
+     * activation.
      */
     public function teacherLogin(Request $request)
     {
-        $request->validate([
-            'email' => 'required|string',
-            'password' => 'required|string',
-        ]);
-
-        $identifier = trim($request->input('email'));
-
-        $user = User::where('role', 'teacher')
-            ->where(function ($q) use ($identifier) {
-                $q->where('email', $identifier)
-                  ->orWhere('username', $identifier);
-            })
-            ->first();
-
-        if (!$user) {
-            return response()->json([
-                'message' => 'Invalid Employee ID or password.',
-            ], 401);
-        }
-
-        // Mirrors the student flow: an un-activated teacher is told to activate
-        // first rather than being handed a generic "wrong password".
-        if (!$user->isActivated()) {
-            return response()->json([
-                'message' => 'Please activate your account first using your Employee ID and activation code.',
-            ], 403);
-        }
-
-        if (!Hash::check($request->input('password'), $user->password)) {
-            return response()->json([
-                'message' => 'Invalid Employee ID or password.',
-            ], 401);
-        }
-
-        // After the credential check, so it can't be used to probe accounts.
-        if ($user->isDeactivated()) {
-            return response()->json(['message' => User::DEACTIVATED_MESSAGE], 403);
+        $user = $this->portalSignIn($request, 'teacher', 'Teacher Portal', 'Employee ID');
+        if ($user instanceof JsonResponse) {
+            return $user;
         }
 
         $token = $user->createToken('teacher-portal')->plainTextToken;
@@ -195,9 +135,9 @@ class AuthController extends Controller
     public function teacherActivate(Request $request)
     {
         $request->validate([
-            'school_id' => ['required', 'string'],
-            'activation_code' => ['required', 'string'],
-            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
+            'school_id' => ['required', 'string', 'max:255'],
+            'activation_code' => ['required', 'string', 'max:255'],
+            'new_password' => ['required', 'string', 'max:255', 'confirmed', Password::defaults()],
         ]);
 
         $mismatch = response()->json([
@@ -233,6 +173,7 @@ class AuthController extends Controller
             'account_activated_at' => now(),
             'activation_code' => null, // one-time — consumed on activation
         ]);
+        AuditLog::record('auth.login', null, 'Activated their account and signed in to the Teacher Portal', $user);
 
         $token = $user->createToken('teacher-portal')->plainTextToken;
 
@@ -247,6 +188,63 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Logged out', 'success' => true]);
+    }
+
+    /**
+     * The sign-in both portal apps share, with the web login's protections
+     * (LoginThrottle): escalating pauses, a per-device limit, and the same
+     * answer — in the same time — whether the ID is unknown, not yet
+     * activated (its password is a random placeholder) or the password is
+     * wrong. Each attempt goes to the activity log.
+     *
+     * Returns the user, or the error response to send back.
+     */
+    private function portalSignIn(Request $request, string $role, string $portal, string $idLabel): User|JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'string', 'max:255'],
+            'password' => ['required', 'string', 'max:255'],
+        ]);
+
+        $identifier = trim($request->input('email'));
+        $throttle = LoginThrottle::for($identifier, $request->ip());
+
+        try {
+            $throttle->ensureNotLocked();
+
+            $user = User::where('role', $role)
+                ->where(function ($q) use ($identifier) {
+                    $q->where('email', $identifier)
+                      ->orWhere('username', $identifier);
+                })
+                ->first();
+
+            // An account that was never activated is refused like a wrong
+            // password, even if its placeholder password somehow matched.
+            if (! LoginThrottle::checkPassword($user, (string) $request->input('password')) || ! $user->isActivated()) {
+                AuditLog::record('auth.failed', $user, "Failed {$portal} sign-in attempt for {$identifier}", null);
+                $throttle->failed();
+
+                return response()->json([
+                    'message' => "Invalid {$idLabel} or password. Signing in for the first time? Activate your account first.",
+                ], 401);
+            }
+        } catch (LoginLocked $locked) {
+            return response()->json(['message' => $locked->getMessage(), 'retry_after' => $locked->seconds], 429)
+                ->header('Retry-After', (string) $locked->seconds);
+        }
+
+        // After the credential check, so it can't be used to probe accounts.
+        if ($user->isDeactivated()) {
+            AuditLog::record('auth.failed', $user, "{$portal} sign-in attempt by deactivated account {$user->name} ({$identifier})", null);
+
+            return response()->json(['message' => User::DEACTIVATED_MESSAGE], 403);
+        }
+
+        $throttle->succeeded();
+        AuditLog::record('auth.login', null, "Signed in to the {$portal}", $user);
+
+        return $user;
     }
 
     private function studentPayload(Student $student, User $user): array

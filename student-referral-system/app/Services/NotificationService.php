@@ -140,6 +140,35 @@ class NotificationService
     }
 
     /**
+     * Tell the counselor on a resolved referral that the teacher who filed
+     * it reported back on how the student is doing in class.
+     */
+    public function teacherFollowUp(Referral $referral): void
+    {
+        $counselor = $referral->counselor;
+        if (! $counselor || $counselor->deactivated_at) {
+            return;
+        }
+
+        $name = $referral->student?->full_name ?? 'a student';
+        $teacher = $referral->referredBy?->name ?? 'The referring teacher';
+        $outcome = match ($referral->teacher_followup_outcome) {
+            'improved' => 'has improved in class',
+            'worse'    => 'is doing worse in class',
+            default    => 'shows no change in class',
+        };
+
+        $this->notify(
+            $counselor->id,
+            'Teacher follow-up',
+            "{$teacher} says {$name} {$outcome} since the referral was resolved.",
+            'teacher_followup',
+            'referral',
+            $referral->id,
+        );
+    }
+
+    /**
      * Tell a counselor an existing referral was handed to them (from the
      * referral page or the At-Risk bulk assign). newPendingReferral() only
      * fires when a referral is created, so without this a reassigned case

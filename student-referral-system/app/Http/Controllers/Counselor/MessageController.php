@@ -119,7 +119,7 @@ class MessageController extends Controller
         $user = auth()->user();
 
         $request->validate([
-            'content' => 'required|string',
+            'content' => 'required|string|max:5000',
             'parent_id' => 'nullable|exists:messages,id',
             'receiver_id' => 'required_without:parent_id|exists:users,id',
             'subject' => 'nullable|string|max:255',

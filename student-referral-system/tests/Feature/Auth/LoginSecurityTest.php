@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Http\Requests\Auth\LoginRequest;
+use App\Support\LoginThrottle;
 use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -156,7 +156,7 @@ class LoginSecurityTest extends TestCase
     {
         $this->counselor();
 
-        for ($i = 1; $i <= LoginRequest::DEVICE_MAX_FAILURES; $i++) {
+        for ($i = 1; $i <= LoginThrottle::DEVICE_MAX_FAILURES; $i++) {
             $this->attempt("user{$i}@school.test", 'Password123');
         }
 
@@ -175,7 +175,7 @@ class LoginSecurityTest extends TestCase
     {
         $own = User::factory()->create(['role' => 'admin', 'email' => 'mine@school.test', 'password' => bcrypt('MyOwnPass2026')]);
 
-        for ($i = 1; $i < LoginRequest::DEVICE_MAX_FAILURES; $i++) {
+        for ($i = 1; $i < LoginThrottle::DEVICE_MAX_FAILURES; $i++) {
             $this->attempt("user{$i}@school.test", 'Password123');
         }
         $this->attempt('mine@school.test', 'MyOwnPass2026');

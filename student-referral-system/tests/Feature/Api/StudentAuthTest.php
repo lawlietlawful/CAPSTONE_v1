@@ -11,7 +11,12 @@ class StudentAuthTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_an_unactivated_student_is_told_to_use_their_activation_code_not_a_birthdate(): void
+    /**
+     * An account that was never activated is refused even when the password
+     * it was created with matches — with the same answer as a wrong password,
+     * which points first-timers to activation without confirming the ID.
+     */
+    public function test_an_unactivated_student_is_pointed_to_activation_without_confirming_the_id(): void
     {
         $user = User::factory()->student()->create([
             'username' => '2026-0099',
@@ -19,15 +24,13 @@ class StudentAuthTest extends TestCase
         ]);
         Student::factory()->create(['user_id' => $user->id, 'student_id_number' => '2026-0099']);
 
-        $response = $this->postJson('/api/login', [
-            'email' => '2026-0099',
-            'password' => 'password',
-        ]);
+        $unactivated = $this->postJson('/api/login', ['email' => '2026-0099', 'password' => 'password']);
+        $unknown = $this->postJson('/api/login', ['email' => '2026-9999', 'password' => 'password']);
 
-        $response->assertStatus(403);
-        $response->assertJson([
-            'message' => 'Please activate your account first using your Student ID and activation code.',
+        $unactivated->assertStatus(401)->assertJson([
+            'message' => 'Invalid Student ID or password. Signing in for the first time? Activate your account first.',
         ]);
-        $response->assertJsonMissing(['message' => 'Please activate your account first using your Student ID and birthdate.']);
+        $this->assertSame($unknown->json(), $unactivated->json());
+        $this->assertSame(0, $user->tokens()->count());
     }
 }

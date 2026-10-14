@@ -54,9 +54,11 @@ class BehavioralReportController extends Controller
             // exact strings, so an unrecognised value would file a report that
             // silently never escalates.
             'incident_type' => 'required|in:' . implode(',', BehavioralReport::incidentTypeValues()),
-            'incident_date' => 'required|date',
+            'incident_date' => 'required|date|before_or_equal:today',
             'location' => 'nullable|string|max:100',
-            'description' => 'required|string',
+            'description' => 'required|string|max:5000',
+        ], [
+            'incident_date.before_or_equal' => 'The incident date cannot be in the future.',
         ]);
 
         // ML severity assessment, persistence, and auto-escalation all live in

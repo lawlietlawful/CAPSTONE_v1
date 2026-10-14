@@ -273,7 +273,7 @@ class TeacherPortalApiTest extends TestCase
             ->assertJsonPath('journey.2.state', 'upcoming');
     }
 
-    public function test_resolved_referral_detail_exposes_journey_and_counselor_notes(): void
+    public function test_resolved_referral_detail_shows_the_journey_but_never_the_counselors_notes(): void
     {
         [$teacher, $student] = $this->teacherAdvising();
         $referral = Referral::factory()->create([
@@ -287,7 +287,9 @@ class TeacherPortalApiTest extends TestCase
 
         $this->getJson("/api/teacher/referrals/{$referral->id}")
             ->assertOk()
-            ->assertJsonPath('referral.counselor_notes', 'Met with the student; arranged tutoring.')
+            // Confidential case notes stay with Guidance.
+            ->assertJsonMissingPath('referral.counselor_notes')
+            ->assertDontSee('arranged tutoring')
             ->assertJsonPath('journey.0.state', 'done')       // filed
             ->assertJsonPath('journey.1.state', 'done')       // under review
             ->assertJsonPath('journey.2.state', 'current');   // resolved

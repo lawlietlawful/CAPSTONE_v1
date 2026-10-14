@@ -46,7 +46,7 @@ class TeacherActivationTest extends TestCase
 
         $this->postJson('/api/teacher/login', [
             'email' => 'T-TEST-001', 'password' => 'anything',
-        ])->assertStatus(403); // "activate first"
+        ])->assertStatus(401); // same answer as a wrong password (see AuthController::portalSignIn)
     }
 
     public function test_activated_teacher_can_log_in_with_chosen_password(): void

@@ -143,7 +143,7 @@ class AccountDeactivationTest extends TestCase
 
         $this->postJson('/api/teacher/activate', [
             'school_id' => 'T-9001', 'activation_code' => $code,
-            'new_password' => 'new-password', 'new_password_confirmation' => 'new-password',
+            'new_password' => 'new-password1', 'new_password_confirmation' => 'new-password1',
         ])->assertStatus(403)->assertJson(['message' => User::DEACTIVATED_MESSAGE]);
 
         $this->assertNotNull($teacher->fresh()->activation_code);

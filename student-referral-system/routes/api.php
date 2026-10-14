@@ -5,13 +5,14 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\StudentPortalController;
 use App\Http\Controllers\Api\TeacherPortalController;
 
-// Credential-checking endpoints get a stricter limiter than the rest of the API
-// (5/min per email+IP, 20/min per IP) — see AppServiceProvider. Without it these
-// were open to unlimited password guessing.
-Route::middleware('throttle:login')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
+// Sign-ins are limited by App\Support\LoginThrottle — the same escalating
+// pauses as the web login. Activation gets its own limiter (5/min per ID+IP,
+// 20/min per IP; see AppServiceProvider) against guessing activation codes.
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/teacher/login', [AuthController::class, 'teacherLogin']);
+
+Route::middleware('throttle:activation')->group(function () {
     Route::post('/activate', [AuthController::class, 'activate']);
-    Route::post('/teacher/login', [AuthController::class, 'teacherLogin']);
     Route::post('/teacher/activate', [AuthController::class, 'teacherActivate']);
 });
 
@@ -54,8 +55,11 @@ Route::middleware(['auth:sanctum', 'teacher'])->group(function () {
         Route::post('/referrals', [TeacherPortalController::class, 'storeReferral']);
         Route::get('/referrals/{id}', [TeacherPortalController::class, 'showReferral'])
             ->whereNumber('id');
+        Route::post('/referrals/{id}/follow-up', [TeacherPortalController::class, 'followUp'])
+            ->whereNumber('id');
 
         Route::get('/seminars/matching', [TeacherPortalController::class, 'matchingSeminars']);
+        Route::get('/seminars/upcoming', [TeacherPortalController::class, 'upcomingSeminars']);
         Route::post('/change-password', [TeacherPortalController::class, 'changePassword']);
 
         Route::get('/notifications', [TeacherPortalController::class, 'notifications']);

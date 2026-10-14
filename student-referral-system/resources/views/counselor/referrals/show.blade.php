@@ -139,6 +139,8 @@
                     </div>
                 @endif
 
+                @include('partials.referral-teacher-followup')
+
                 @if($referral->resolved_at)
                     <div class="pt-4 border-t border-gray-100">
                         <span class="block text-xs text-gray-400 uppercase tracking-wider mb-0.5">Resolved On</span>
@@ -391,6 +393,7 @@
 
                         <div class="flex flex-col flex-1">
                             <label for="counselor_notes" class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                            <p class="flex items-center gap-1 text-xs text-gray-400 mb-1.5" data-notes-private><i class="ti ti-lock"></i> Only Guidance staff can see these notes.</p>
                             <textarea name="counselor_notes" id="counselor_notes" rows="3" placeholder="Add notes about progress, actions taken..."
                                 class="flex-1 min-h-[5rem] w-full rounded-xl border border-gray-300 bg-white focus:bg-white focus:border-blue-500 focus:ring focus:ring-blue-200 transition px-4 py-2.5 text-sm text-gray-900 shadow-sm">{{ $referral->counselor_notes }}</textarea>
                         </div>

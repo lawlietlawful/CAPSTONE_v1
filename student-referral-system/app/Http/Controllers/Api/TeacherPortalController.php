@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\BehavioralReport;
 use App\Models\Referral;
+use App\Models\Seminar;
 use App\Services\BehavioralReportService;
+use App\Services\NotificationService;
 use App\Services\ReferralService;
+use App\Support\PortalPassword;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 
 class TeacherPortalController extends Controller
 {
@@ -33,6 +36,17 @@ class TeacherPortalController extends Controller
             'pending_referrals' => Referral::where('referred_by', $teacher->id)
                 ->where('status', 'pending')->count(),
             'recent_referrals'  => $recentReferrals,
+            // For the Profile tab: who this is and which classes they advise.
+            'employee_id'       => $teacher->username,
+            // Sorted by the label shown, since a course may be stored by its
+            // full name or its abbreviation.
+            'advisory'          => $teacher->teacherAssignments()->get()
+                ->map(fn ($a) => collect([
+                    $a->course ? \App\Models\Course::abbreviate($a->course) : null,
+                    $a->grade_level,
+                    $a->section,
+                ])->filter()->implode(' · '))
+                ->unique()->sort(SORT_NATURAL)->values(),
         ]);
     }
 
@@ -114,24 +128,7 @@ class TeacherPortalController extends Controller
     /** Self-service password change from the Profile screen. */
     public function changePassword(Request $request)
     {
-        $request->validate([
-            'current_password' => ['required', 'string'],
-            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
-
-        $user = $request->user();
-
-        if (!Hash::check($request->input('current_password'), $user->password)) {
-            return response()->json([
-                'message' => 'Current password is incorrect.',
-            ], 422);
-        }
-
-        $user->update([
-            'password' => Hash::make($request->input('new_password')),
-        ]);
-
-        return response()->json(['message' => 'Password updated successfully.', 'success' => true]);
+        return PortalPassword::change($request, 'Teacher Portal');
     }
 
     /**
@@ -181,23 +178,29 @@ class TeacherPortalController extends Controller
         }
 
         // Merged, newest-first timeline of the student's whole case history.
-        $reports = $student->behavioralReports()->latest()->get()->map(fn ($r) => [
+        // Entries someone else filed show what and when, but not their
+        // written account — that stays between its author and Guidance.
+        $teacherId = $request->user()->id;
+
+        $reports = $student->behavioralReports()->with('escalatedReferral')->latest()->get()->map(fn ($r) => [
             'kind'       => 'report',
             'id'         => $r->id,
+            'mine'       => $r->reported_by === $teacherId,
             'title'      => $r->incident_type,
-            'detail'     => $r->description,
+            'detail'     => $r->reported_by === $teacherId ? $r->description : null,
             'status'     => $r->status,
             'severity'   => $r->severity,
-            'escalated'  => $r->escalatedReferral()->exists(),
+            'escalated'  => $r->escalatedReferral !== null,
             'date'       => optional($r->incident_date)->toDateString() ?? $r->created_at?->toDateString(),
             'created_at' => $r->created_at?->toIso8601String(),
         ]);
 
-        $referrals = $student->referrals()->with('riskAssessment')->latest()->get()->map(fn ($r) => [
+        $referrals = $student->referrals()->latest()->get()->map(fn ($r) => [
             'kind'       => 'referral',
             'id'         => $r->id,
+            'mine'       => $r->referred_by === $teacherId,
             'title'      => $r->referral_type_label,
-            'detail'     => $r->display_reason,
+            'detail'     => $r->referred_by === $teacherId ? $r->plain_reason : null,
             'status'     => $r->status,
             'priority'   => $r->priority,
             'auto'       => $r->behavioral_report_id !== null,
@@ -345,9 +348,11 @@ class TeacherPortalController extends Controller
             // these exact strings, so a mobile client posting a typo would file a
             // report that silently never escalates.
             'incident_type' => 'required|in:' . implode(',', BehavioralReport::incidentTypeValues()),
-            'incident_date' => 'required|date',
+            'incident_date' => 'required|date|before_or_equal:today',
             'location'      => 'nullable|string|max:100',
-            'description'   => 'required|string',
+            'description'   => 'required|string|max:5000',
+        ], [
+            'incident_date.before_or_equal' => 'The incident date cannot be in the future.',
         ]);
 
         $teacher = $request->user();
@@ -451,7 +456,7 @@ class TeacherPortalController extends Controller
             'student_id'          => 'required|exists:students,id',
             'referral_type'       => 'required|in:' . implode(',', Referral::REFERRAL_TYPES),
             'referral_type_other' => 'nullable|required_if:referral_type,Other|string|max:255',
-            'reason'              => 'required|string',
+            'reason'              => 'required|string|max:5000',
         ]);
 
         $teacher = $request->user();
@@ -468,6 +473,34 @@ class TeacherPortalController extends Controller
             ], 403);
         }
 
+        // A second referral for a student Guidance is already working with
+        // usually duplicates the first. Say so and let the teacher decide —
+        // file anyway (confirm_duplicate) or message the counselor instead.
+        // Someone else's referral shows what and when, not what they wrote.
+        if (! $request->boolean('confirm_duplicate')) {
+            $open = Referral::with('counselor')
+                ->where('student_id', $data['student_id'])
+                ->whereIn('status', Referral::OPEN_STATUSES)
+                ->latest()
+                ->first();
+
+            if ($open) {
+                return response()->json([
+                    'message'   => 'This student already has an open referral with Guidance.',
+                    'duplicate' => true,
+                    'existing'  => [
+                        'id'                  => $open->id,
+                        'mine'                => $open->referred_by === $teacher->id,
+                        'referral_type_label' => $open->referral_type_label,
+                        'status'              => $open->status,
+                        'created_at'          => $open->created_at?->toIso8601String(),
+                        'counselor_id'        => $open->counselor_id,
+                        'counselor_name'      => $open->counselor?->name,
+                    ],
+                ], 409);
+            }
+        }
+
         $referral = $service->create($teacher, $data);
         $referral->load(['student', 'counselor', 'riskAssessment']);
 
@@ -479,10 +512,10 @@ class TeacherPortalController extends Controller
     }
 
     /**
-     * A single referral the teacher filed, with its status journey and the
-     * counselor's notes — so the teacher can see what Guidance did after they
-     * referred the student. Ownership enforced: a teacher only sees referrals
-     * they filed.
+     * A single referral the teacher filed, with its status journey — so the
+     * teacher can follow what happened after they referred the student.
+     * Ownership enforced: a teacher only sees referrals they filed. The
+     * counselor's notes are confidential case notes and never leave Guidance.
      */
     public function showReferral(Request $request, int $id)
     {
@@ -495,14 +528,88 @@ class TeacherPortalController extends Controller
             return response()->json(['message' => 'This referral is not yours.'], 403);
         }
 
-        $payload = $this->referralPayload($referral) + [
-            'counselor_notes' => $referral->counselor_notes,
-        ];
-
         return response()->json([
-            'referral' => $payload,
+            'referral' => $this->referralPayload($referral),
             'journey'  => $this->referralJourney($referral),
         ]);
+    }
+
+    /**
+     * After Guidance resolves a referral, the teacher who filed it says how
+     * the student is doing in class now (and may update it later). The
+     * counselor who handled it is told.
+     */
+    public function followUp(Request $request, int $id, NotificationService $notifications)
+    {
+        $data = $request->validate([
+            'outcome' => 'required|in:' . implode(',', array_keys(Referral::FOLLOWUP_OUTCOMES)),
+            'note'    => 'nullable|string|max:2000',
+        ]);
+
+        $referral = Referral::with(['student', 'counselor', 'riskAssessment', 'referredBy'])
+            ->where('referred_by', $request->user()->id)
+            ->whereKey($id)
+            ->first();
+
+        if (! $referral) {
+            return response()->json(['message' => 'This referral is not yours.'], 403);
+        }
+        if ($referral->status !== 'resolved') {
+            return response()->json([
+                'message' => 'You can add a follow-up once Guidance resolves this referral.',
+            ], 422);
+        }
+
+        $referral->update([
+            'teacher_followup_outcome' => $data['outcome'],
+            'teacher_followup_note'    => trim((string) ($data['note'] ?? '')) ?: null,
+            'teacher_followup_at'      => now(),
+        ]);
+
+        $notifications->teacherFollowUp($referral);
+        AuditLog::record('referral.followup', $referral,
+            "Follow-up on {$referral->student?->full_name}'s resolved referral: " . Referral::FOLLOWUP_OUTCOMES[$data['outcome']]);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => 'Thanks — your follow-up was sent to Guidance.',
+            'referral' => $this->referralPayload($referral),
+        ]);
+    }
+
+    /**
+     * Seminars in the next two weeks that the teacher's advisees are on the
+     * roster for — so they know who will be out of class, and when.
+     */
+    public function upcomingSeminars(Request $request)
+    {
+        $advisedIds = $request->user()->advisedStudentsQuery()->select('students.id');
+
+        $seminars = Seminar::stillAhead()
+            ->whereDate('date', '<=', now()->addDays(14)->toDateString())
+            ->whereHas('students', fn ($q) => $q->whereIn('students.id', $advisedIds)
+                ->where('student_seminars.status', 'enrolled'))
+            ->with(['students' => fn ($q) => $q->whereIn('students.id', $advisedIds)
+                ->where('student_seminars.status', 'enrolled')
+                ->orderBy('last_name')])
+            ->orderBy('date')
+            ->orderBy('time')
+            ->get()
+            ->map(fn (Seminar $s) => [
+                'id'          => $s->id,
+                'title'       => $s->title,
+                'date'        => $s->date ? \Illuminate\Support\Carbon::parse($s->date)->toDateString() : null,
+                'time'        => $s->time,
+                'venue'       => $s->venue,
+                'is_required' => (bool) $s->is_required,
+                'status'      => $s->status,
+                'students'    => $s->students->map(fn ($st) => [
+                    'id'   => $st->id,
+                    'name' => $st->last_name . ', ' . $st->first_name,
+                ])->values(),
+            ]);
+
+        return response()->json(['seminars' => $seminars]);
     }
 
     /**
@@ -628,17 +735,25 @@ class TeacherPortalController extends Controller
             'referral_type_other' => $referral->referral_type_other,
             // Pre-rendered "Other — <text>" so the client never re-implements it.
             'referral_type_label' => $referral->referral_type_label,
-            // Cleaned of the internal "[AUTO-ESCALATED ...]" marker — see
-            // is_auto_escalated/escalated_from_report_id for that signal instead.
-            'reason'              => $referral->display_reason,
+            // Cleaned of system tags ("[AUTO-ESCALATED ...]", "[Flagged: ...]") —
+            // see is_auto_escalated/escalated_from_report_id for that signal.
+            'reason'              => $referral->plain_reason,
             'priority'            => $referral->priority,
             'status'              => $referral->status,
+            'counselor_id'        => $referral->counselor_id,
             'counselor_name'      => $referral->counselor?->name,
             'risk_level'          => $referral->riskAssessment?->risk_level,
             'is_auto_escalated'   => $referral->is_auto_escalated,
             'escalated_from_report_id' => $referral->behavioral_report_id,
             'created_at'          => $referral->created_at?->toIso8601String(),
             'resolved_at'         => $referral->resolved_at?->toIso8601String(),
+            // The teacher's own after-resolution follow-up, if they gave one.
+            'follow_up'           => $referral->teacher_followup_outcome ? [
+                'outcome' => $referral->teacher_followup_outcome,
+                'label'   => Referral::FOLLOWUP_OUTCOMES[$referral->teacher_followup_outcome] ?? $referral->teacher_followup_outcome,
+                'note'    => $referral->teacher_followup_note,
+                'at'      => $referral->teacher_followup_at?->toIso8601String(),
+            ] : null,
         ];
     }
 

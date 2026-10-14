@@ -21,14 +21,19 @@ class AdminStudentShowTest extends TestCase
 {
     private function counselor(): User
     {
-        return User::factory()->counselor()->create();
+        // Fixed name: it's on every page, and a random "Lowell" would trip the "Low" check.
+        return User::factory()->counselor()->create(['name' => 'Rosa Santos']);
     }
 
     use RefreshDatabase;
 
     public function test_a_never_assessed_student_shows_not_assessed_not_low(): void
     {
-        $student = Student::factory()->create();
+        // Fixed names: a random one like "Lowe" would put "Low" on the page.
+        $student = Student::factory()->create([
+            'first_name' => 'Ana', 'last_name' => 'Cruz', 'parent_name' => 'Maria Cruz',
+        ]);
+        $student->user->update(['name' => 'Ana Cruz']);
 
         $response = $this->actingAs($this->counselor())->get(route('admin.students.show', $student->id));
 

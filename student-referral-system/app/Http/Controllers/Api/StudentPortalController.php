@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use App\Support\PortalPassword;
 
 class StudentPortalController extends Controller
 {
@@ -170,23 +170,6 @@ class StudentPortalController extends Controller
 
     public function changePassword(Request $request)
     {
-        $request->validate([
-            'current_password' => ['required', 'string'],
-            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
-
-        $user = $request->user();
-
-        if (!Hash::check($request->input('current_password'), $user->password)) {
-            return response()->json([
-                'message' => 'Current password is incorrect.',
-            ], 422);
-        }
-
-        $user->update([
-            'password' => Hash::make($request->input('new_password')),
-        ]);
-
-        return response()->json(['message' => 'Password updated successfully.', 'success' => true]);
+        return PortalPassword::change($request, 'Student Portal');
     }
 }

@@ -53,7 +53,7 @@ class ReferralController extends Controller
             // analytics grouping. Not every referral form asks for it
             // directly, so the service derives it from referral_type.
             'concern_type'        => 'nullable|in:academic,behavioral,emotional,family,peer_conflict,attendance,other',
-            'reason'              => 'required|string',
+            'reason'              => 'required|string|max:5000',
         ]);
 
         // Persistence, ML risk assessment and the parent SMS all live in the

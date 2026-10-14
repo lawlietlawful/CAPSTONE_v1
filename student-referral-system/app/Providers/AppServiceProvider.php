@@ -74,10 +74,8 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * The web login is already throttled by Breeze (LoginRequest::ensureIsNotRateLimited).
-     * The API login endpoints were not throttled at all — gatherMiddleware() on
-     * api/teacher/login returned only ['api'] — leaving them open to unlimited
-     * password guessing against a known email address.
+     * Request limits for the API. Sign-ins (web and apps) are limited
+     * separately by App\Support\LoginThrottle.
      */
     protected function configureRateLimiting(): void
     {
@@ -88,24 +86,24 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
-        // Login endpoints. Two independent limits, both must pass:
-        //   5/min per (email, IP) — stops guessing one account's password.
-        //   20/min per IP         — stops spraying one password across many
-        //                           emails, which the per-email limit misses.
-        RateLimiter::for('login', function (Request $request) {
-            $email = strtolower((string) $request->input('email'));
+        // Account activation (portal apps). Sign-ins themselves are limited by
+        // App\Support\LoginThrottle. Two independent limits, both must pass:
+        //   5/min per (ID, IP) — stops guessing one account's activation code.
+        //   20/min per IP      — stops trying codes across many IDs.
+        RateLimiter::for('activation', function (Request $request) {
+            $id = strtolower((string) ($request->input('school_id') ?? $request->input('student_id_number')));
 
             return [
-                Limit::perMinute(5)->by($email . '|' . $request->ip()),
+                Limit::perMinute(5)->by($id . '|' . $request->ip()),
                 Limit::perMinute(20)->by($request->ip()),
             ];
         });
     }
 
     /**
-     * Web sign-ins in the audit log: who signed in, and lockouts after too
-     * many attempts. Failed attempts are recorded in LoginRequest, which
-     * checks the password itself (so Laravel's Failed event never fires).
+     * Web sign-ins in the audit log. Failed attempts are recorded in
+     * LoginRequest, which checks the password itself (so Laravel's Failed
+     * event never fires); the portal apps record their own in AuthController.
      */
     private function auditSignIns(): void
     {
@@ -114,10 +112,7 @@ class AppServiceProvider extends ServiceProvider
                 \App\Models\AuditLog::record('auth.login', null, 'Signed in', $event->user);
             }
         });
-
-        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Lockout::class, function ($event) {
-            \App\Models\AuditLog::record('auth.lockout', null,
-                'Sign-in locked after too many attempts for ' . ($event->request->input('email') ?? 'unknown'), null);
-        });
+        // Lockouts are recorded by App\Support\LoginThrottle, once per pause,
+        // for the web login and the portal apps alike.
     }
 }
