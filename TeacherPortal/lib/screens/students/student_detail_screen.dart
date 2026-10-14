@@ -384,15 +384,18 @@ class _TimelineCard extends StatelessWidget {
     final icon = isReport ? Icons.receipt_long_rounded : Icons.outbox_rounded;
     final kindLabel = isReport ? 'Behavioral report' : 'Referral';
 
+    // Only the teacher's own entries open: someone else's stays a summary.
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => isReport
-              ? ReportDetailScreen(reportId: item.id)
-              : ReferralDetailScreen(referralId: item.id),
-        ),
-      ),
+      onTap: !item.mine
+          ? null
+          : () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => isReport
+                      ? ReportDetailScreen(reportId: item.id)
+                      : ReferralDetailScreen(referralId: item.id),
+                ),
+              ),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -439,14 +442,30 @@ class _TimelineCard extends StatelessWidget {
                   Text(_dateLabel, style: AppTextStyles.meta),
                   const SizedBox(width: 4),
                 ],
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: AppColors.text3,
-                ),
+                if (item.mine)
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: AppColors.text3,
+                  ),
               ],
             ),
-            if (item.detail.isNotEmpty) ...[
+            if (!item.mine) ...[
+              const SizedBox(height: 9),
+              Row(
+                children: [
+                  const Icon(Icons.lock_outline_rounded, size: 12, color: AppColors.text3),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      'Filed by another staff member. Details stay with Guidance.',
+                      style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.text3),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (item.mine && item.detail.isNotEmpty) ...[
               const SizedBox(height: 9),
               Text(
                 item.detail,
@@ -539,7 +558,7 @@ class _SeminarCard extends StatelessWidget {
                       Text(seminar.title, style: AppTextStyles.sectionTitle),
                       if (seminar.date != null && seminar.date!.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        Text(seminar.date!, style: AppTextStyles.meta),
+                        Text(_formatDate(seminar.date!), style: AppTextStyles.meta),
                       ],
                     ],
                   ),
@@ -604,5 +623,14 @@ class _EmptyRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// "2026-10-17" → "Oct 17, 2026"; anything unparseable is shown as-is.
+String _formatDate(String raw) {
+  try {
+    return DateFormat('MMM d, yyyy').format(DateTime.parse(raw));
+  } catch (_) {
+    return raw;
   }
 }

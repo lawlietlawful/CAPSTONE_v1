@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import '../core/constants/api_constants.dart';
 import '../core/services/api_service.dart';
+import '../core/services/draft_store.dart';
 import '../models/advised_student.dart';
 import '../models/behavioral_report.dart';
 import '../models/dashboard_stats.dart';
 import '../models/message.dart';
 import '../models/referral.dart';
 import '../models/referral_detail.dart';
+import '../models/report_draft.dart';
 import '../models/app_notification.dart';
 import '../models/roster_student.dart';
 import '../models/student_detail.dart';
+import '../models/upcoming_seminar.dart';
 
 /// Holds the teacher's advised students, dashboard counters, filed reports and
 /// referrals, and drives the two submit actions. One provider covers every tab
@@ -93,6 +96,11 @@ class TeacherProvider extends ChangeNotifier {
   bool _loadingReferrals = false;
   bool _loadingDashboard = false;
   bool _submitting = false;
+
+  List<UpcomingSeminar> _upcomingSeminars = [];
+  List<ReportDraft> _drafts = [];
+  bool _sendingDrafts = false;
+  Map<int, String> _draftErrors = {};
 
   String? _studentsError;
   String? _reportsError;
@@ -178,15 +186,90 @@ class TeacherProvider extends ChangeNotifier {
   bool get loadingDashboard => _loadingDashboard;
   bool get submitting => _submitting;
 
+  List<UpcomingSeminar> get upcomingSeminars => _upcomingSeminars;
+  List<ReportDraft> get drafts => _drafts;
+  bool get sendingDrafts => _sendingDrafts;
+
+  /// Why the server refused a draft, by draft id (shown on that draft).
+  Map<int, String> get draftErrors => _draftErrors;
+
   String? get studentsError => _studentsError;
   String? get reportsError => _reportsError;
   String? get referralsError => _referralsError;
   String? get dashboardError => _dashboardError;
 
+  /// Forgets everything loaded for the signed-in teacher. Called when a
+  /// session ends or a new one starts, so on a shared phone the next teacher
+  /// never sees the previous one's students, reports or messages — not even
+  /// for a moment while their own data loads.
+  void reset() {
+    _students = [];
+    _reports = [];
+    _referrals = [];
+    _dashboard = DashboardStats.empty;
+    _referralTypes = const [
+      'Absences',
+      'Tardiness',
+      'Poor academic performance',
+      'Misconduct',
+      'Other',
+    ];
+    _incidentTypes = IncidentTypes.all;
+    _roster = [];
+    _riskSummary = const {};
+    _loadingRoster = false;
+    _rosterError = null;
+    _notifications = [];
+    _unreadNotifications = 0;
+    _loadingNotifications = false;
+    _notificationsError = null;
+    _messages = [];
+    _unreadMessages = 0;
+    _loadingMessages = false;
+    _messagesError = null;
+    _referralSearch = '';
+    _referralStatus = null;
+    _referralType = null;
+    _referralPriority = null;
+    _referralDateFrom = null;
+    _referralDateTo = null;
+    _reportSearch = '';
+    _reportStatus = null;
+    _reportIncidentType = null;
+    _reportSeverity = null;
+    _reportDateFrom = null;
+    _reportDateTo = null;
+    _pendingReferralCount = 0;
+    _totalReferrals = 0;
+    _referralsPage = 1;
+    _hasMoreReferrals = false;
+    _loadingMoreReferrals = false;
+    _totalReports = 0;
+    _reportsPage = 1;
+    _hasMoreReports = false;
+    _loadingMoreReports = false;
+    _loadingStudents = false;
+    _loadingReports = false;
+    _loadingReferrals = false;
+    _loadingDashboard = false;
+    _submitting = false;
+    _studentsError = null;
+    _reportsError = null;
+    _referralsError = null;
+    _dashboardError = null;
+    _upcomingSeminars = [];
+    _drafts = [];
+    _sendingDrafts = false;
+    _draftErrors = {};
+    notifyListeners();
+  }
+
   Future<void> loadDashboard() async {
     _loadingDashboard = true;
     _dashboardError = null;
     notifyListeners();
+    // The "this week's seminars" panel refreshes alongside the counters.
+    loadUpcomingSeminars();
     try {
       final data = await ApiService.get(ApiConstants.dashboard);
       _dashboard = DashboardStats.fromJson(data);
@@ -315,11 +398,15 @@ class TeacherProvider extends ChangeNotifier {
 
   /// Files a referral. Returns the created [Referral] on success, or throws an
   /// [ApiException] the caller surfaces.
+  /// Files a referral. When the student already has an open referral the
+  /// server answers 409 (an [ApiException] whose `data['existing']` describes
+  /// it); the screen asks the teacher and resends with [confirmDuplicate].
   Future<Referral> submitReferral({
     required int studentId,
     required String referralType,
     String? referralTypeOther,
     required String reason,
+    bool confirmDuplicate = false,
   }) async {
     _submitting = true;
     notifyListeners();
@@ -331,6 +418,7 @@ class TeacherProvider extends ChangeNotifier {
           'referral_type': referralType,
           'referral_type_other': referralTypeOther,
           'reason': reason,
+          if (confirmDuplicate) 'confirm_duplicate': true,
         },
       );
       final referral = Referral.fromJson(
@@ -345,6 +433,88 @@ class TeacherProvider extends ChangeNotifier {
       _submitting = false;
       notifyListeners();
     }
+  }
+
+  /// Tells Guidance how the student is doing after a resolved referral.
+  /// Returns the referral with its follow-up attached.
+  Future<Referral> submitFollowUp({
+    required int referralId,
+    required String outcome,
+    String? note,
+  }) async {
+    final data = await ApiService.post(
+      ApiConstants.referralFollowUp(referralId),
+      body: {'outcome': outcome, 'note': note},
+    );
+    return Referral.fromJson(data['referral'] as Map<String, dynamic>);
+  }
+
+  /// Seminars in the next two weeks with the teacher's advisees enrolled.
+  /// A failure leaves the last list in place — it's a side panel, not the page.
+  Future<void> loadUpcomingSeminars() async {
+    try {
+      final data = await ApiService.get(ApiConstants.upcomingSeminars);
+      _upcomingSeminars = (data['seminars'] as List? ?? [])
+          .map((e) => UpcomingSeminar.fromJson(e as Map<String, dynamic>))
+          .toList();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  // ── Unsent report drafts ──────────────────────────────────────────────
+
+  /// Keeps a report that couldn't be sent on the phone.
+  Future<void> saveDraft(ReportDraft draft) async {
+    _drafts = [..._drafts, draft];
+    notifyListeners();
+    await DraftStore.save(_drafts);
+  }
+
+  Future<void> loadDrafts() async {
+    _drafts = await DraftStore.load();
+    notifyListeners();
+  }
+
+  Future<void> discardDraft(int id) async {
+    _drafts = _drafts.where((d) => d.id != id).toList();
+    notifyListeners();
+    await DraftStore.save(_drafts);
+  }
+
+  /// Tries to send every draft, oldest first. Stops at the first one that
+  /// can't reach the server (still offline); a draft the server refuses
+  /// (e.g. the student left the advisory) stays, with the reason, for the
+  /// teacher to look at. Returns how many were sent.
+  Future<int> sendDrafts() async {
+    if (_sendingDrafts || _drafts.isEmpty) return 0;
+    _sendingDrafts = true;
+    _draftErrors = {};
+    notifyListeners();
+    var sent = 0;
+    try {
+      for (final draft in List<ReportDraft>.from(_drafts)) {
+        try {
+          await submitReport(
+            studentId: draft.studentId,
+            incidentType: draft.incidentType,
+            incidentDate: draft.incidentDate,
+            location: draft.location,
+            description: draft.description,
+          );
+          _drafts = _drafts.where((d) => d.id != draft.id).toList();
+          await DraftStore.save(_drafts);
+          sent++;
+        } on ApiException catch (e) {
+          if (e.isNetworkError) break;
+          _draftErrors = {..._draftErrors, draft.id: e.message};
+        }
+      }
+    } finally {
+      _sendingDrafts = false;
+      notifyListeners();
+    }
+    if (sent > 0) loadDashboard();
+    return sent;
   }
 
   /// Loads the "My Students" roster (advised students + current risk) and the

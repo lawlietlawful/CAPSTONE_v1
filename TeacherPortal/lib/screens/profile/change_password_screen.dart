@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/password_rules.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/auth_service.dart';
 
@@ -37,10 +38,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       setState(() => _errorMessage = 'Please fill in all fields.');
       return;
     }
-    if (newPassword.length < 8) {
-      setState(
-        () => _errorMessage = 'New password must be at least 8 characters.',
-      );
+    final weakness = PasswordRules.problem(newPassword);
+    if (weakness != null) {
+      setState(() => _errorMessage = weakness);
       return;
     }
     if (newPassword != confirm) {
@@ -90,7 +90,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
         children: [
           Text(
-            'Choose a new password with at least 8 characters.',
+            'Choose a new password: ${PasswordRules.summary.toLowerCase()} '
+            'Your other signed-in phones will be signed out.',
             style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3),
           ),
           const SizedBox(height: 20),

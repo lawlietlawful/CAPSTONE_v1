@@ -7,11 +7,13 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/referral_detail.dart';
 import '../../providers/teacher_provider.dart';
+import '../messaging/compose_message_screen.dart';
+import '../../widgets/common/follow_up_card.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/status_badges.dart';
 
-/// A referral's outcome: its status journey and what Guidance did (counselor
-/// notes). Closes the loop for the teacher who filed it.
+/// A referral's outcome: its status journey and who has it at Guidance, with
+/// a way to message them. Closes the loop for the teacher who filed it.
 class ReferralDetailScreen extends StatefulWidget {
   final int referralId;
   const ReferralDetailScreen({super.key, required this.referralId});
@@ -108,14 +110,29 @@ class _ReferralDetailScreenState extends State<ReferralDetailScreen> {
         _Journey(steps: detail.journey),
         const SizedBox(height: 22),
 
-        // ── Counselor notes ──
-        Text('Guidance notes', style: AppTextStyles.sectionTitle),
+        // ── Who has it at Guidance ──
+        Text('Handled by', style: AppTextStyles.sectionTitle),
         const SizedBox(height: 10),
-        _NotesCard(
-          notes: detail.counselorNotes,
+        _HandledByCard(
+          counselorId: r.counselorId,
           counselorName: r.counselorName,
+          referralLabel: r.referralTypeLabel,
+          studentName: r.studentName,
         ),
         const SizedBox(height: 22),
+
+        // ── Teacher's follow-up, once Guidance has resolved it ──
+        if (r.isResolved) ...[
+          Text('Your follow-up', style: AppTextStyles.sectionTitle),
+          const SizedBox(height: 10),
+          FollowUpCard(
+            referralId: r.id,
+            studentName: r.studentName,
+            followUp: r.followUp,
+            onSaved: () => setState(() => _future = _load()),
+          ),
+          const SizedBox(height: 22),
+        ],
 
         // ── Reason (what the teacher wrote) ──
         Text('Reason', style: AppTextStyles.sectionTitle),
@@ -288,14 +305,24 @@ class _JourneyRow extends StatelessWidget {
   }
 }
 
-class _NotesCard extends StatelessWidget {
-  final String? notes;
+/// Who at Guidance has the referral. Their case notes stay with Guidance, so
+/// instead of notes the teacher gets a direct line to the counselor.
+class _HandledByCard extends StatelessWidget {
+  final int? counselorId;
   final String? counselorName;
-  const _NotesCard({required this.notes, required this.counselorName});
+  final String referralLabel;
+  final String? studentName;
+
+  const _HandledByCard({
+    required this.counselorId,
+    required this.counselorName,
+    required this.referralLabel,
+    required this.studentName,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final hasNotes = notes != null && notes!.trim().isNotEmpty;
+    final assigned = counselorId != null;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -304,55 +331,91 @@ class _NotesCard extends StatelessWidget {
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: hasNotes
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: assigned ? AppColors.accentLight : AppColors.background,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(
+                  assigned ? Icons.support_agent_rounded : Icons.hourglass_empty_rounded,
+                  size: 17,
+                  color: assigned ? AppColors.accent : AppColors.text3,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.support_agent_rounded,
-                      size: 15,
-                      color: AppColors.accent,
-                    ),
-                    const SizedBox(width: 6),
                     Text(
-                      counselorName ?? 'Guidance counselor',
+                      assigned ? (counselorName ?? 'Guidance counselor') : 'Waiting for a counselor',
                       style: GoogleFonts.inter(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.text2,
+                        color: AppColors.text1,
                       ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      assigned ? 'Guidance counselor' : 'The Guidance Office will assign one soon.',
+                      style: AppTextStyles.meta,
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  notes!.trim(),
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: AppColors.text2,
-                    height: 1.5,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.lock_outline_rounded, size: 13, color: AppColors.text3),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Counseling notes stay confidential with the Guidance Office.',
+                  style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.text3, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+          if (assigned) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                key: const Key('message-counselor'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ComposeMessageScreen(
+                      initialCounselorId: counselorId,
+                      initialSubject: 'About my referral: ${studentName ?? 'student'} ($referralLabel)',
+                    ),
                   ),
                 ),
-              ],
-            )
-          : Row(
-              children: [
-                const Icon(
-                  Icons.hourglass_empty_rounded,
-                  size: 16,
-                  color: AppColors.text3,
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                label: Text(
+                  'Message ${counselorName ?? 'counselor'}',
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'No notes from Guidance yet.',
-                    style: AppTextStyles.meta,
-                  ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: const BorderSide(color: AppColors.border),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-              ],
+              ),
             ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/teacher_provider.dart';
 import '../../widgets/common/navy_header.dart';
 import '../../widgets/common/notification_bell.dart';
 import 'change_password_screen.dart';
@@ -18,6 +19,7 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final dashboard = context.watch<TeacherProvider>().dashboard;
 
     return Column(
       children: [
@@ -25,7 +27,7 @@ class ProfileScreen extends StatelessWidget {
           title: 'Profile',
           subtitle: 'Your account',
           showAvatar: false,
-          trailing: NotificationBell(),
+          trailing: HeaderActions(),
         ),
         Expanded(
           child: Container(
@@ -79,6 +81,11 @@ class ProfileScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                _AccountDetails(
+                  employeeId: dashboard.employeeId,
+                  advisory: dashboard.advisory,
+                ),
                 const SizedBox(height: 16),
                 InkWell(
                   borderRadius: BorderRadius.circular(12),
@@ -126,11 +133,41 @@ class ProfileScreen extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: () async {
                       final auth = context.read<AuthProvider>();
+                      final teacher = context.read<TeacherProvider>();
                       final navigator = Navigator.of(
                         context,
                         rootNavigator: true,
                       );
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(
+                            'Sign out?',
+                            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
+                          ),
+                          content: Text(
+                            teacher.drafts.isEmpty
+                                ? "You'll need your Employee ID and password to sign back in."
+                                : 'You have ${teacher.drafts.length} unsent report${teacher.drafts.length == 1 ? '' : 's'} '
+                                    'saved on this phone. Signing out deletes ${teacher.drafts.length == 1 ? 'it' : 'them'}. '
+                                    'Send ${teacher.drafts.length == 1 ? 'it' : 'them'} first from the Reports tab.',
+                            style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2, height: 1.45),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: Text('Cancel', style: GoogleFonts.inter(color: AppColors.text2)),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: Text('Sign out', style: GoogleFonts.inter(color: AppColors.red, fontWeight: FontWeight.w600)),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed != true) return;
                       await auth.logout();
+                      teacher.reset();
                       navigator.pushNamedAndRemoveUntil('/login', (_) => false);
                     },
                     icon: const Icon(
@@ -170,6 +207,80 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Employee ID and the classes this teacher advises — the classes decide
+/// which students appear under My Students.
+class _AccountDetails extends StatelessWidget {
+  final String? employeeId;
+  final List<String> advisory;
+
+  const _AccountDetails({required this.employeeId, required this.advisory});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.badge_outlined, size: 17, color: AppColors.text3),
+              const SizedBox(width: 10),
+              Text('Employee ID', style: AppTextStyles.meta),
+              const Spacer(),
+              Text(
+                (employeeId == null || employeeId!.isEmpty) ? '—' : employeeId!,
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text1),
+              ),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, color: AppColors.border),
+          ),
+          Row(
+            children: [
+              const Icon(Icons.groups_outlined, size: 17, color: AppColors.text3),
+              const SizedBox(width: 10),
+              Text('My advisory', style: AppTextStyles.meta),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (advisory.isEmpty)
+            Text(
+              'No classes assigned yet. Ask the Guidance Office to assign your advisory.',
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3, height: 1.4),
+            )
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final cls in advisory)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      cls,
+                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.accentDark),
+                    ),
+                  ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }

@@ -9,6 +9,7 @@ import '../../models/behavioral_report.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/list_filter_sheet.dart';
+import '../../widgets/common/drafts_banner.dart';
 import '../../widgets/common/navy_header.dart';
 import '../../widgets/common/notification_bell.dart';
 import '../../widgets/common/search_filter_bar.dart';
@@ -105,8 +106,9 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
               ? 'Incidents you have filed'
               : '${provider.totalReports} incident${provider.totalReports == 1 ? '' : 's'} filed',
           showAvatar: false,
-          trailing: const NotificationBell(),
+          trailing: const HeaderActions(),
         ),
+        const ColoredBox(color: AppColors.background, child: DraftsBanner()),
         if (provider.reports.isNotEmpty || provider.reportFilterActive)
           SearchFilterBar(
             hint: 'Search by student name',
@@ -297,15 +299,15 @@ class _ReportCard extends StatelessWidget {
                     color: AppColors.text3,
                   ),
                   const SizedBox(width: 4),
-                  Flexible(
+                  Expanded(
                     child: Text(
                       report.location!,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.meta,
                     ),
                   ),
-                ],
-                const Spacer(),
+                ] else
+                  const Spacer(),
                 const Icon(
                   Icons.chevron_right_rounded,
                   size: 18,

@@ -15,6 +15,10 @@ class Referral {
   final String reason;
   final String priority;
   final String status;
+
+  /// The counselor handling it (null until one is assigned) — lets the
+  /// detail screen offer to message them.
+  final int? counselorId;
   final String? counselorName;
 
   /// ML-assessed risk level for the student at the time of referral.
@@ -33,6 +37,11 @@ class Referral {
   final String? createdAt; // ISO8601
   final String? resolvedAt; // ISO8601
 
+  /// What the teacher reported after Guidance resolved it, if anything.
+  final ReferralFollowUp? followUp;
+
+  bool get isResolved => status == 'resolved';
+
   const Referral({
     required this.id,
     required this.studentId,
@@ -43,12 +52,14 @@ class Referral {
     required this.reason,
     required this.priority,
     required this.status,
+    this.counselorId,
     required this.counselorName,
     required this.riskLevel,
     required this.isAutoEscalated,
     this.escalatedFromReportId,
     required this.createdAt,
     required this.resolvedAt,
+    this.followUp,
   });
 
   factory Referral.fromJson(Map<String, dynamic> json) {
@@ -65,6 +76,7 @@ class Referral {
       reason: json['reason']?.toString() ?? '',
       priority: json['priority']?.toString() ?? '',
       status: json['status']?.toString() ?? '',
+      counselorId: (json['counselor_id'] as num?)?.toInt(),
       counselorName: json['counselor_name']?.toString(),
       riskLevel: json['risk_level']?.toString(),
       isAutoEscalated: json['is_auto_escalated'] == true,
@@ -72,6 +84,42 @@ class Referral {
           ?.toInt(),
       createdAt: json['created_at']?.toString(),
       resolvedAt: json['resolved_at']?.toString(),
+      followUp: json['follow_up'] is Map<String, dynamic>
+          ? ReferralFollowUp.fromJson(json['follow_up'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
+/// The referring teacher's report on how the student is doing in class after
+/// Guidance resolved the referral.
+class ReferralFollowUp {
+  /// improved | no_change | worse
+  final String outcome;
+  final String label;
+  final String? note;
+  final String? at; // ISO8601
+
+  const ReferralFollowUp({
+    required this.outcome,
+    required this.label,
+    this.note,
+    this.at,
+  });
+
+  static const outcomes = {
+    'improved': 'Improved',
+    'no_change': 'No change',
+    'worse': 'Worse',
+  };
+
+  factory ReferralFollowUp.fromJson(Map<String, dynamic> json) {
+    final outcome = json['outcome']?.toString() ?? 'no_change';
+    return ReferralFollowUp(
+      outcome: outcome,
+      label: json['label']?.toString() ?? outcomes[outcome] ?? outcome,
+      note: json['note']?.toString(),
+      at: json['at']?.toString(),
     );
   }
 }

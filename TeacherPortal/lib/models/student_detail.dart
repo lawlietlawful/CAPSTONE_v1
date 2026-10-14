@@ -6,7 +6,13 @@ class TimelineItem {
   final String kind; // 'report' | 'referral'
   final int id;
   final String title;
+
+  /// What was written — only for entries this teacher filed. Someone else's
+  /// report or referral shows what and when, but not their account.
   final String detail;
+
+  /// Filed by this teacher.
+  final bool mine;
   final String status;
   final String? severity; // reports only
   final String? priority; // referrals only
@@ -19,6 +25,7 @@ class TimelineItem {
     required this.id,
     required this.title,
     required this.detail,
+    this.mine = true,
     required this.status,
     this.severity,
     this.priority,
@@ -35,6 +42,7 @@ class TimelineItem {
       id: json['id'] as int,
       title: json['title']?.toString() ?? '',
       detail: json['detail']?.toString() ?? '',
+      mine: json['mine'] != false,
       status: json['status']?.toString() ?? '',
       severity: json['severity']?.toString(),
       priority: json['priority']?.toString(),

@@ -17,7 +17,8 @@ class AuthService {
   ) async {
     final data = await ApiService.post(
       ApiConstants.login,
-      body: {'email': email.trim(), 'password': password.trim()},
+      // The password is sent exactly as typed: a space can be part of it.
+      body: {'email': email.trim(), 'password': password},
     );
     await _persistSession(data);
     return data;

@@ -23,6 +23,18 @@ class MyStudentsScreen extends StatefulWidget {
 }
 
 class _MyStudentsScreenState extends State<MyStudentsScreen> {
+  final _searchController = TextEditingController();
+  String _search = '';
+
+  /// null = everyone; 'at_risk' = high or moderate; otherwise a risk level.
+  String? _risk;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +63,23 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
     return list;
   }
 
+  /// Every word of the search must match the name or student ID ("cruz ana",
+  /// "2026-0"), and the student must fit the risk filter.
+  bool _matches(RosterStudent s) {
+    final riskOk = switch (_risk) {
+      null => true,
+      'at_risk' => s.isAtRisk,
+      final level => s.riskLevel == level,
+    };
+    if (!riskOk) return false;
+    final haystack = '${s.name} ${s.schoolId}'.toLowerCase();
+    return _search
+        .toLowerCase()
+        .split(RegExp(r'[\s,]+'))
+        .where((w) => w.isNotEmpty)
+        .every(haystack.contains);
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TeacherProvider>();
@@ -64,7 +93,7 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
               ? 'Students in your advisory'
               : '$total student${total == 1 ? '' : 's'} in your advisory',
           showAvatar: false,
-          trailing: const NotificationBell(),
+          trailing: const HeaderActions(),
         ),
         Expanded(
           child: Container(
@@ -109,16 +138,40 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
       );
     }
 
-    final students = _sorted(provider.roster);
+    final students = _sorted(provider.roster).where(_matches).toList();
+    final filtering = _search.isNotEmpty || _risk != null;
 
     return RefreshIndicator(
       onRefresh: () => provider.loadRoster(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 92),
         children: [
           _AtRiskBanner(count: provider.atRiskCount),
           if (provider.atRiskCount > 0) const SizedBox(height: 14),
+          _RosterFilters(
+            controller: _searchController,
+            roster: provider.roster,
+            selected: _risk,
+            onSearch: (v) => setState(() => _search = v.trim()),
+            onRisk: (v) => setState(() => _risk = v),
+          ),
+          const SizedBox(height: 12),
+          if (students.isEmpty && filtering)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: CenteredMessage(
+                icon: Icons.search_off_rounded,
+                title: 'No students match',
+                message: 'Try another name or ID, or a different filter.',
+                actionLabel: 'Clear filters',
+                onAction: () => setState(() {
+                  _searchController.clear();
+                  _search = '';
+                  _risk = null;
+                }),
+              ),
+            ),
           ...students.map(
             (s) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -259,6 +312,113 @@ class _Stat extends StatelessWidget {
         Icon(icon, size: 13, color: AppColors.text3),
         const SizedBox(width: 4),
         Text(label, style: AppTextStyles.meta),
+      ],
+    );
+  }
+}
+
+/// Search box plus risk chips (with counts) above the roster.
+class _RosterFilters extends StatelessWidget {
+  final TextEditingController controller;
+  final List<RosterStudent> roster;
+  final String? selected;
+  final ValueChanged<String> onSearch;
+  final ValueChanged<String?> onRisk;
+
+  const _RosterFilters({
+    required this.controller,
+    required this.roster,
+    required this.selected,
+    required this.onSearch,
+    required this.onRisk,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    int count(String? key) => switch (key) {
+      null => roster.length,
+      'at_risk' => roster.where((s) => s.isAtRisk).length,
+      final level => roster.where((s) => s.riskLevel == level).length,
+    };
+    const chips = [
+      (null, 'All'),
+      ('at_risk', 'At risk'),
+      ('high', 'High'),
+      ('moderate', 'Moderate'),
+      ('low', 'Low'),
+      ('not_assessed', 'Not assessed'),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          key: const Key('roster-search'),
+          controller: controller,
+          onChanged: onSearch,
+          textInputAction: TextInputAction.search,
+          style: GoogleFonts.inter(fontSize: 13.5, color: AppColors.text1),
+          decoration: InputDecoration(
+            hintText: 'Search by name or student ID',
+            hintStyle: GoogleFonts.inter(fontSize: 13.5, color: AppColors.text3),
+            prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+            suffixIcon: controller.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Clear search',
+                    icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.text3),
+                    onPressed: () {
+                      controller.clear();
+                      onSearch('');
+                    },
+                  ),
+            filled: true,
+            fillColor: AppColors.surface,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final (key, label) in chips)
+                if (key == null || count(key) > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      key: Key('risk-chip-${key ?? 'all'}'),
+                      label: Text('$label ${count(key)}'),
+                      selected: selected == key,
+                      onSelected: (_) => onRisk(key),
+                      showCheckmark: false,
+                      labelStyle: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: selected == key ? Colors.white : AppColors.text2,
+                      ),
+                      selectedColor: AppColors.accent,
+                      backgroundColor: AppColors.surface,
+                      side: BorderSide(color: selected == key ? AppColors.accent : AppColors.border),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    ),
+                  ),
+            ],
+          ),
+        ),
       ],
     );
   }

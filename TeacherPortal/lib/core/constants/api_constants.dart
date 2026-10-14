@@ -48,6 +48,8 @@ class ApiConstants {
   static String message(int id) => '/messages/$id';
   static String matchingSeminars(String tag) =>
       '/teacher/seminars/matching?tag=${Uri.encodeQueryComponent(tag)}';
+  static String referralFollowUp(int id) => '/teacher/referrals/$id/follow-up';
+  static const String upcomingSeminars = '/teacher/seminars/upcoming';
 }
 
 /// Fallback incident types, used only until GET /teacher/behavioral-reports

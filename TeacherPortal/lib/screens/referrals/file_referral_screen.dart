@@ -10,7 +10,9 @@ import '../../models/referral.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/common/duplicate_referral_dialog.dart';
 import '../../widgets/common/student_picker_sheet.dart';
+import '../messaging/compose_message_screen.dart';
 
 /// Refers a student to the guidance office. Mirrors the web referral form
 /// (resources/views/teacher/referrals/index.blade.php modal): a fixed set of
@@ -60,8 +62,6 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
   }
 
   Future<void> _submit() async {
-    final provider = context.read<TeacherProvider>();
-
     if (_student == null) {
       setState(() => _formError = 'Please select a student.');
       return;
@@ -81,7 +81,11 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
       return;
     }
     setState(() => _formError = null);
+    await _send();
+  }
 
+  Future<void> _send({bool confirmDuplicate = false}) async {
+    final provider = context.read<TeacherProvider>();
     try {
       final referral = await provider.submitReferral(
         studentId: _student!.id,
@@ -89,6 +93,7 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
         referralTypeOther:
             _referralType == 'Other' ? _otherController.text.trim() : null,
         reason: _reasonController.text.trim(),
+        confirmDuplicate: confirmDuplicate,
       );
       if (!mounted) return;
       // Counters on the dashboard are now stale.
@@ -97,7 +102,32 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
       await showReferralResultSheet(context, referral);
       if (mounted) Navigator.of(context).pop(referral);
     } on ApiException catch (e) {
-      if (mounted) setState(() => _formError = e.message);
+      if (!mounted) return;
+      final existing = e.data?['existing'];
+      if (e.statusCode == 409 && existing is Map<String, dynamic>) {
+        final choice = await showDuplicateReferralDialog(
+          context,
+          studentName: _student!.fullName,
+          existing: existing,
+        );
+        if (!mounted) return;
+        switch (choice) {
+          case DuplicateChoice.fileAnyway:
+            await _send(confirmDuplicate: true);
+          case DuplicateChoice.messageCounselor:
+            await Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ComposeMessageScreen(
+                initialCounselorId: (existing['counselor_id'] as num?)?.toInt(),
+                initialSubject: 'About ${_student!.fullName} (already referred)',
+              ),
+            ));
+          case DuplicateChoice.cancel:
+          case null:
+            break;
+        }
+        return;
+      }
+      setState(() => _formError = e.message);
     } catch (_) {
       if (mounted) {
         setState(() => _formError = 'Unable to submit. Check your connection.');

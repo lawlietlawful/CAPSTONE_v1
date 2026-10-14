@@ -103,7 +103,7 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const NotificationBell(),
+              const HeaderActions(),
               const SizedBox(width: 10),
               GestureDetector(
                 onTap: widget.onFileReferral,
@@ -328,15 +328,15 @@ class _ReferralCard extends StatelessWidget {
                     color: AppColors.text3,
                   ),
                   const SizedBox(width: 4),
-                  Flexible(
+                  Expanded(
                     child: Text(
                       referral.counselorName!,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.meta,
                     ),
                   ),
-                ],
-                const Spacer(),
+                ] else
+                  const Spacer(),
                 const Icon(
                   Icons.chevron_right_rounded,
                   size: 18,

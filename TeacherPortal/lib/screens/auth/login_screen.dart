@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/teacher_provider.dart';
+import '../../widgets/common/auth_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -37,6 +39,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final success = await auth.login(email, password);
     if (success && mounted) {
+      // A new session starts clean, whoever used this phone before.
+      context.read<TeacherProvider>().reset();
       Navigator.pushReplacementNamed(context, '/home');
     }
   }
@@ -124,24 +128,26 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _FieldLabel('Employee ID'),
+        const AuthFieldLabel('Employee ID'),
         const SizedBox(height: 6),
-        _NavyTextField(
+        AuthTextField(
           controller: _emailController,
           icon: Icons.badge_outlined,
           keyboardType: TextInputType.text,
           textInputAction: TextInputAction.next,
+          autofillHints: const [AutofillHints.username],
           onSubmitted: (_) => FocusScope.of(context).nextFocus(),
         ),
         const SizedBox(height: 16),
 
-        const _FieldLabel('Password'),
+        const AuthFieldLabel('Password'),
         const SizedBox(height: 6),
-        _NavyTextField(
+        AuthTextField(
           controller: _passwordController,
           icon: Icons.lock_outline_rounded,
           obscureText: true,
           textInputAction: TextInputAction.done,
+          autofillHints: const [AutofillHints.password],
           onSubmitted: (_) => _handleSignIn(),
         ),
         const SizedBox(height: 8),
@@ -163,7 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (auth.errorMessage != null) ...[
           const SizedBox(height: 12),
-          _ErrorBanner(auth.errorMessage!),
+          AuthErrorBanner(auth.errorMessage!),
         ],
         const SizedBox(height: 20),
 
@@ -224,8 +230,9 @@ void _showForgotPasswordNotice(BuildContext context) {
         style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
       ),
       content: Text(
-        'Please contact your school administrator. They can reset your '
-        'account and issue you a new activation code.',
+        'Passwords are reset in person. Visit the Guidance Office with your '
+        'school ID for a new activation code, then activate your account '
+        'again here and choose a new password.',
         style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2, height: 1.45),
       ),
       actions: [
@@ -241,86 +248,6 @@ void _showForgotPasswordNotice(BuildContext context) {
 // ─────────────────────────────────────────────────────────
 // Private helper widgets
 // ─────────────────────────────────────────────────────────
-
-class _FieldLabel extends StatelessWidget {
-  final String text;
-  const _FieldLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: GoogleFonts.inter(
-        fontSize: 12,
-        color: AppColors.text2,
-      ),
-    );
-  }
-}
-
-class _NavyTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final IconData icon;
-  final bool obscureText;
-  final TextInputType? keyboardType;
-  final TextInputAction? textInputAction;
-  final ValueChanged<String>? onSubmitted;
-
-  const _NavyTextField({
-    required this.controller,
-    required this.icon,
-    this.obscureText = false,
-    this.keyboardType,
-    this.textInputAction,
-    this.onSubmitted,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const borderSide = BorderSide(color: AppColors.border);
-    const defaultBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(10)),
-      borderSide: borderSide,
-    );
-    const focusedBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(10)),
-      borderSide: BorderSide(color: AppColors.accent, width: 1.5),
-    );
-
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      onSubmitted: onSubmitted,
-      cursorColor: AppColors.accent,
-      autocorrect: false,
-      enableSuggestions: !obscureText,
-      style: GoogleFonts.inter(
-        fontSize: 13.5,
-        color: AppColors.text1,
-      ),
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: AppColors.background,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        prefixIcon: Icon(
-          icon,
-          color: AppColors.text3,
-          size: 18,
-        ),
-        prefixIconConstraints:
-            const BoxConstraints(minWidth: 44, minHeight: 44),
-        border: defaultBorder,
-        enabledBorder: defaultBorder,
-        focusedBorder: focusedBorder,
-        errorBorder: defaultBorder,
-        focusedErrorBorder: focusedBorder,
-      ),
-    );
-  }
-}
 
 class _SignInButton extends StatelessWidget {
   final bool isLoading;
@@ -360,45 +287,6 @@ class _SignInButton extends StatelessWidget {
                 color: AppColors.navyText,
               ),
             ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  final String message;
-  const _ErrorBanner(this.message);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.redBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0x33EF4444)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: AppColors.redText,
-            size: 16,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppColors.redText,
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -8,6 +8,7 @@ import '../../core/constants/app_text_styles.dart';
 import '../../core/services/api_service.dart';
 import '../../models/advised_student.dart';
 import '../../models/behavioral_report.dart';
+import '../../models/report_draft.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/status_badges.dart';
@@ -113,12 +114,68 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
       await _showResultSheet(report);
       if (mounted) Navigator.of(context).pop(report);
     } on ApiException catch (e) {
-      if (mounted) setState(() => _formError = e.message);
+      if (!mounted) return;
+      if (e.isNetworkError) {
+        await _offerDraft(e.message);
+      } else {
+        setState(() => _formError = e.message);
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _formError = 'Unable to submit. Check your connection.');
       }
     }
+  }
+
+  /// No connection (common in classrooms): keep the report on the phone and
+  /// send it later, rather than make the teacher type it all again.
+  Future<void> _offerDraft(String reason) async {
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text(
+          "Couldn't send the report",
+          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          '$reason\n\nSave it as a draft? It stays on this phone and is sent '
+          'as soon as you have a connection.',
+          style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Keep editing', style: GoogleFonts.inter(color: AppColors.text2)),
+          ),
+          FilledButton(
+            key: const Key('save-draft'),
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
+            child: Text('Save draft', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (save != true || !mounted) return;
+
+    await context.read<TeacherProvider>().saveDraft(ReportDraft(
+          id: DateTime.now().millisecondsSinceEpoch,
+          studentId: _student!.id,
+          studentName: _student!.fullName,
+          incidentType: _incidentType!,
+          incidentDate: DateFormat('yyyy-MM-dd').format(_date),
+          location: _locationController.text.trim().isEmpty
+              ? null
+              : _locationController.text.trim(),
+          description: _descriptionController.text.trim(),
+          savedAt: DateTime.now().toIso8601String(),
+        ));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Saved as a draft. It will be sent when you are back online.'),
+    ));
+    Navigator.of(context).pop();
   }
 
   Future<void> _showResultSheet(BehavioralReport report) {

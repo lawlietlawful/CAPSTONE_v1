@@ -24,11 +24,16 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // On 401 (expired/invalid token): clear the session and return to login.
+  // On 401 (expired/invalid token): clear the session and everything loaded
+  // for it, then return to login.
   ApiService.onUnauthorized = () async {
     ApiService.clearToken();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+    final context = navigatorKey.currentContext;
+    if (context != null && context.mounted) {
+      context.read<TeacherProvider>().reset();
+    }
     navigatorKey.currentState
         ?.pushNamedAndRemoveUntil('/login', (route) => false);
   };

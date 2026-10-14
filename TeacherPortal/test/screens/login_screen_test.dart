@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:teacher_portal/providers/auth_provider.dart';
+import 'package:teacher_portal/providers/teacher_provider.dart';
 import 'package:teacher_portal/screens/auth/login_screen.dart';
 
-Widget _wrap(Widget child) => ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+Widget _wrap(Widget child) => MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => TeacherProvider()),
+      ],
       child: MaterialApp(home: child),
     );
 
@@ -29,6 +33,20 @@ void main() {
     expect(fields[1].obscureText, isTrue, reason: 'password is hidden');
   });
 
+  testWidgets('the password can be shown and hidden again', (tester) async {
+    await tester.pumpWidget(_wrap(const LoginScreen()));
+
+    TextField password() => tester.widgetList<TextField>(find.byType(TextField)).last;
+
+    expect(password().obscureText, isTrue);
+    await tester.tap(find.byTooltip('Show password'));
+    await tester.pump();
+    expect(password().obscureText, isFalse);
+    await tester.tap(find.byTooltip('Hide password'));
+    await tester.pump();
+    expect(password().obscureText, isTrue);
+  });
+
   testWidgets('the activation link is offered for first-time users', (tester) async {
     await tester.pumpWidget(_wrap(const LoginScreen()));
 
@@ -41,7 +59,7 @@ void main() {
     expect(hasActivationPrompt, isTrue);
   });
 
-  testWidgets('"Forgot password?" opens a notice to contact the administrator',
+  testWidgets('"Forgot password?" explains passwords are reset at the Guidance Office',
       (tester) async {
     await tester.pumpWidget(_wrap(const LoginScreen()));
 
@@ -49,7 +67,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Forgot your password?'), findsOneWidget);
-    expect(find.textContaining('contact your school administrator'), findsOneWidget);
+    expect(find.textContaining('Visit the Guidance Office'), findsOneWidget);
 
     await tester.tap(find.text('Got it'));
     await tester.pumpAndSettle();

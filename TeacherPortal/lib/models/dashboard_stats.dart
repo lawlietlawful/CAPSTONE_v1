@@ -8,11 +8,18 @@ class DashboardStats {
   final int pendingReferrals;
   final List<Referral> recentReferrals;
 
+  /// The teacher's Employee ID and the classes they advise ("BSIT · 1st Year
+  /// · Block 1"), for the Profile tab.
+  final String? employeeId;
+  final List<String> advisory;
+
   const DashboardStats({
     required this.totalStudents,
     required this.myReferrals,
     required this.pendingReferrals,
     required this.recentReferrals,
+    this.employeeId,
+    this.advisory = const [],
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) {
@@ -24,6 +31,8 @@ class DashboardStats {
       recentReferrals: recent
           .map((e) => Referral.fromJson(e as Map<String, dynamic>))
           .toList(),
+      employeeId: json['employee_id']?.toString(),
+      advisory: (json['advisory'] as List? ?? []).map((e) => e.toString()).toList(),
     );
   }
 

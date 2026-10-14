@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,12 +10,13 @@ import '../providers/teacher_provider.dart';
 import '../widgets/common/app_nav_bar.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'log_incident/log_incident_screen.dart';
+import 'messaging/messaging_screen.dart';
+import 'notifications/notifications_screen.dart';
 import 'profile/profile_screen.dart';
 import 'referrals/file_referral_screen.dart';
 import 'referrals/referrals_screen.dart';
 import 'reports/my_reports_screen.dart';
 import 'students/my_students_screen.dart';
-import 'messaging/messaging_screen.dart' as messaging_screen;
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -22,21 +25,133 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
+
+  /// How often to look for new notifications and messages while the app is
+  /// open (live alerts). Paused while the app is in the background.
+  static const pollEvery = Duration(seconds: 60);
+  Timer? _poll;
+  int? _seenNotifications;
+  int? _seenMessages;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Restore the cached teacher profile (name/initials) for the headers.
     // Needed when the app boots straight to /home from a saved session.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       context.read<AuthProvider>().loadProfile();
-      // Populates the Messages FAB's unread badge on every tab, not just
-      // when the Messages screen itself is opened.
-      context.read<TeacherProvider>().loadMessages();
+      final provider = context.read<TeacherProvider>();
+      // The first check sets what counts as "already seen", so opening the
+      // app doesn't announce every old notification.
+      await _checkForNew(announce: false);
+      // Unsent reports from an earlier offline moment: load, then try them.
+      await provider.loadDrafts();
+      _sendDraftsQuietly();
+      _startPolling();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkForNew();
+      _sendDraftsQuietly();
+      _startPolling();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _poll?.cancel();
+    }
+  }
+
+  void _startPolling() {
+    _poll?.cancel();
+    _poll = Timer.periodic(pollEvery, (_) => _checkForNew());
+  }
+
+  /// Refreshes the unread counts; when either went up, shows what arrived.
+  Future<void> _checkForNew({bool announce = true}) async {
+    final provider = context.read<TeacherProvider>();
+    await Future.wait([provider.loadNotifications(), provider.loadMessages()]);
+    if (!mounted) return;
+
+    final notifications = provider.unreadNotifications;
+    final messages = provider.unreadMessages;
+    final newNotification = announce && _seenNotifications != null && notifications > _seenNotifications!;
+    final newMessage = announce && _seenMessages != null && messages > _seenMessages!;
+    _seenNotifications = notifications;
+    _seenMessages = messages;
+
+    if (newNotification) {
+      final latest = provider.notifications.where((n) => !n.isRead).firstOrNull;
+      _alert(
+        icon: Icons.notifications_active_outlined,
+        title: latest?.title ?? 'New notification',
+        body: latest?.message,
+        onView: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+        ),
+      );
+    } else if (newMessage) {
+      _alert(
+        icon: Icons.mark_email_unread_outlined,
+        title: 'New message from Guidance',
+        onView: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const MessagingScreen()),
+        ),
+      );
+    }
+  }
+
+  void _alert({required IconData icon, required String title, String? body, required VoidCallback onView}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        key: const Key('live-alert'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 6),
+        backgroundColor: AppColors.navy,
+        content: Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.navyAccent),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  if (body != null && body.isNotEmpty)
+                    Text(body, maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, color: AppColors.navySubText)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: SnackBarAction(label: 'View', textColor: AppColors.navyAccent, onPressed: onView),
+      ));
+  }
+
+  Future<void> _sendDraftsQuietly() async {
+    final provider = context.read<TeacherProvider>();
+    if (provider.drafts.isEmpty) return;
+    final sent = await provider.sendDrafts();
+    if (sent > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('$sent saved report${sent == 1 ? ' was' : 's were'} sent.'),
+      ));
+      provider.loadReports();
+    }
   }
 
   void _onTap(int index) {
@@ -67,14 +182,6 @@ class _MainShellState extends State<MainShell> {
     context.read<TeacherProvider>().loadReferrals();
   }
 
-  Future<void> _openMessages() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const messaging_screen.MessagingScreen()),
-    );
-    if (!mounted) return;
-    context.read<TeacherProvider>().loadMessages();
-  }
-
   @override
   Widget build(BuildContext context) {
     // IndexedStack keeps all tabs alive — avoids re-fetching on every switch.
@@ -97,81 +204,24 @@ class _MainShellState extends State<MainShell> {
         // Navy bleeds into the status bar so NavyHeader looks seamless.
         backgroundColor: AppColors.navy,
         body: IndexedStack(index: _currentIndex, children: screens),
-        // Two FABs stacked: Messages on top, Log Incident on bottom.
-        floatingActionButton: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _MessagesFab(onPressed: _openMessages),
-            const SizedBox(height: 12),
-            FloatingActionButton(
-              heroTag: 'log_fab',
-              onPressed: _openLogIncident,
-              backgroundColor: AppColors.accent,
-              foregroundColor: Colors.white,
-              elevation: 2,
-              tooltip: 'Log Incident',
-              child: const Icon(Icons.edit_note_rounded, size: 24),
-            ),
-          ],
-        ),
+        // One action that matters from any tab: logging an incident. Messages
+        // and notifications live in each header (HeaderActions).
+        floatingActionButton: _currentIndex == 4
+            ? null
+            : FloatingActionButton.extended(
+                heroTag: 'log_fab',
+                onPressed: _openLogIncident,
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                elevation: 2,
+                icon: const Icon(Icons.edit_note_rounded, size: 22),
+                label: const Text('Log incident'),
+              ),
         bottomNavigationBar: AppNavBar(
           currentIndex: _currentIndex,
           onTap: _onTap,
         ),
       ),
-    );
-  }
-}
-
-/// The Messages FAB with an unread-count badge, matching NotificationBell's
-/// treatment so an unread notice is just as hard to miss as an unread
-/// notification, from any tab.
-class _MessagesFab extends StatelessWidget {
-  final VoidCallback onPressed;
-  const _MessagesFab({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    final unread = context.watch<TeacherProvider>().unreadMessages;
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        FloatingActionButton(
-          heroTag: 'msg_fab',
-          onPressed: onPressed,
-          backgroundColor: Colors.white,
-          foregroundColor: AppColors.accent,
-          elevation: 2,
-          tooltip: 'Messages',
-          child: const Icon(Icons.mail_outline_rounded, size: 24),
-        ),
-        if (unread > 0)
-          Positioned(
-            right: -2,
-            top: -2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              decoration: BoxDecoration(
-                color: AppColors.red,
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: Colors.white, width: 1.5),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                unread > 9 ? '9+' : '$unread',
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  height: 1,
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

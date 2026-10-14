@@ -4,7 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/password_rules.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/teacher_provider.dart';
+import '../../widgets/common/auth_widgets.dart';
 
 /// First-time account setup for teachers. The admin has already created the
 /// account with a locked password and issued a one-time activation code. Here
@@ -43,8 +46,9 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
       _showError('Please fill in all fields.');
       return;
     }
-    if (password.length < 8) {
-      _showError('Password must be at least 8 characters.');
+    final weakness = PasswordRules.problem(password);
+    if (weakness != null) {
+      _showError(weakness);
       return;
     }
     if (password != confirm) {
@@ -58,6 +62,7 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
       newPassword: password,
     );
     if (success && mounted) {
+      context.read<TeacherProvider>().reset();
       Navigator.pushReplacementNamed(context, '/home');
     }
   }
@@ -139,18 +144,18 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _FieldLabel('Employee ID'),
+        const AuthFieldLabel('Employee ID'),
         const SizedBox(height: 6),
-        _NavyTextField(
+        AuthTextField(
           controller: _schoolIdController,
           icon: Icons.badge_outlined,
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: 16),
 
-        const _FieldLabel('Activation Code'),
+        const AuthFieldLabel('Activation Code'),
         const SizedBox(height: 6),
-        _NavyTextField(
+        AuthTextField(
           controller: _codeController,
           icon: Icons.vpn_key_outlined,
           textCapitalization: TextCapitalization.characters,
@@ -158,19 +163,24 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
         ),
         const SizedBox(height: 16),
 
-        const _FieldLabel('New Password'),
+        const AuthFieldLabel('New Password'),
         const SizedBox(height: 6),
-        _NavyTextField(
+        AuthTextField(
           controller: _passwordController,
           icon: Icons.lock_outline_rounded,
           obscureText: true,
           textInputAction: TextInputAction.next,
         ),
+        const SizedBox(height: 6),
+        Text(
+          PasswordRules.summary,
+          style: GoogleFonts.inter(fontSize: 11, color: AppColors.text3),
+        ),
         const SizedBox(height: 16),
 
-        const _FieldLabel('Confirm New Password'),
+        const AuthFieldLabel('Confirm New Password'),
         const SizedBox(height: 6),
-        _NavyTextField(
+        AuthTextField(
           controller: _confirmController,
           icon: Icons.lock_outline_rounded,
           obscureText: true,
@@ -180,7 +190,7 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
 
         if (auth.errorMessage != null) ...[
           const SizedBox(height: 12),
-          _ErrorBanner(auth.errorMessage!),
+          AuthErrorBanner(auth.errorMessage!),
         ],
         const SizedBox(height: 20),
 
@@ -219,118 +229,6 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _FieldLabel extends StatelessWidget {
-  final String text;
-  const _FieldLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: GoogleFonts.inter(
-        fontSize: 12,
-        color: AppColors.text2,
-      ),
-    );
-  }
-}
-
-class _NavyTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final IconData icon;
-  final bool obscureText;
-  final TextInputAction? textInputAction;
-  final TextCapitalization textCapitalization;
-  final ValueChanged<String>? onSubmitted;
-
-  const _NavyTextField({
-    required this.controller,
-    required this.icon,
-    this.obscureText = false,
-    this.textInputAction,
-    this.textCapitalization = TextCapitalization.none,
-    this.onSubmitted,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const borderSide = BorderSide(color: AppColors.border);
-    const defaultBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(10)),
-      borderSide: borderSide,
-    );
-    const focusedBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(10)),
-      borderSide: BorderSide(color: AppColors.accent, width: 1.5),
-    );
-
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      textInputAction: textInputAction,
-      textCapitalization: textCapitalization,
-      onSubmitted: onSubmitted,
-      cursorColor: AppColors.accent,
-      autocorrect: false,
-      enableSuggestions: !obscureText,
-      style: GoogleFonts.inter(fontSize: 13.5, color: AppColors.text1),
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: AppColors.background,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        prefixIcon: Icon(icon, color: AppColors.text3, size: 18),
-        prefixIconConstraints:
-            const BoxConstraints(minWidth: 44, minHeight: 44),
-        border: defaultBorder,
-        enabledBorder: defaultBorder,
-        focusedBorder: focusedBorder,
-        errorBorder: defaultBorder,
-        focusedErrorBorder: focusedBorder,
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  final String message;
-  const _ErrorBanner(this.message);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.redBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0x33EF4444)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: AppColors.redText,
-            size: 16,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppColors.redText,
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

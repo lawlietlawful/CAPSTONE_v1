@@ -28,16 +28,15 @@ class JourneyStep {
   }
 }
 
-/// A referral plus its status journey and the counselor's notes — what
-/// Guidance did after the teacher filed it.
+/// A referral plus its status journey — how far Guidance has taken it since
+/// the teacher filed it. The counselor's case notes are confidential and
+/// never sent to the app.
 class ReferralDetail {
   final Referral referral;
-  final String? counselorNotes;
   final List<JourneyStep> journey;
 
   const ReferralDetail({
     required this.referral,
-    required this.counselorNotes,
     required this.journey,
   });
 
@@ -45,7 +44,6 @@ class ReferralDetail {
     final r = json['referral'] as Map<String, dynamic>;
     return ReferralDetail(
       referral: Referral.fromJson(r),
-      counselorNotes: r['counselor_notes']?.toString(),
       journey: (json['journey'] as List? ?? [])
           .map((e) => JourneyStep.fromJson(e as Map<String, dynamic>))
           .toList(),

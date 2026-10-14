@@ -8,10 +8,12 @@ import '../../core/constants/app_text_styles.dart';
 import '../../models/referral.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/teacher_provider.dart';
+import '../../widgets/common/drafts_banner.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/notification_bell.dart';
 import '../../widgets/common/navy_header.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/common/upcoming_seminar_card.dart';
 import '../referrals/referral_detail_screen.dart';
 
 /// Home screen: the teacher's counters plus their five most recent referrals.
@@ -60,7 +62,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           title: 'Hello, ${auth.firstName}',
           subtitle: 'Here is your advisory at a glance',
           showAvatar: false,
-          trailing: const NotificationBell(),
+          trailing: const HeaderActions(),
         ),
         Expanded(
           child: Container(
@@ -98,6 +100,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Extra bottom padding so the last card can scroll clear of the FAB.
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 92),
         children: [
+          const DraftsBanner(padding: EdgeInsets.only(bottom: 14)),
           Row(
             children: [
               Expanded(
@@ -160,6 +163,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onTap: widget.onLogIncident,
           ),
           const SizedBox(height: 22),
+
+          // ── Advisees' seminars in the next two weeks ──
+          if (provider.upcomingSeminars.isNotEmpty) ...[
+            Text('Upcoming Seminars', style: AppTextStyles.pageTitle),
+            const SizedBox(height: 3),
+            Text(
+              'Your advisees who will be out of class in the next two weeks',
+              style: AppTextStyles.meta,
+            ),
+            const SizedBox(height: 10),
+            ...provider.upcomingSeminars.map(
+              (s) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: UpcomingSeminarCard(seminar: s),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
 
           // ── Students I referred ──
           Row(

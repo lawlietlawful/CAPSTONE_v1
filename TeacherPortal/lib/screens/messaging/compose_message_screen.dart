@@ -11,7 +11,16 @@ import '../../widgets/common/form_widgets.dart';
 /// a counselor (Message::canInitiate on the backend) — there is no recipient
 /// picker beyond that fixed list.
 class ComposeMessageScreen extends StatefulWidget {
-  const ComposeMessageScreen({super.key});
+  /// Opened from a referral: pre-select the counselor handling it and
+  /// prefill a subject naming the referral.
+  final int? initialCounselorId;
+  final String? initialSubject;
+
+  const ComposeMessageScreen({
+    super.key,
+    this.initialCounselorId,
+    this.initialSubject,
+  });
 
   @override
   State<ComposeMessageScreen> createState() => _ComposeMessageScreenState();
@@ -31,6 +40,7 @@ class _ComposeMessageScreenState extends State<ComposeMessageScreen> {
   @override
   void initState() {
     super.initState();
+    _subjectController.text = widget.initialSubject ?? '';
     _loadCounselors();
   }
 
@@ -49,10 +59,12 @@ class _ComposeMessageScreenState extends State<ComposeMessageScreen> {
     try {
       final counselors = await context.read<TeacherProvider>().fetchCounselors();
       if (!mounted) return;
+      final wanted = widget.initialCounselorId;
       setState(() {
         _counselors = counselors;
-        _selectedCounselorId =
-            counselors.isNotEmpty ? counselors.first['id'] as int : null;
+        _selectedCounselorId = wanted != null && counselors.any((c) => c['id'] == wanted)
+            ? wanted
+            : (counselors.isNotEmpty ? counselors.first['id'] as int : null);
       });
     } catch (_) {
       if (!mounted) return;
