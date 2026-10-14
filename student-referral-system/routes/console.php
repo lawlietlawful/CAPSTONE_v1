@@ -43,3 +43,8 @@ Schedule::command('students:reassess-risk')->weekly()->withoutOverlapping();
 // page. Runs once a day; each record is only ever notified once thanks to
 // follow_up_notified_at, so this can safely run daily without spamming.
 Schedule::command('interventions:send-followup-reminders')->dailyAt('07:00');
+
+// Daily database backup (kept 7 days, config/backup.php). Checked hourly
+// rather than at a fixed time because this machine isn't on overnight —
+// the first tick of the day makes the copy and the rest skip.
+Schedule::command('db:backup --if-older-than=20')->hourly()->withoutOverlapping();

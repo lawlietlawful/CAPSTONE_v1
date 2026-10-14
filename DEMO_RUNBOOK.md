@@ -196,12 +196,46 @@ exactly which ones they are.
 
 ---
 
-## 7. One-glance startup checklist (print this)
+## 7. Backups (and restoring one)
+
+The database is copied to `student-referral-system\storage\app\backups\` once a
+day; the newest 7 copies are kept. The copy is made by the scheduler, so it only
+happens while this is running in its own window:
+
+```powershell
+cd "d:\CAPSTONE PROJECT\student-referral-system"
+php artisan schedule:work
+```
+
+(The same window also sends seminar reminders and follow-up reminders.)
+
+Make a copy right now, e.g. before a demo or before trying something risky:
+
+```powershell
+php artisan db:backup
+```
+
+**If MySQL crashes and won't start** ("MySQL shutdown unexpectedly" in XAMPP),
+don't delete anything. Ask me to repair it; if a table can't be saved, restore the
+newest backup (MySQL running, in `student-referral-system`):
+
+```powershell
+C:\xampp\mysql\bin\mysql.exe -u root -e "DROP DATABASE student_referral_db; CREATE DATABASE student_referral_db"
+cmd /c "C:\xampp\mysql\bin\mysql.exe -u root student_referral_db < storage\app\backups\<newest file>.sql"
+```
+
+**Stop MySQL from the XAMPP panel before shutting the laptop down** — an unclean
+shutdown is what corrupted it last time.
+
+---
+
+## 8. One-glance startup checklist (print this)
 
 ```
 [ ] XAMPP → MySQL started            → php artisan migrate:status shows "Ran"
 [ ] ML engine: uvicorn ... :8001     → curl :8001 shows models_loaded:true
 [ ] Laravel: php artisan serve       → localhost:8000/login opens
+[ ] Scheduler: php artisan schedule:work  → reminders + daily backup
 [ ] Teacher Portal: flutter run -d chrome --no-web-resources-cdn  → app paints
 [ ] Chrome DevTools → device toolbar → phone size
 [ ] Test login: teacher@school.com / password
