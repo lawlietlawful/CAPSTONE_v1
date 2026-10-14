@@ -159,6 +159,8 @@
                 </div>
             @endif
 
+            @include('partials.last-sign-in')
+
             @yield('content')
         </main>
 
