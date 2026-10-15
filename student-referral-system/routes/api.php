@@ -25,7 +25,6 @@ Route::middleware(['auth:sanctum', 'student'])->group(function () {
         Route::get('/profile', [StudentPortalController::class, 'profile']);
         Route::get('/seminars', [StudentPortalController::class, 'seminars']);
         Route::get('/notifications', [StudentPortalController::class, 'notifications']);
-        Route::get('/risk-level', [StudentPortalController::class, 'riskLevel']);
         Route::get('/referrals', [StudentPortalController::class, 'referrals']);
 
         Route::post('/notifications/read/{id}', [StudentPortalController::class, 'markNotificationRead']);

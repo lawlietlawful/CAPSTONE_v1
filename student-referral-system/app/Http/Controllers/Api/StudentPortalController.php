@@ -37,42 +37,28 @@ class StudentPortalController extends Controller
         ]);
     }
 
-    public function riskLevel(Request $request)
-    {
-        $student = $this->student($request);
-        $latest = $student->riskAssessments()->latest('assessed_at')->first();
-
-        if (!$latest) {
-            return response()->json(['has_assessment' => false]);
-        }
-
-        return response()->json([
-            'has_assessment' => true,
-            'risk_level' => $latest->risk_level,
-            'risk_score' => (float) $latest->risk_score,
-            'assessed_at' => $latest->assessed_at?->toDateString(),
-        ]);
-    }
-
+    /**
+     * The student's referrals — what kind, where it stands, when, and which
+     * counselor has it. Never what the referrer wrote, who referred them, or
+     * the priority behind it: that stays with staff. Students don't see their
+     * own risk label or score anywhere either (no risk endpoint).
+     */
     public function referrals(Request $request)
     {
         $student = $this->student($request);
 
         $referrals = $student->referrals()
-            ->with('referredBy')
+            ->with('counselor')
             ->latest()
             ->get()
-            ->map(function ($referral) {
-                return [
-                    'id' => $referral->id,
-                    'concern_type' => $referral->concern_type,
-                    'reason' => $referral->reason,
-                    'priority' => $referral->priority,
-                    'status' => $referral->status,
-                    'referred_by_name' => $referral->referredBy->name ?? 'N/A',
-                    'created_at' => $referral->created_at?->toIso8601String(),
-                ];
-            });
+            ->map(fn ($referral) => [
+                'id'             => $referral->id,
+                'type_label'     => $referral->referral_type_label,
+                'status'         => $referral->status,
+                'counselor_name' => $referral->counselor?->name,
+                'created_at'     => $referral->created_at?->toIso8601String(),
+                'resolved_at'    => $referral->resolved_at?->toIso8601String(),
+            ]);
 
         $active = $referrals->firstWhere(
             fn ($r) => in_array($r['status'], ['pending', 'in_progress'], true)
