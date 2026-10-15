@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/student_detail.dart';
 
@@ -120,11 +121,7 @@ class SeminarDetailScreen extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              border: Border.all(color: AppColors.border),
-              borderRadius: BorderRadius.circular(14),
-            ),
+            decoration: AppDecor.card(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -233,11 +230,7 @@ class SeminarDetailScreen extends StatelessWidget {
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border.all(color: AppColors.border),
-                borderRadius: BorderRadius.circular(14),
-              ),
+              decoration: AppDecor.card(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

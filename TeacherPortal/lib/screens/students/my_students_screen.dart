@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/roster_student.dart';
 import '../../providers/teacher_provider.dart';
@@ -10,6 +11,8 @@ import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/navy_header.dart';
 import '../../widgets/common/notification_bell.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/premium/motion.dart';
+import '../../widgets/premium/skeleton.dart';
 import 'student_detail_screen.dart';
 
 /// The teacher's advised students, each with their current ML risk level — the
@@ -107,7 +110,7 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
 
   Widget _buildBody(TeacherProvider provider) {
     if (provider.loadingRoster && provider.roster.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonList(leading: true, padding: EdgeInsets.fromLTRB(16, 16, 16, 16));
     }
 
     if (provider.rosterError != null && provider.roster.isEmpty) {
@@ -147,8 +150,8 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 92),
         children: [
-          _AtRiskBanner(count: provider.atRiskCount),
-          if (provider.atRiskCount > 0) const SizedBox(height: 14),
+          FadeSlideIn(child: _RiskMix(summary: provider.riskSummary, total: provider.roster.length)),
+          const SizedBox(height: 14),
           _RosterFilters(
             controller: _searchController,
             roster: provider.roster,
@@ -172,55 +175,114 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
                 }),
               ),
             ),
-          ...students.map(
-            (s) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _StudentCard(student: s, onTap: () => _openDetail(s)),
+          for (var i = 0; i < students.length; i++)
+            FadeSlideIn(
+              key: ValueKey(students[i].id),
+              index: i + 2,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _StudentCard(student: students[i], onTap: () => _openDetail(students[i])),
+              ),
             ),
-          ),
         ],
       ),
     );
   }
 }
 
-/// A calm reassurance when nobody's flagged, an amber nudge when someone is.
-class _AtRiskBanner extends StatelessWidget {
-  final int count;
-  const _AtRiskBanner({required this.count});
+/// Risk overview: one bar split by level (it grows into place), the counts
+/// underneath, and a line saying who is shown first.
+class _RiskMix extends StatelessWidget {
+  final Map<String, int> summary;
+  final int total;
+  const _RiskMix({required this.summary, required this.total});
+
+  static const _levels = [
+    ('high', 'High', AppColors.red),
+    ('moderate', 'Moderate', AppColors.amber),
+    ('low', 'Low', AppColors.green),
+    ('not_assessed', 'Not assessed', Color(0xFFCBD5E1)),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final calm = count == 0;
-    final bg = calm ? AppColors.greenBg : AppColors.amberBg;
-    final fg = calm ? AppColors.greenText : AppColors.amberText;
+    final atRisk = (summary['high'] ?? 0) + (summary['moderate'] ?? 0);
     return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: AppDecor.card(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            calm ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-            size: 18,
-            color: fg,
+          Row(
+            children: [
+              Text('Risk overview', style: AppTextStyles.sectionTitle),
+              const Spacer(),
+              Icon(
+                atRisk == 0 ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                size: 15,
+                color: atRisk == 0 ? AppColors.green : AppColors.amberText,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                atRisk == 0 ? 'No one flagged' : '$atRisk need attention',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: atRisk == 0 ? AppColors.greenText : AppColors.amberText,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              calm
-                  ? 'No students need attention right now.'
-                  : '$count student${count == 1 ? '' : 's'} may need attention — shown first.',
-              style: GoogleFonts.inter(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-                color: fg,
-                height: 1.3,
+          const SizedBox(height: 12),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: Motion.reduced(context) ? 1 : 0, end: 1),
+            duration: Motion.slow,
+            curve: Motion.enter,
+            builder: (context, t, _) => ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: SizedBox(
+                height: 10,
+                child: Row(
+                  children: [
+                    for (final (key, _, color) in _levels)
+                      if ((summary[key] ?? 0) > 0)
+                        Expanded(
+                          flex: ((summary[key] ?? 0) * 1000 * t).round().clamp(1, 1 << 30),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 2),
+                            color: color,
+                          ),
+                        ),
+                    Expanded(
+                      flex: (total * 1000 * (1 - t)).round().clamp(0, 1 << 30),
+                      child: const SizedBox(),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 14,
+            runSpacing: 6,
+            children: [
+              for (final (key, label, color) in _levels)
+                if ((summary[key] ?? 0) > 0)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                      const SizedBox(width: 5),
+                      Text('$label ${summary[key]}', style: AppTextStyles.meta),
+                    ],
+                  ),
+            ],
+          ),
+          if (atRisk > 0) ...[
+            const SizedBox(height: 8),
+            Text('Students who need attention are shown first.', style: AppTextStyles.meta),
+          ],
         ],
       ),
     );
@@ -233,65 +295,86 @@ class _StudentCard extends StatelessWidget {
 
   const _StudentCard({required this.student, required this.onTap});
 
+  /// "Cruz, Ana" → "AC".
+  String get _initials {
+    final parts = student.name.split(', ');
+    final s = parts.length == 2
+        ? '${parts[1].isNotEmpty ? parts[1][0] : ''}${parts[0].isNotEmpty ? parts[0][0] : ''}'
+        : (student.name.isNotEmpty ? student.name[0] : '?');
+    return s.toUpperCase();
+  }
+
+  (Color, Color) get _tone => switch (student.riskLevel) {
+        'high' => (AppColors.redBg, AppColors.redText),
+        'moderate' => (AppColors.amberBg, AppColors.amberText),
+        'low' => (AppColors.greenBg, AppColors.greenText),
+        _ => (AppColors.background, AppColors.text2),
+      };
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    final (bg, fg) = _tone;
+    return Pressable(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        decoration: AppDecor.card(),
+        child: Row(
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+            Hero(
+              tag: 'student-avatar-${student.id}',
+              child: Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(13)),
+                child: Text(
+                  _initials,
+                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: fg),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(student.name, style: AppTextStyles.sectionTitle),
-                      const SizedBox(height: 3),
-                      Text(
-                        [
-                          student.schoolId,
-                          student.yearSection,
-                        ].where((s) => s.isNotEmpty).join(' · '),
-                        style: AppTextStyles.meta,
+                      Expanded(
+                        child: Text(
+                          student.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.sectionTitle,
+                        ),
                       ),
+                      AppBadge.risk(student.riskLevel),
                     ],
                   ),
-                ),
-                AppBadge.risk(student.riskLevel),
-              ],
+                  const SizedBox(height: 3),
+                  Text(
+                    [student.schoolId, student.yearSection].where((s) => s.isNotEmpty).join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.meta,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _Stat(
+                        icon: Icons.receipt_long_rounded,
+                        label: '${student.reportsCount} report${student.reportsCount == 1 ? '' : 's'}',
+                      ),
+                      const SizedBox(width: 14),
+                      _Stat(icon: Icons.outbox_rounded, label: '${student.openReferrals} open'),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _Stat(
-                  icon: Icons.receipt_long_rounded,
-                  label:
-                      '${student.reportsCount} report${student.reportsCount == 1 ? '' : 's'}',
-                ),
-                const SizedBox(width: 16),
-                _Stat(
-                  icon: Icons.outbox_rounded,
-                  label: '${student.openReferrals} open',
-                ),
-                const Spacer(),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: AppColors.text3,
-                ),
-              ],
-            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.text3),
           ],
         ),
       ),

@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
+import '../../widgets/premium/skeleton.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/message.dart';
 import '../../providers/teacher_provider.dart';
@@ -75,7 +77,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
   Widget _buildBody(TeacherProvider provider) {
     if (provider.loadingMessages && provider.messages.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonList(leading: true);
     }
 
     if (provider.messagesError != null && provider.messages.isEmpty) {
@@ -159,7 +161,8 @@ class _MessageCard extends StatelessWidget {
           border: Border.all(
             color: unread ? AppColors.accent.withValues(alpha: 0.4) : AppColors.border,
           ),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppDecor.radius),
+          boxShadow: AppDecor.shadow,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

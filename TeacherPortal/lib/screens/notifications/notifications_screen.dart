@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
+import '../../widgets/premium/skeleton.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/app_notification.dart';
 import '../../providers/teacher_provider.dart';
@@ -55,7 +57,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildBody(TeacherProvider provider) {
     if (provider.loadingNotifications && provider.notifications.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonList(leading: true);
     }
 
     if (provider.notificationsError != null && provider.notifications.isEmpty) {
@@ -167,7 +169,8 @@ class _NotificationCard extends StatelessWidget {
           color: item.isRead ? AppColors.surface : AppColors.accentLight,
           border: Border.all(
               color: item.isRead ? AppColors.border : AppColors.accent.withValues(alpha: 0.4)),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppDecor.radius),
+          boxShadow: AppDecor.shadow,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

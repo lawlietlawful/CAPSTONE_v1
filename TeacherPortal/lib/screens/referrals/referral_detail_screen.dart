@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/referral_detail.dart';
 import '../../providers/teacher_provider.dart';
@@ -11,6 +12,8 @@ import '../messaging/compose_message_screen.dart';
 import '../../widgets/common/follow_up_card.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/premium/motion.dart';
+import '../../widgets/premium/skeleton.dart';
 
 /// A referral's outcome: its status journey and who has it at Guidance, with
 /// a way to message them. Closes the loop for the teacher who filed it.
@@ -50,7 +53,7 @@ class _ReferralDetailScreenState extends State<ReferralDetailScreen> {
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonList(count: 4);
           }
           if (snap.hasError || !snap.hasData) {
             return CenteredMessage(
@@ -75,11 +78,7 @@ class _ReferralDetailScreenState extends State<ReferralDetailScreen> {
         // ── Header ──
         Container(
           padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(14),
-          ),
+          decoration: AppDecor.card(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -150,11 +149,7 @@ class _ReferralDetailScreenState extends State<ReferralDetailScreen> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(12),
-          ),
+          decoration: AppDecor.card(),
           child: Text(
             r.reason,
             style: GoogleFonts.inter(
@@ -177,15 +172,15 @@ class _Journey extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(14),
-      ),
+      decoration: AppDecor.card(),
       child: Column(
         children: [
           for (var i = 0; i < steps.length; i++)
-            _JourneyRow(step: steps[i], isLast: i == steps.length - 1),
+            FadeSlideIn(
+              index: i + 1,
+              offset: 8,
+              child: _JourneyRow(step: steps[i], isLast: i == steps.length - 1),
+            ),
         ],
       ),
     );
@@ -227,45 +222,68 @@ class _JourneyRow extends StatelessWidget {
           // Marker + connector column
           Column(
             children: [
-              Container(
-                width: 22,
-                height: 22,
-                margin: const EdgeInsets.only(top: 12),
-                decoration: BoxDecoration(
-                  color: reached || cancelled ? markColor : AppColors.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: markColor, width: 2),
-                ),
-                child: step.isDone
-                    ? const Icon(
-                        Icons.check_rounded,
-                        size: 13,
-                        color: Colors.white,
-                      )
-                    : cancelled
-                    ? const Icon(
-                        Icons.close_rounded,
-                        size: 13,
-                        color: Colors.white,
-                      )
-                    : step.isCurrent
-                    ? Center(
-                        child: Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: _Halo(
+                  active: step.isCurrent && !cancelled,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: reached || cancelled
+                          ? markColor
+                          : AppColors.surface,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: markColor, width: 2),
+                    ),
+                    child: step.isDone
+                        ? const Icon(
+                            Icons.check_rounded,
+                            size: 13,
                             color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      )
-                    : null,
+                          )
+                        : cancelled
+                        ? const Icon(
+                            Icons.close_rounded,
+                            size: 13,
+                            color: Colors.white,
+                          )
+                        : step.isCurrent
+                        ? Center(
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
+                ),
               ),
               if (!isLast)
                 Expanded(
                   child: Container(
                     width: 2,
-                    color: step.isDone ? AppColors.accent : AppColors.border,
+                    color: AppColors.border,
+                    alignment: Alignment.topCenter,
+                    // A finished step's line fills downward toward the next one.
+                    child: step.isDone
+                        ? TweenAnimationBuilder<double>(
+                            tween: Tween(
+                              begin: Motion.reduced(context) ? 1 : 0,
+                              end: 1,
+                            ),
+                            duration: const Duration(milliseconds: 600),
+                            curve: Motion.enter,
+                            builder: (_, t, _) => FractionallySizedBox(
+                              heightFactor: t,
+                              child: Container(color: AppColors.accent),
+                            ),
+                          )
+                        : null,
                   ),
                 ),
             ],
@@ -326,11 +344,7 @@ class _HandledByCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: AppDecor.card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -340,11 +354,15 @@ class _HandledByCard extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: assigned ? AppColors.accentLight : AppColors.background,
+                  color: assigned
+                      ? AppColors.accentLight
+                      : AppColors.background,
                   borderRadius: BorderRadius.circular(9),
                 ),
                 child: Icon(
-                  assigned ? Icons.support_agent_rounded : Icons.hourglass_empty_rounded,
+                  assigned
+                      ? Icons.support_agent_rounded
+                      : Icons.hourglass_empty_rounded,
                   size: 17,
                   color: assigned ? AppColors.accent : AppColors.text3,
                 ),
@@ -355,7 +373,9 @@ class _HandledByCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      assigned ? (counselorName ?? 'Guidance counselor') : 'Waiting for a counselor',
+                      assigned
+                          ? (counselorName ?? 'Guidance counselor')
+                          : 'Waiting for a counselor',
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -364,7 +384,9 @@ class _HandledByCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      assigned ? 'Guidance counselor' : 'The Guidance Office will assign one soon.',
+                      assigned
+                          ? 'Guidance counselor'
+                          : 'The Guidance Office will assign one soon.',
                       style: AppTextStyles.meta,
                     ),
                   ],
@@ -376,12 +398,20 @@ class _HandledByCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.lock_outline_rounded, size: 13, color: AppColors.text3),
+              const Icon(
+                Icons.lock_outline_rounded,
+                size: 13,
+                color: AppColors.text3,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   'Counseling notes stay confidential with the Guidance Office.',
-                  style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.text3, height: 1.4),
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: AppColors.text3,
+                    height: 1.4,
+                  ),
                 ),
               ),
             ],
@@ -396,25 +426,87 @@ class _HandledByCard extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => ComposeMessageScreen(
                       initialCounselorId: counselorId,
-                      initialSubject: 'About my referral: ${studentName ?? 'student'} ($referralLabel)',
+                      initialSubject:
+                          'About my referral: ${studentName ?? 'student'} ($referralLabel)',
                     ),
                   ),
                 ),
                 icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
                 label: Text(
                   'Message ${counselorName ?? 'counselor'}',
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.accent,
                   side: const BorderSide(color: AppColors.border),
                   padding: const EdgeInsets.symmetric(vertical: 11),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// A soft ring that breathes around the current step's marker.
+class _Halo extends StatefulWidget {
+  final bool active;
+  final Widget child;
+  const _Halo({required this.active, required this.child});
+
+  @override
+  State<_Halo> createState() => _HaloState();
+}
+
+class _HaloState extends State<_Halo> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.active && !Motion.reduced(context)) {
+      _controller.repeat(reverse: true);
+    } else {
+      _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.active) return widget.child;
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (_, child) => DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.accent.withValues(
+                alpha: 0.28 * (1 - _controller.value),
+              ),
+              spreadRadius: 2 + 5 * _controller.value,
+            ),
+          ],
+        ),
+        child: child,
       ),
     );
   }

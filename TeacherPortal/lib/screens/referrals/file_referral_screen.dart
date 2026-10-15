@@ -10,6 +10,7 @@ import '../../models/referral.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/premium/success_check.dart';
 import '../../widgets/common/duplicate_referral_dialog.dart';
 import '../../widgets/common/student_picker_sheet.dart';
 import '../messaging/compose_message_screen.dart';
@@ -334,9 +335,8 @@ Future<void> showReferralResultSheet(BuildContext context, Referral referral) {
           children: [
             Row(
               children: [
-                const Icon(Icons.check_circle_rounded,
-                    color: AppColors.green, size: 22),
-                const SizedBox(width: 8),
+                const SuccessCheck(size: 34),
+                  const SizedBox(width: 12),
                 Text('Referral submitted', style: AppTextStyles.pageTitle),
               ],
             ),

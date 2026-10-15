@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/services/api_service.dart';
 import '../../models/referral.dart';
 import '../../providers/teacher_provider.dart';
@@ -86,11 +87,7 @@ class _FollowUpCardState extends State<FollowUpCard> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: AppDecor.card(),
       child: _editing ? _form() : _summary(widget.followUp!),
     );
   }

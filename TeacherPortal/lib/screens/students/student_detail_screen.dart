@@ -4,12 +4,16 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/roster_student.dart';
 import '../../models/student_detail.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/premium/motion.dart';
+import '../../widgets/premium/risk_gauge.dart';
+import '../../widgets/premium/skeleton.dart';
 import '../reports/report_detail_screen.dart';
 import '../referrals/referral_detail_screen.dart';
 import '../seminars/matching_seminars_screen.dart';
@@ -53,7 +57,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonList(count: 4, leading: true);
           }
           if (snap.hasError || !snap.hasData) {
             return CenteredMessage(
@@ -72,43 +76,46 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
   Widget _buildDetail(StudentDetail detail) {
     final s = detail.student;
+    var i = 0; // stagger order
+    Widget enter(Widget child) => FadeSlideIn(index: i++, child: child);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
         _Header(student: s),
         const SizedBox(height: 14),
-        _RiskExplainerCard(student: s, seminars: detail.seminars),
-        const SizedBox(height: 22),
+        enter(_RiskExplainerCard(student: s, seminars: detail.seminars)),
+        const SizedBox(height: 24),
 
-        _SectionLabel('Case history', count: detail.timeline.length),
+        enter(_SectionLabel('Case history', count: detail.timeline.length)),
         const SizedBox(height: 10),
         if (detail.timeline.isEmpty)
-          const _EmptyRow(
+          enter(const _EmptyRow(
             icon: Icons.inbox_outlined,
             text: 'No reports or referrals on file.',
-          )
+          ))
         else
           ...detail.timeline.map(
-            (t) => Padding(
+            (t) => enter(Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _TimelineCard(item: t),
-            ),
+            )),
           ),
 
-        const SizedBox(height: 22),
-        _SectionLabel('Interventions', count: detail.seminars.length),
+        const SizedBox(height: 24),
+        enter(_SectionLabel('Interventions', count: detail.seminars.length)),
         const SizedBox(height: 10),
         if (detail.seminars.isEmpty)
-          const _EmptyRow(
+          enter(const _EmptyRow(
             icon: Icons.school_outlined,
             text: 'No seminars assigned yet.',
-          )
+          ))
         else
           ...detail.seminars.map(
-            (sm) => Padding(
+            (sm) => enter(Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _SeminarCard(seminar: sm),
-            ),
+            )),
           ),
       ],
     );
@@ -128,23 +135,56 @@ class _Header extends StatelessWidget {
     ].where((e) => e != null && e.isNotEmpty).join(' · ');
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: AppDecor.card(),
+      child: Row(
         children: [
-          Text(student.name, style: AppTextStyles.pageTitle),
-          const SizedBox(height: 4),
-          Text(meta, style: AppTextStyles.meta),
-          const SizedBox(height: 14),
-          AppBadge.risk(student.riskLevel),
+          // Glides in from the same avatar on the My Students card.
+          Hero(
+            tag: 'student-avatar-${student.id}',
+            child: Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: _tone.$1, borderRadius: BorderRadius.circular(16)),
+              child: Text(
+                _initials,
+                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: _tone.$2),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(student.name, style: AppTextStyles.pageTitle),
+                const SizedBox(height: 4),
+                Text(meta, style: AppTextStyles.meta),
+                const SizedBox(height: 10),
+                AppBadge.risk(student.riskLevel),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
+
+  /// "Cruz, Ana" → "AC".
+  String get _initials {
+    final parts = student.name.split(', ');
+    final s = parts.length == 2
+        ? '${parts[1].isNotEmpty ? parts[1][0] : ''}${parts[0].isNotEmpty ? parts[0][0] : ''}'
+        : (student.name.isNotEmpty ? student.name[0] : '?');
+    return s.toUpperCase();
+  }
+
+  (Color, Color) get _tone => switch (student.riskLevel) {
+        'high' => (AppColors.redBg, AppColors.redText),
+        'moderate' => (AppColors.amberBg, AppColors.amberText),
+        'low' => (AppColors.greenBg, AppColors.greenText),
+        _ => (AppColors.background, AppColors.text2),
+      };
 }
 
 /// Explains *why* the risk badge/score looks the way it does: a visual scale,
@@ -184,11 +224,7 @@ class _RiskExplainerCard extends StatelessWidget {
     if (student.riskLevel == 'not_assessed') {
       return Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(12),
-        ),
+        decoration: AppDecor.card(),
         child: Row(
           children: [
             const Icon(
@@ -225,11 +261,7 @@ class _RiskExplainerCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: AppDecor.card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -241,31 +273,17 @@ class _RiskExplainerCard extends StatelessWidget {
               color: AppColors.text1,
             ),
           ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: score / 100,
-              minHeight: 7,
-              backgroundColor: AppColors.background,
-              valueColor: AlwaysStoppedAnimation(_scaleColor),
+          const SizedBox(height: 14),
+          Center(
+            child: RiskGauge(
+              score: score,
+              color: _scaleColor,
+              label: switch (student.riskLevel) {
+                'high' => 'High risk',
+                'moderate' => 'Moderate risk',
+                _ => 'Low risk',
+              },
             ),
-          ),
-          const SizedBox(height: 5),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Low', style: AppTextStyles.meta),
-              Text(
-                '${score.toStringAsFixed(0)} / 100',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: _scaleColor,
-                ),
-              ),
-              Text('High', style: AppTextStyles.meta),
-            ],
           ),
           if (student.riskReason != null && student.riskReason!.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -385,8 +403,7 @@ class _TimelineCard extends StatelessWidget {
     final kindLabel = isReport ? 'Behavioral report' : 'Referral';
 
     // Only the teacher's own entries open: someone else's stays a summary.
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
+    return Pressable(
       onTap: !item.mine
           ? null
           : () => Navigator.of(context).push(
@@ -398,11 +415,7 @@ class _TimelineCard extends StatelessWidget {
               ),
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(12),
-        ),
+        decoration: AppDecor.card(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -525,8 +538,7 @@ class _SeminarCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = _statusVisual;
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
+    return Pressable(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => SeminarDetailScreen(seminar: seminar),
@@ -534,11 +546,7 @@ class _SeminarCard extends StatelessWidget {
       ),
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(12),
-        ),
+        decoration: AppDecor.card(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -610,11 +618,7 @@ class _EmptyRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: AppDecor.card(),
       child: Row(
         children: [
           Icon(icon, size: 17, color: AppColors.text3),

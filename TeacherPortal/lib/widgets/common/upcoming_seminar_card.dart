@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../models/upcoming_seminar.dart';
 
 /// One seminar some of the teacher's advisees are enrolled in: when and
@@ -31,12 +32,8 @@ class UpcomingSeminarCard extends StatelessWidget {
     final more = names.length > 3 ? ' +${names.length - 3} more' : '';
 
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      padding: const EdgeInsets.all(14),
+      decoration: AppDecor.card(),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

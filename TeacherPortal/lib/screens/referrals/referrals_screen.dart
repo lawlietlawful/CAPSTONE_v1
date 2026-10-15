@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/referral.dart';
 import '../../providers/teacher_provider.dart';
@@ -13,6 +14,8 @@ import '../../widgets/common/navy_header.dart';
 import '../../widgets/common/notification_bell.dart';
 import '../../widgets/common/search_filter_bar.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/premium/motion.dart';
+import '../../widgets/premium/skeleton.dart';
 import 'referral_detail_screen.dart';
 
 /// Read-only history of the referrals this teacher has filed, plus a shortcut
@@ -171,7 +174,7 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
 
   Widget _buildBody(TeacherProvider provider) {
     if (provider.loadingReferrals && provider.referrals.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonList();
     }
 
     if (provider.referralsError != null && provider.referrals.isEmpty) {
@@ -225,7 +228,10 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
             return ListLoadMoreFooter(visible: provider.loadingMoreReferrals);
           }
           final referral = provider.referrals[i];
-          return _ReferralCard(
+          return FadeSlideIn(
+            key: ValueKey(referral.id),
+            index: i % 20,
+            child: _ReferralCard(
             referral: referral,
             onTap: () async {
               final prov = context.read<TeacherProvider>();
@@ -237,7 +243,7 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
               // A counselor may have advanced the status while it was open.
               prov.loadReferrals();
             },
-          );
+          ));
         },
       ),
     );
@@ -263,16 +269,11 @@ class _ReferralCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return Pressable(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(12),
-        ),
+        padding: const EdgeInsets.all(16),
+        decoration: AppDecor.card(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

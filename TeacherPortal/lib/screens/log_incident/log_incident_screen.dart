@@ -12,6 +12,7 @@ import '../../models/report_draft.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/premium/success_check.dart';
 import '../../widgets/common/student_picker_sheet.dart';
 
 /// The speed-critical flow: a teacher quickly records a behavioral incident
@@ -199,9 +200,8 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.check_circle_rounded,
-                      color: AppColors.green, size: 22),
-                  const SizedBox(width: 8),
+                  const SuccessCheck(size: 34),
+                  const SizedBox(width: 12),
                   Text('Report submitted', style: AppTextStyles.pageTitle),
                 ],
               ),

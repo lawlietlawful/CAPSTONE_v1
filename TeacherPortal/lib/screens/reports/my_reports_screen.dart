@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/behavioral_report.dart';
 import '../../providers/teacher_provider.dart';
@@ -14,6 +15,8 @@ import '../../widgets/common/navy_header.dart';
 import '../../widgets/common/notification_bell.dart';
 import '../../widgets/common/search_filter_bar.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/premium/motion.dart';
+import '../../widgets/premium/skeleton.dart';
 import 'report_detail_screen.dart';
 
 /// History of the behavioral reports this teacher has filed. Tapping a card
@@ -155,7 +158,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
 
   Widget _buildBody(TeacherProvider provider) {
     if (provider.loadingReports && provider.reports.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonList();
     }
 
     if (provider.reportsError != null && provider.reports.isEmpty) {
@@ -208,7 +211,11 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
             return ListLoadMoreFooter(visible: provider.loadingMoreReports);
           }
           final report = provider.reports[i];
-          return _ReportCard(report: report, onTap: () => _openDetail(report));
+          return FadeSlideIn(
+            key: ValueKey(report.id),
+            index: i % 20,
+            child: _ReportCard(report: report, onTap: () => _openDetail(report)),
+          );
         },
       ),
     );
@@ -237,16 +244,11 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return Pressable(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(12),
-        ),
+        padding: const EdgeInsets.all(16),
+        decoration: AppDecor.card(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

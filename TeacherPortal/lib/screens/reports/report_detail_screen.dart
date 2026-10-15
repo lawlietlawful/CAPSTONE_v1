@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../widgets/premium/skeleton.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/behavioral_report.dart';
 import '../../models/referral.dart';
@@ -85,7 +87,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
     // Nothing cached to fall back on.
     if (report == null) {
-      if (_loading) return const Center(child: CircularProgressIndicator());
+      if (_loading) return const SkeletonList(count: 3);
       return CenteredMessage(
         icon: Icons.wifi_off_rounded,
         title: 'Could not load report',
@@ -307,11 +309,7 @@ class _Card extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: AppDecor.card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
