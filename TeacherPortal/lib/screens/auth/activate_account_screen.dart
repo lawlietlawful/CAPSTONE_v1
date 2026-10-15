@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +6,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/password_rules.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/teacher_provider.dart';
+import '../../widgets/common/auth_scaffold.dart';
 import '../../widgets/common/auth_widgets.dart';
 
 /// First-time account setup for teachers. The admin has already created the
@@ -25,6 +25,7 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
   final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _shake = GlobalKey<ShakeState>();
 
   @override
   void dispose() {
@@ -61,81 +62,38 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
       activationCode: code,
       newPassword: password,
     );
-    if (success && mounted) {
+    if (!mounted) return;
+    if (success) {
       context.read<TeacherProvider>().reset();
       Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      _shake.currentState?.shake();
     }
   }
 
   void _showError(String message) {
     context.read<AuthProvider>().setLocalError(message);
+    _shake.currentState?.shake();
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      // Dark status-bar icons for the light background.
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: AppColors.surface,
-        resizeToAvoidBottomInset: true,
-        appBar: AppBar(
-          backgroundColor: AppColors.surface,
-          elevation: 0,
-          iconTheme: const IconThemeData(color: AppColors.text1),
-        ),
-        body: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _buildLogoChip(),
-                const SizedBox(height: 20),
-                Text(
-                  'Activate Your Account',
-                  style: GoogleFonts.inter(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text1,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Enter the one-time code from your administrator to set your password',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: AppColors.text3,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                _buildForm(context, auth),
-                const SizedBox(height: 24),
-              ],
-            ),
+    return AuthScaffold(
+      portalName: 'Teacher Portal',
+      portalIcon: Icons.co_present_rounded,
+      showBack: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AuthHeading(
+            title: 'Activate your account',
+            subtitle: 'Enter your Employee ID and the one-time code from the Guidance Office, then choose your password.',
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogoChip() {
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: AppColors.accentLight,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: const Icon(
-        Icons.verified_user_outlined,
-        color: AppColors.accent,
-        size: 28,
+          const SizedBox(height: 24),
+          Shake(key: _shake, child: _buildForm(context, auth)),
+        ],
       ),
     );
   }
@@ -194,39 +152,10 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
         ],
         const SizedBox(height: 20),
 
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: auth.isLoading ? null : _handleActivate,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              disabledBackgroundColor: const Color(0xFF2E6FD4),
-              foregroundColor: AppColors.navyText,
-              disabledForegroundColor: AppColors.navyText,
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              elevation: 0,
-            ),
-            child: auth.isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.navyText,
-                    ),
-                  )
-                : Text(
-                    'Activate Account',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.navyText,
-                    ),
-                  ),
-          ),
+        AuthPrimaryButton(
+          label: 'Activate account',
+          loading: auth.isLoading,
+          onPressed: _handleActivate,
         ),
       ],
     );

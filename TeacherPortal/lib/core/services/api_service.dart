@@ -124,6 +124,9 @@ class ApiException implements Exception {
   /// The request never got an answer (offline, unreachable, timed out).
   bool get isNetworkError => statusCode == 0;
 
+  /// Seconds until sign-in reopens, when the server paused it (429).
+  int? get retryAfter => statusCode == 429 ? (data?['retry_after'] as num?)?.toInt() : null;
+
   @override
   String toString() => 'ApiException($statusCode): $message';
 }
