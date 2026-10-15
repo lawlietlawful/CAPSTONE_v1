@@ -112,15 +112,18 @@ class StudentProfileSheet extends StatelessWidget {
                     icon: Icons.badge_outlined,
                     label: 'ID: ${student?.schoolId ?? '—'}',
                   ),
+                  // Many students sign in with their ID and have no email.
+                  if ((student?.email ?? '').trim().isNotEmpty) ...[
+                    const Divider(height: 1, color: AppColors.border),
+                    _InfoRow(
+                      icon: Icons.email_outlined,
+                      label: student!.email,
+                    ),
+                  ],
                   const Divider(height: 1, color: AppColors.border),
                   _InfoRow(
-                    icon: Icons.email_outlined,
-                    label: student?.email ?? '—',
-                  ),
-                  const Divider(height: 1, color: AppColors.border),
-                  const _InfoRow(
                     icon: Icons.school_outlined,
-                    label: 'S.Y. 2025–2026',
+                    label: 'S.Y. ${_schoolYear(DateTime.now())}',
                   ),
                 ],
               ),
@@ -208,4 +211,11 @@ class _InfoRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The school year a date falls in — it starts in June ("2026–2027" from
+/// June 2026 to May 2027), so it never goes out of date.
+String _schoolYear(DateTime now) {
+  final start = now.month >= 6 ? now.year : now.year - 1;
+  return '$start–${start + 1}';
 }

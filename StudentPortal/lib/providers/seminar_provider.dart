@@ -12,10 +12,24 @@ class SeminarProvider extends ChangeNotifier {
   List<SeminarModel> get required => _required;
   List<SeminarModel> get completed => _completed;
   bool get isLoading => _isLoading;
+
+  /// True once a load has finished (successfully or not) this session.
+  bool get hasLoaded => _hasLoaded;
+  bool _hasLoaded = false;
   String? get error => _error;
 
   SeminarModel? get nextSeminar =>
       _required.isNotEmpty ? _required.first : null;
+
+  /// Forgets the signed-in student's seminars (sign-out / new session).
+  void reset() {
+    _required = [];
+    _completed = [];
+    _hasLoaded = false;
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
 
   Future<void> fetch() async {
     _isLoading = true;
@@ -32,9 +46,10 @@ class SeminarProvider extends ChangeNotifier {
           .map((e) => SeminarModel.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      _error = e.toString();
+      _error = e is ApiException ? e.message : 'Something went wrong. Pull down to try again.';
     }
     _isLoading = false;
+    _hasLoaded = true;
     notifyListeners();
   }
 }

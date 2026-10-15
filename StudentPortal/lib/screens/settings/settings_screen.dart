@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../providers/settings_provider.dart';
 import 'change_password_screen.dart';
@@ -54,7 +55,7 @@ class SettingsScreen extends StatelessWidget {
                   iconBg: AppColors.purpleBg,
                   iconColor: AppColors.purple,
                   title: 'Seminar reminders',
-                  subtitle: 'Get reminded before required seminars',
+                  subtitle: 'A reminder the day before and on the day of each seminar',
                   value: settings.seminarReminders,
                   onChanged:
                       context.read<SettingsProvider>().setSeminarReminders,
@@ -65,7 +66,7 @@ class SettingsScreen extends StatelessWidget {
                   iconBg: AppColors.accentLight,
                   iconColor: AppColors.accent,
                   title: 'Referral & SMS alerts',
-                  subtitle: 'Notify me about guidance office activity',
+                  subtitle: 'Pop up new notices and messages from Guidance while the app is open',
                   value: settings.alertNotifications,
                   onChanged:
                       context.read<SettingsProvider>().setAlertNotifications,
@@ -146,11 +147,7 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: AppDecor.card(),
       child: child,
     );
   }

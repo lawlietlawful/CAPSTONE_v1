@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/utils/date_utils.dart';
 import '../../models/seminar_model.dart';
@@ -30,11 +31,7 @@ class SeminarDetailScreen extends StatelessWidget {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
-              ),
+              decoration: AppDecor.card(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -109,11 +106,7 @@ class SeminarDetailScreen extends StatelessWidget {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border),
-                ),
+                decoration: AppDecor.card(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

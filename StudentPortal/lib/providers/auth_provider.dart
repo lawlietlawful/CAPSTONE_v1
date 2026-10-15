@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import '../core/services/auth_service.dart';
 import '../core/services/api_service.dart';
+import 'session_reset.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
 class AuthProvider extends ChangeNotifier {
   AuthStatus _status = AuthStatus.initial;
   String? _errorMessage;
+
+  /// Seconds until sign-in reopens after too many attempts (null if not paused).
+  int? _retryAfter;
+  int? get retryAfter => _retryAfter;
 
   AuthStatus get status => _status;
   String? get errorMessage => _errorMessage;
@@ -15,6 +20,7 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> login(String email, String password) async {
     _status = AuthStatus.loading;
     _errorMessage = null;
+    _retryAfter = null;
     notifyListeners();
     try {
       await AuthService.login(email, password);
@@ -23,6 +29,7 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } on ApiException catch (e) {
       _errorMessage = e.message;
+      _retryAfter = e.retryAfter;
       _status = AuthStatus.error;
       notifyListeners();
       return false;
@@ -77,6 +84,7 @@ class AuthProvider extends ChangeNotifier {
     _status = AuthStatus.unauthenticated;
     notifyListeners();
     if (context.mounted) {
+      resetStudentData(context);
       Navigator.pushReplacementNamed(context, '/login');
     }
   }

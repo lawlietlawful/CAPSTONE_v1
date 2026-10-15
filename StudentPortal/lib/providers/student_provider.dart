@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import '../core/services/api_service.dart';
 import '../core/constants/api_constants.dart';
 import '../models/student_model.dart';
-import '../models/risk_assessment_model.dart';
 import '../models/referral_model.dart';
 
+/// The signed-in student's profile and referrals. Deliberately no risk level
+/// or score: students don't see the label staff use to prioritise them.
 class StudentProvider extends ChangeNotifier {
   StudentModel? _student;
-  RiskAssessment? _riskAssessment;
   List<ReferralModel> _referrals = [];
   bool _isLoading = false;
   String? _error;
 
   StudentModel? get student => _student;
-  RiskAssessment? get riskAssessment => _riskAssessment;
   List<ReferralModel> get referrals => _referrals;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -23,6 +22,16 @@ class StudentProvider extends ChangeNotifier {
     return active.isNotEmpty ? active.first : null;
   }
 
+  /// Forgets the signed-in student (sign-out / new session), so nothing of
+  /// theirs is left on screen for whoever signs in next.
+  void reset() {
+    _student = null;
+    _referrals = [];
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> fetchAll() async {
     _isLoading = true;
     _error = null;
@@ -30,11 +39,10 @@ class StudentProvider extends ChangeNotifier {
     try {
       await Future.wait([
         _fetchProfile(),
-        _fetchRiskLevel(),
         _fetchReferrals(),
       ]);
     } catch (e) {
-      _error = e.toString();
+      _error = e is ApiException ? e.message : 'Something went wrong. Pull down to try again.';
     }
     _isLoading = false;
     notifyListeners();
@@ -42,38 +50,15 @@ class StudentProvider extends ChangeNotifier {
 
   Future<void> _fetchProfile() async {
     final data = await ApiService.get(ApiConstants.profile);
-    final studentData =
-        data['student'] as Map<String, dynamic>? ?? data;
+    final studentData = data['student'] as Map<String, dynamic>? ?? data;
     _student = StudentModel.fromJson(studentData);
-  }
-
-  Future<void> _fetchRiskLevel() async {
-    final data = await ApiService.get(ApiConstants.riskLevel);
-    // Spec returns `has_assessment: false` (with null fields) when the student
-    // has never been assessed — in that case hide the banner entirely.
-    if (data['has_assessment'] == false) {
-      _riskAssessment = null;
-    } else {
-      _riskAssessment = RiskAssessment.fromJson(data);
-    }
   }
 
   Future<void> _fetchReferrals() async {
     final data = await ApiService.get(ApiConstants.referrals);
-    // Spec shape: { has_active_referral, active_referral, all_referrals }.
-    // Older/simpler shapes (`referrals` / `data`) kept as fallbacks.
-    final all =
-        (data['all_referrals'] ?? data['referrals'] ?? data['data'] ?? [])
-            as List;
-    var list = all
+    final all = (data['all_referrals'] as List? ?? []);
+    _referrals = all
         .map((e) => ReferralModel.fromJson(e as Map<String, dynamic>))
         .toList();
-    // If only the single active referral is returned, use it.
-    if (list.isEmpty && data['active_referral'] != null) {
-      list = [
-        ReferralModel.fromJson(data['active_referral'] as Map<String, dynamic>)
-      ];
-    }
-    _referrals = list;
   }
 }

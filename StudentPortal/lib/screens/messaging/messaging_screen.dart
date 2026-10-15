@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../widgets/premium/skeleton.dart';
 import '../../core/services/message_service.dart';
 import '../../models/message.dart';
 
@@ -45,7 +46,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const SkeletonList(count: 4, leading: true)
           : RefreshIndicator(
               onRefresh: _loadInbox,
               child: _inbox.isEmpty

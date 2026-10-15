@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_decor.dart';
+import '../premium/motion.dart';
 import '../../core/utils/date_utils.dart';
 import '../../models/seminar_model.dart';
 import 'ai_assigned_badge.dart';
@@ -18,13 +20,11 @@ class SeminarCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => FadeSlideIn(child: _card(context));
+
+  Widget _card(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: AppDecor.card(),
       child: Opacity(
         opacity: isCompleted ? 0.6 : 1.0,
         child: Column(

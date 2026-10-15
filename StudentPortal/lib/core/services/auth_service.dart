@@ -1,8 +1,12 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
 import 'api_service.dart';
 
 class AuthService {
+  /// The session key lives in the platform's secure storage (Keychain /
+  /// Keystore / encrypted on the web), not in ordinary app preferences.
+  static const _secure = FlutterSecureStorage();
   static const _keyToken = 'auth_token';
   static const _keyName = 'student_name';
   static const _keyInitials = 'student_initials';
@@ -14,7 +18,8 @@ class AuthService {
       String email, String password) async {
     final data = await ApiService.post(
       ApiConstants.login,
-      body: {'email': email.trim(), 'password': password.trim()},
+      // The password is sent exactly as typed: a space can be part of it.
+      body: {'email': email.trim(), 'password': password},
     );
     await _persistSession(data);
     return data;
@@ -54,7 +59,7 @@ class AuthService {
     final initials = _initials(name);
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyToken, token);
+    await _secure.write(key: _keyToken, value: token);
     await prefs.setString(_keyName, name);
     await prefs.setString(_keyInitials, initials);
     await prefs.setInt(_keyStudentId, (student['id'] as num).toInt());
@@ -82,14 +87,23 @@ class AuthService {
     } catch (_) {
       // Proceed with local logout even if server call fails
     }
+    await clearLocalSession();
+  }
+
+  /// Forgets the session on this phone: the key and the cached profile.
+  static Future<void> clearLocalSession() async {
     ApiService.clearToken();
+    await _secure.delete(key: _keyToken);
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
   }
 
   static Future<String?> getSavedToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyToken);
+    try {
+      return await _secure.read(key: _keyToken);
+    } catch (_) {
+      return null; // unreadable (e.g. reinstalled app): sign in again
+    }
   }
 
   static Future<Map<String, String?>> getSavedProfile() async {

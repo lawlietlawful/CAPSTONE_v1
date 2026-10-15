@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../premium/motion.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/utils/date_utils.dart';
 import '../../models/notification_model.dart';
 
@@ -54,17 +56,14 @@ class NotificationItem extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
+  Widget build(BuildContext context) => FadeSlideIn(child: _item(context));
+
+  Widget _item(BuildContext context) {
+    return Pressable(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
+        decoration: AppDecor.card(),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

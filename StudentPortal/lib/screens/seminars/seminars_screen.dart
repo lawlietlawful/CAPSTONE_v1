@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../widgets/premium/skeleton.dart';
+import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../providers/seminar_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../widgets/common/navy_header.dart';
+import '../../widgets/common/messages_button.dart';
 import '../../widgets/common/student_profile_sheet.dart';
 import '../../widgets/seminars/seminar_card.dart';
 import 'seminar_detail_screen.dart';
@@ -25,9 +28,10 @@ class SeminarsScreen extends StatelessWidget {
       children: [
         NavyHeader(
           title: 'My seminars',
-          subtitle: '$requiredCount required · $completedCount past',
+          subtitle: '$requiredCount upcoming · $completedCount past',
           avatarInitials: sp.student?.initials ?? '?',
           onAvatarTap: () => StudentProfileSheet.show(context),
+          trailing: const MessagesButton(),
         ),
         Expanded(
           child: ColoredBox(
@@ -51,7 +55,7 @@ class SeminarsScreen extends StatelessWidget {
           SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
-              child: CircularProgressIndicator(color: AppColors.accent),
+              child: SizedBox(height: 520, child: SkeletonList(count: 4, leading: true)),
             ),
           ),
         ],
@@ -89,25 +93,25 @@ class SeminarsScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Section 1: Required to attend ──────────────────
+          // ── Section 1: Upcoming ──────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Required to attend', style: AppTextStyles.sectionTitle),
+              Text('Upcoming', style: AppTextStyles.sectionTitle),
               if (semp.required.isNotEmpty)
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: AppColors.redBg,
+                    color: AppColors.accentLight,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '${semp.required.length} pending',
+                    '${semp.required.length} to attend',
                     style: GoogleFonts.inter(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.redText,
+                      color: AppColors.accentDark,
                     ),
                   ),
                 ),
@@ -117,7 +121,7 @@ class SeminarsScreen extends StatelessWidget {
           if (semp.required.isEmpty)
             const _EmptyState(
               icon: Icons.school_outlined,
-              message: 'No required seminars yet',
+              message: 'No upcoming seminars',
             )
           else
             ...semp.required.map(
@@ -164,11 +168,7 @@ class _EmptyState extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 32),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: AppDecor.card(),
       child: Column(
         children: [
           Icon(icon, size: 36, color: AppColors.text3),

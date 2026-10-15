@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../widgets/premium/skeleton.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/utils/date_utils.dart';
 import '../../models/notification_model.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../widgets/common/navy_header.dart';
+import '../../widgets/common/messages_button.dart';
 import '../../widgets/common/student_profile_sheet.dart';
 import '../../widgets/notifications/notification_item.dart';
 
@@ -29,11 +31,18 @@ class NotificationsScreen extends StatelessWidget {
           subtitle: subtitle,
           avatarInitials: initials,
           onAvatarTap: () => StudentProfileSheet.show(context),
-          trailing: np.unreadCount > 0
-              ? _MarkAllReadButton(
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (np.unreadCount > 0) ...[
+                _MarkAllReadButton(
                   onTap: () => context.read<NotificationProvider>().markAllRead(),
-                )
-              : null,
+                ),
+                const SizedBox(width: 8),
+              ],
+              const MessagesButton(),
+            ],
+          ),
         ),
         Expanded(
           child: ColoredBox(
@@ -57,7 +66,7 @@ class NotificationsScreen extends StatelessWidget {
           SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
-              child: CircularProgressIndicator(color: AppColors.accent),
+              child: SizedBox(height: 520, child: SkeletonList(count: 5, leading: true)),
             ),
           ),
         ],

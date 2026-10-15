@@ -1,20 +1,21 @@
+/// One of the student's referrals, as the student is allowed to see it:
+/// what kind, where it stands, when, and which counselor has it. What the
+/// referrer wrote, who referred them and the priority stay with staff.
 class ReferralModel {
   final int id;
-  final String concernType;
-  final String reason;
-  final String priority;
-  final String status; // "pending" | "in_progress" | "resolved"
-  final String referredByName;
+  final String typeLabel;
+  final String status; // "pending" | "in_progress" | "resolved" | "cancelled"
+  final String? counselorName;
   final String createdAt;
+  final String? resolvedAt;
 
   const ReferralModel({
     required this.id,
-    required this.concernType,
-    required this.reason,
-    required this.priority,
+    required this.typeLabel,
     required this.status,
-    required this.referredByName,
+    this.counselorName,
     required this.createdAt,
+    this.resolvedAt,
   });
 
   bool get isActive => status == 'pending' || status == 'in_progress';
@@ -22,16 +23,11 @@ class ReferralModel {
   factory ReferralModel.fromJson(Map<String, dynamic> json) {
     return ReferralModel(
       id: (json['id'] as num).toInt(),
-      // Spec key is `concern_type`; keep `referral_type` as a fallback.
-      concernType:
-          (json['concern_type'] ?? json['referral_type']) as String? ?? '',
-      reason: json['reason'] as String? ?? '',
-      priority: json['priority'] as String? ?? '',
-      status: json['status'] as String? ?? '',
-      // Spec key is `referred_by_name`; kept for records, not shown to students.
-      referredByName:
-          (json['referred_by_name'] ?? json['referred_by']) as String? ?? '',
-      createdAt: json['created_at'] as String? ?? '',
+      typeLabel: json['type_label']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      counselorName: json['counselor_name']?.toString(),
+      createdAt: json['created_at']?.toString() ?? '',
+      resolvedAt: json['resolved_at']?.toString(),
     );
   }
 }
