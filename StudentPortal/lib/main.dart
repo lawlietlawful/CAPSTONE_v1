@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import 'core/constants/app_colors.dart';
+import 'core/theme/app_theme.dart';
 import 'core/services/api_service.dart';
 import 'core/services/auth_service.dart';
 import 'providers/auth_provider.dart';
@@ -39,13 +39,13 @@ void main() async {
   };
 
   // Load the app's font weights before the first frame, so nothing is laid
-  // out in a fallback font and then clipped or shifted when Inter arrives.
+  // out in a fallback font and then clipped or shifted when Public Sans arrives.
   try {
     await GoogleFonts.pendingFonts([
-      GoogleFonts.inter(),
-      GoogleFonts.inter(fontWeight: FontWeight.w500),
-      GoogleFonts.inter(fontWeight: FontWeight.w600),
-      GoogleFonts.inter(fontWeight: FontWeight.w700),
+      GoogleFonts.publicSans(),
+      GoogleFonts.publicSans(fontWeight: FontWeight.w500),
+      GoogleFonts.publicSans(fontWeight: FontWeight.w600),
+      GoogleFonts.publicSans(fontWeight: FontWeight.w700),
     ]).timeout(const Duration(seconds: 3));
   } catch (_) {}
 
@@ -77,20 +77,7 @@ class MyApp extends StatelessWidget {
         title: 'Student Portal',
         navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.accent),
-          textTheme: GoogleFonts.interTextTheme(
-            ThemeData.light().textTheme,
-          ),
-          scaffoldBackgroundColor: AppColors.background,
-          appBarTheme: const AppBarTheme(
-            backgroundColor: AppColors.navy,
-            foregroundColor: AppColors.navyText,
-            elevation: 0,
-            systemOverlayStyle: SystemUiOverlayStyle.light,
-          ),
-        ),
+        theme: AppTheme.light(),
         initialRoute: hasSession ? '/home' : '/login',
         routes: {
           '/login': (_) => const LoginScreen(),

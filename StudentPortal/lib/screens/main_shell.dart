@@ -201,12 +201,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     final unread = context.watch<NotificationProvider>().unreadCount;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // Light (white) status bar icons work on all navy headers.
-      value: SystemUiOverlayStyle.light,
+      // Dark status bar icons on the light page headers.
+      value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        // Navy here bleeds into the status bar area so NavyHeader on each
-        // screen appears seamless with the system status bar.
-        backgroundColor: AppColors.navy,
+        backgroundColor: AppColors.background,
         // IndexedStack keeps all screens alive — avoids re-fetching data on tab switch.
         body: IndexedStack(
           index: _currentIndex,

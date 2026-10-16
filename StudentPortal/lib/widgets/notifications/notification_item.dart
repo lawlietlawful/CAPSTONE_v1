@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
-import '../premium/motion.dart';
-import '../../core/constants/app_decor.dart';
+import '../../core/constants/app_text_styles.dart';
 import '../../core/utils/date_utils.dart';
 import '../../models/notification_model.dart';
 
+/// One notification as a row inside a grouped card: an icon for its kind,
+/// the title and time, the message, and a dot while it's unread.
 class NotificationItem extends StatelessWidget {
   final NotificationModel notification;
   final VoidCallback? onTap;
@@ -19,108 +20,95 @@ class NotificationItem extends StatelessWidget {
   IconData get _icon {
     switch (notification.type) {
       case 'referral_alert':
-        return Icons.warning_amber_outlined;
+        return Icons.chat_bubble_outline_rounded;
       case 'seminar_ai':
-        return Icons.memory_outlined;
+        return Icons.event_note_outlined;
       case 'sms_sent':
-        return Icons.message_outlined;
+        return Icons.sms_outlined;
       default:
         return Icons.school_outlined;
     }
   }
 
-  Color get _iconBg {
+  (Color, Color) get _tone {
     switch (notification.type) {
       case 'referral_alert':
-        return AppColors.redBg;
+        return (AppColors.navy, Colors.white);
       case 'seminar_ai':
-        return AppColors.purpleBg;
       case 'sms_sent':
-        return AppColors.accentLight;
+        return (AppColors.accentLight, AppColors.accent);
       default:
-        return AppColors.greenBg;
-    }
-  }
-
-  Color get _iconColor {
-    switch (notification.type) {
-      case 'referral_alert':
-        return AppColors.red;
-      case 'seminar_ai':
-        return AppColors.purple;
-      case 'sms_sent':
-        return AppColors.accent;
-      default:
-        return AppColors.green;
+        return (AppColors.greenBg, AppColors.greenText);
     }
   }
 
   @override
-  Widget build(BuildContext context) => FadeSlideIn(child: _item(context));
+  Widget build(BuildContext context) {
+    final unread = !notification.isRead;
+    final (bg, fg) = _tone;
+    final title = notification.title.trim().isEmpty ? 'Notification' : notification.title;
 
-  Widget _item(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: AppDecor.card(),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Icon chip
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: _iconBg,
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Icon(_icon, size: 17, color: _iconColor),
-            ),
-            const SizedBox(width: 10),
-
-            // Message + time
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    notification.message,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.text1,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    AppDateUtils.formatNotificationTime(notification.createdAt),
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: AppColors.text3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Unread dot
-            if (!notification.isRead) ...[
-              const SizedBox(width: 8),
+    return Semantics(
+      label: unread ? 'Unread' : null,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Container(
-                width: 7,
-                height: 7,
-                margin: const EdgeInsets.only(top: 5),
-                decoration: const BoxDecoration(
-                  color: AppColors.accent,
-                  shape: BoxShape.circle,
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+                child: Icon(_icon, size: 18, color: fg),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: GoogleFonts.publicSans(
+                              fontSize: 14,
+                              fontWeight: unread ? FontWeight.w600 : FontWeight.w500,
+                              color: unread ? AppColors.text1 : const Color(0xFF2B3648),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          AppDateUtils.formatNotificationTime(notification.createdAt),
+                          style: AppTextStyles.meta.copyWith(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      notification.message,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.publicSans(fontSize: 13, height: 19 / 13, color: AppColors.text2),
+                    ),
+                  ],
                 ),
               ),
+              if (unread) ...[
+                const SizedBox(width: 10),
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(top: 6),
+                  decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

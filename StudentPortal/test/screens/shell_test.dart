@@ -107,7 +107,11 @@ void main() {
     await tester.pump(const Duration(seconds: 61));
     await tester.pump();
     expect(find.byKey(const Key('live-alert')), findsOneWidget);
-    expect(find.text('Seminar update'), findsOneWidget);
+    // Home's "Latest alerts" lists it too, so look inside the pop-up.
+    expect(
+      find.descendant(of: find.byKey(const Key('live-alert')), matching: find.text('Seminar update')),
+      findsOneWidget,
+    );
     await dispose(tester);
   });
 

@@ -89,23 +89,20 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AuthFieldLabel('Student ID'),
-                  const SizedBox(height: 6),
                   AuthTextField(
                     controller: _idController,
                     icon: Icons.badge_outlined,
                     keyboardType: TextInputType.text,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.username],
-                    hintText: 'e.g. 2026-0001',
+                    label: 'Enter your Student ID',
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   ),
-                  const SizedBox(height: 16),
-                  const AuthFieldLabel('Password'),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 18),
                   AuthTextField(
                     controller: _passwordController,
                     icon: Icons.lock_outline_rounded,
+                    label: 'Enter your password',
                     obscureText: true,
                     textInputAction: TextInputAction.done,
                     autofillHints: const [AutofillHints.password],
@@ -121,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
                 child: Text(
                   'Forgot password?',
-                  style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w500, color: AppColors.accent),
+                  style: GoogleFonts.publicSans(fontSize: 12.5, fontWeight: FontWeight.w500, color: AppColors.accent),
                 ),
               ),
             ),
@@ -157,12 +154,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: RichText(
                     textAlign: TextAlign.center,
                     text: TextSpan(
-                      style: GoogleFonts.inter(fontSize: 13, color: AppColors.text3),
+                      style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text3),
                       children: [
                         const TextSpan(text: 'First time here? '),
                         TextSpan(
                           text: 'Activate your account',
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accent),
+                          style: GoogleFonts.publicSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.accent),
                         ),
                       ],
                     ),

@@ -5,8 +5,11 @@ import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/utils/date_utils.dart';
 import '../../models/seminar_model.dart';
-import '../../widgets/seminars/ai_assigned_badge.dart';
+import '../../widgets/common/surfaces.dart';
+import '../../widgets/seminars/seminar_card.dart';
 
+/// Everything about one seminar: when, where, who's speaking, the
+/// student's status, and what it's about.
 class SeminarDetailScreen extends StatelessWidget {
   final SeminarModel seminar;
 
@@ -14,20 +17,84 @@ class SeminarDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final date = DateTime.tryParse(seminar.date);
+    final when = _isUpcoming ? seminarWhenLabel(date) : null;
+    final soon = when == 'Today' || when == 'Tomorrow';
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.navy,
-        elevation: 0,
-        title: Text('Seminar Details', style: AppTextStyles.navyPageTitle),
-        iconTheme: const IconThemeData(color: AppColors.navyText),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Header card ─────────────────────────────────
+      appBar: AppBar(title: const Text('Seminar')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    SeminarTag(
+                      label: seminar.isRequired ? 'Required' : 'Optional',
+                      bg: seminar.isRequired ? AppColors.accentLight : AppColors.neutralBg,
+                      fg: seminar.isRequired ? AppColors.accentDark : AppColors.text2,
+                    ),
+                    if (when != null)
+                      SeminarTag(
+                        label: when,
+                        bg: soon ? AppColors.amberBg : AppColors.neutralBg,
+                        fg: soon ? AppColors.amberText : AppColors.text2,
+                      ),
+                    if (!_isUpcoming) outcomeTag(seminar.outcome),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  seminar.title,
+                  style: AppTextStyles.screenTitle,
+                ),
+                const SizedBox(height: 4),
+                Text(assignedByLabel(seminar), style: AppTextStyles.meta.copyWith(fontSize: 13, color: AppColors.text2)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          CardGroup(
+            children: [
+              _DetailRow(
+                icon: Icons.calendar_today_outlined,
+                label: 'Date',
+                value: AppDateUtils.formatFullDate(seminar.date),
+              ),
+              _DetailRow(
+                icon: Icons.access_time_rounded,
+                label: 'Time',
+                value: AppDateUtils.formatTime(seminar.time),
+              ),
+              _DetailRow(
+                icon: Icons.location_on_outlined,
+                label: 'Venue',
+                value: seminar.venue.isEmpty ? '—' : seminar.venue,
+              ),
+              if (seminar.speaker != null && seminar.speaker!.isNotEmpty)
+                _DetailRow(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Speaker',
+                  value: seminar.speaker!,
+                ),
+              _DetailRow(
+                icon: Icons.check_circle_outline_rounded,
+                label: 'Status',
+                value: _statusLabel(_displayStatus),
+              ),
+            ],
+          ),
+
+          if (seminar.description != null && seminar.description!.isNotEmpty) ...[
+            const SizedBox(height: 12),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -35,102 +102,34 @@ class SeminarDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      if (seminar.isAiAssigned) const AiAssignedBadge(),
-                      _Chip(
-                        label: seminar.isRequired ? 'Required' : 'Optional',
-                        bg: seminar.isRequired
-                            ? AppColors.redBg
-                            : AppColors.greenBg,
-                        textColor: seminar.isRequired
-                            ? AppColors.redText
-                            : AppColors.greenText,
-                      ),
-                      _Chip(
-                        label: _statusLabel(_displayStatus),
-                        bg: _statusBg(_displayStatus),
-                        textColor: _statusText(_displayStatus),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
+                  Text('About this seminar', style: AppTextStyles.sectionTitle),
+                  const SizedBox(height: 6),
                   Text(
-                    seminar.title,
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.text1,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Divider(color: AppColors.border, height: 1),
-                  const SizedBox(height: 4),
-                  _DetailRow(
-                    icon: Icons.calendar_today_outlined,
-                    label: 'Date',
-                    value: AppDateUtils.formatFullDate(seminar.date),
-                  ),
-                  _DetailRow(
-                    icon: Icons.access_time_outlined,
-                    label: 'Time',
-                    value: AppDateUtils.formatTime(seminar.time),
-                  ),
-                  _DetailRow(
-                    icon: Icons.location_on_outlined,
-                    label: 'Venue',
-                    value: seminar.venue,
-                  ),
-                  if (seminar.speaker != null && seminar.speaker!.isNotEmpty)
-                    _DetailRow(
-                      icon: Icons.person_outlined,
-                      label: 'Speaker',
-                      value: seminar.speaker!,
-                    ),
-                  _DetailRow(
-                    icon: Icons.info_outlined,
-                    label: 'Status',
-                    value: _statusLabel(_displayStatus).replaceAll('✓ ', ''),
+                    seminar.description!,
+                    style: GoogleFonts.publicSans(fontSize: 14, height: 1.55, color: const Color(0xFF2B3648)),
                   ),
                 ],
               ),
             ),
-
-            // ── Description card ────────────────────────────
-            if (seminar.description != null &&
-                seminar.description!.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: AppDecor.card(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('About this seminar',
-                        style: AppTextStyles.sectionTitle),
-                    const SizedBox(height: 8),
-                    Text(
-                      seminar.description!,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: AppColors.text2,
-                        height: 1.6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
-        ),
+
+          if (_isUpcoming) ...[
+            const SizedBox(height: 12),
+            const InfoNote(
+              text: "Can't make it? Let the Guidance Office know before the "
+                  'session so it can be marked excused.',
+              background: AppColors.segmentTrack,
+              foreground: Color(0xFF2B3648),
+            ),
+          ],
+        ],
       ),
     );
   }
+
+  /// Still to come for this student (not attended, missed, excused or
+  /// cancelled).
+  bool get _isUpcoming => seminar.status == 'enrolled' && seminar.sessionStatus != 'cancelled' && seminar.sessionStatus != 'completed';
 
   /// A cancelled session reads "Cancelled" whatever the student's own status.
   String get _displayStatus =>
@@ -139,7 +138,7 @@ class SeminarDetailScreen extends StatelessWidget {
   String _statusLabel(String status) {
     switch (status) {
       case 'attended':
-        return '✓ Attended';
+        return 'Attended';
       case 'missed':
         return 'Missed';
       case 'excused':
@@ -148,36 +147,6 @@ class SeminarDetailScreen extends StatelessWidget {
         return 'Cancelled';
       default:
         return 'Enrolled';
-    }
-  }
-
-  Color _statusBg(String status) {
-    switch (status) {
-      case 'attended':
-        return AppColors.greenBg;
-      case 'missed':
-        return AppColors.redBg;
-      case 'excused':
-        return AppColors.amberBg;
-      case 'cancelled':
-        return AppColors.background;
-      default:
-        return AppColors.accentLight;
-    }
-  }
-
-  Color _statusText(String status) {
-    switch (status) {
-      case 'attended':
-        return AppColors.greenText;
-      case 'missed':
-        return AppColors.redText;
-      case 'excused':
-        return AppColors.amberText;
-      case 'cancelled':
-        return AppColors.text2;
-      default:
-        return AppColors.accentDark;
     }
   }
 }
@@ -195,54 +164,24 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: AppColors.text3),
-          const SizedBox(width: 10),
-          Text(
-            label,
-            style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3),
-          ),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: GoogleFonts.inter(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-                color: AppColors.text1,
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.text2),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 72,
+              child: Text(label, style: AppTextStyles.meta.copyWith(fontSize: 13.5)),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: GoogleFonts.publicSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text1),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final Color bg;
-  final Color textColor;
-  const _Chip({required this.label, required this.bg, required this.textColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w500,
-          color: textColor,
+          ],
         ),
       ),
     );

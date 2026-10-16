@@ -3,10 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
+import '../../core/utils/date_utils.dart';
 import '../../models/student_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../screens/settings/settings_screen.dart';
+import 'surfaces.dart';
 
 /// Shared student profile bottom sheet, opened by tapping the avatar
 /// in any screen header.
@@ -45,144 +47,94 @@ class StudentProfileSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final details = [
+      if ((student?.gradeLevelDisplay ?? '').isNotEmpty) student!.gradeLevelDisplay,
+      if ((student?.section ?? '').isNotEmpty) student!.section,
+    ].join(' · ');
+
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Drag handle
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Avatar
-            Container(
-              width: 60,
-              height: 60,
-              decoration: const BoxDecoration(
-                color: AppColors.navy2,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                student?.initials ?? '?',
-                style: GoogleFonts.inter(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.navyInitial,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Name
-            Text(
-              student?.fullName ?? '—',
-              style: AppTextStyles.pageTitle,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${student?.section ?? '—'} · ${student?.gradeLevelDisplay ?? '—'}',
-              style: AppTextStyles.meta,
-            ),
-            const SizedBox(height: 20),
-
-            // Info rows
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                children: [
-                  _InfoRow(
-                    icon: Icons.badge_outlined,
-                    label: 'ID: ${student?.schoolId ?? '—'}',
-                  ),
-                  // Many students sign in with their ID and have no email.
-                  if ((student?.email ?? '').trim().isNotEmpty) ...[
-                    const Divider(height: 1, color: AppColors.border),
-                    _InfoRow(
-                      icon: Icons.email_outlined,
-                      label: student!.email,
-                    ),
-                  ],
-                  const Divider(height: 1, color: AppColors.border),
-                  _InfoRow(
-                    icon: Icons.school_outlined,
-                    label: 'S.Y. ${_schoolYear(DateTime.now())}',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Settings row
-            GestureDetector(
-              onTap: onOpenSettings,
-              behavior: HitTestBehavior.opaque,
+            Center(
               child: Container(
+                width: 36,
+                height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.settings_outlined,
-                        size: 16, color: AppColors.text2),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text('Settings', style: AppTextStyles.body),
-                    ),
-                    const Icon(Icons.chevron_right,
-                        size: 18, color: AppColors.text3),
-                  ],
+                  color: AppColors.borderStrong,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
+            const SizedBox(height: 18),
+
+            Row(
+              children: [
+                InitialsAvatar(initials: student?.initials ?? '?', size: 52, dark: true),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        student?.fullName ?? '—',
+                        style: GoogleFonts.publicSans(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.text1),
+                      ),
+                      if (details.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(details, style: AppTextStyles.meta.copyWith(fontSize: 13, color: AppColors.text2)),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+
+            CardGroup(
+              children: [
+                _InfoRow(icon: Icons.badge_outlined, label: 'Student ID', value: student?.schoolId ?? '—'),
+                // Many students sign in with their ID and have no email.
+                if ((student?.email ?? '').trim().isNotEmpty)
+                  _InfoRow(icon: Icons.email_outlined, label: 'Email', value: student!.email),
+                _InfoRow(icon: Icons.school_outlined, label: 'School year', value: AppDateUtils.schoolYear()),
+                InkWell(
+                  onTap: onOpenSettings,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.settings_outlined, size: 19, color: AppColors.text2),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text('Settings', style: AppTextStyles.sectionTitle)),
+                        const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.iconMuted),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
 
-            // Sign out button
             SizedBox(
-              width: double.infinity,
+              height: 48,
               child: OutlinedButton.icon(
                 onPressed: onSignOut,
-                icon: const Icon(
-                  Icons.logout_rounded,
-                  size: 18,
-                  color: AppColors.red,
-                ),
-                label: Text(
-                  'Sign Out',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.red,
-                  ),
-                ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.red),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  foregroundColor: AppColors.redText,
+                  side: const BorderSide(color: Color(0xFFF1C6BF)),
                 ),
+                icon: const Icon(Icons.logout_rounded, size: 19),
+                label: Text('Sign out', style: GoogleFonts.publicSans(fontSize: 15, fontWeight: FontWeight.w600)),
               ),
             ),
             const SizedBox(height: 16),
@@ -196,26 +148,32 @@ class StudentProfileSheet extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _InfoRow({required this.icon, required this.label});
+  final String value;
+  const _InfoRow({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: AppColors.text3),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: AppTextStyles.body)),
-        ],
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Row(
+          children: [
+            Icon(icon, size: 19, color: AppColors.text2),
+            const SizedBox(width: 12),
+            Text(label, style: AppTextStyles.body.copyWith(color: AppColors.text2)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.sectionTitle,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-}
-
-/// The school year a date falls in — it starts in June ("2026–2027" from
-/// June 2026 to May 2027), so it never goes out of date.
-String _schoolYear(DateTime now) {
-  final start = now.month >= 6 ? now.year : now.year - 1;
-  return '$start–${start + 1}';
 }

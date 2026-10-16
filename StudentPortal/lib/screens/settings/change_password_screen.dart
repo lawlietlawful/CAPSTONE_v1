@@ -76,12 +76,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.navy,
-        elevation: 0,
-        title: Text('Change Password', style: AppTextStyles.navyPageTitle),
-        iconTheme: const IconThemeData(color: AppColors.navyText),
-      ),
+      appBar: AppBar(title: const Text('Change password')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
         children: [
@@ -138,7 +133,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     )
                   : Text(
                       'Update Password',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.publicSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: Colors.white,
@@ -160,7 +155,7 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: GoogleFonts.inter(
+      style: GoogleFonts.publicSans(
         fontSize: 12,
         fontWeight: FontWeight.w500,
         color: AppColors.text2,
@@ -200,7 +195,7 @@ class _PasswordFieldState extends State<_PasswordField> {
       onSubmitted: widget.onSubmitted,
       autocorrect: false,
       enableSuggestions: false,
-      style: GoogleFonts.inter(fontSize: 13.5, color: AppColors.text1),
+      style: GoogleFonts.publicSans(fontSize: 13.5, color: AppColors.text1),
       decoration: InputDecoration(
         filled: true,
         fillColor: AppColors.surface,
@@ -249,7 +244,7 @@ class _ErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.publicSans(
                 fontSize: 12,
                 color: AppColors.redText,
                 height: 1.4,

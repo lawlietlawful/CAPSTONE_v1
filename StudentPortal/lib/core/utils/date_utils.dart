@@ -63,4 +63,12 @@ class AppDateUtils {
     if (diff == 1) return 'Yesterday';
     return DateFormat('MMM d').format(date);
   }
+
+  /// The school year a date falls in. It starts in June: "2026–2027" runs
+  /// from June 2026 to May 2027, so it never goes out of date.
+  static String schoolYear([DateTime? now]) {
+    final d = now ?? DateTime.now();
+    final start = d.month >= 6 ? d.year : d.year - 1;
+    return '$start–${start + 1}';
+  }
 }

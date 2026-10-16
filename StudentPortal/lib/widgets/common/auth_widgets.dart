@@ -5,20 +5,9 @@ import '../../core/constants/app_colors.dart';
 
 /// Pieces shared by the sign-in and activation screens.
 
-class AuthFieldLabel extends StatelessWidget {
-  final String text;
-  const AuthFieldLabel(this.text, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: GoogleFonts.inter(fontSize: 12, color: AppColors.text2),
-    );
-  }
-}
-
-/// A text field in the app's sign-in style. A password field ([obscureText])
+/// A text field in the app's sign-in style: the [label] sits inside the box
+/// ("Enter your Employee ID") and floats up onto the border once the field is
+/// focused or filled, like Google's sign-in. A password field ([obscureText])
 /// gets a show/hide button.
 class AuthTextField extends StatefulWidget {
   final TextEditingController controller;
@@ -29,19 +18,19 @@ class AuthTextField extends StatefulWidget {
   final TextCapitalization textCapitalization;
   final ValueChanged<String>? onSubmitted;
   final List<String>? autofillHints;
-  final String? hintText;
+  final String label;
 
   const AuthTextField({
     super.key,
     required this.controller,
     required this.icon,
+    required this.label,
     this.obscureText = false,
     this.keyboardType,
     this.textInputAction,
     this.textCapitalization = TextCapitalization.none,
     this.onSubmitted,
     this.autofillHints,
-    this.hintText,
   });
 
   @override
@@ -55,7 +44,7 @@ class _AuthTextFieldState extends State<AuthTextField> {
   Widget build(BuildContext context) {
     const defaultBorder = OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(10)),
-      borderSide: BorderSide(color: AppColors.border),
+      borderSide: BorderSide(color: AppColors.borderStrong),
     );
     const focusedBorder = OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(10)),
@@ -73,15 +62,22 @@ class _AuthTextFieldState extends State<AuthTextField> {
       cursorColor: AppColors.accent,
       autocorrect: false,
       enableSuggestions: !widget.obscureText,
-      style: GoogleFonts.inter(fontSize: 13.5, color: AppColors.text1),
+      style: GoogleFonts.publicSans(fontSize: 15, color: AppColors.text1),
       decoration: InputDecoration(
         filled: true,
-        fillColor: AppColors.background,
-        hintText: widget.hintText,
-        hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.text3),
+        fillColor: AppColors.surface,
+        labelText: widget.label,
+        labelStyle: GoogleFonts.publicSans(fontSize: 15, color: AppColors.text3),
+        floatingLabelStyle: WidgetStateTextStyle.resolveWith(
+          (states) => GoogleFonts.publicSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: states.contains(WidgetState.focused) ? AppColors.accent : AppColors.text2,
+          ),
+        ),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        prefixIcon: Icon(widget.icon, color: AppColors.text3, size: 18),
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        prefixIcon: Icon(widget.icon, color: AppColors.text2, size: 19),
         prefixIconConstraints:
             const BoxConstraints(minWidth: 44, minHeight: 44),
         suffixIcon: widget.obscureText
@@ -91,8 +87,8 @@ class _AuthTextFieldState extends State<AuthTextField> {
                   _reveal
                       ? Icons.visibility_off_outlined
                       : Icons.visibility_outlined,
-                  size: 18,
-                  color: AppColors.text3,
+                  size: 20,
+                  color: AppColors.text2,
                 ),
                 onPressed: () => setState(() => _reveal = !_reveal),
               )
@@ -129,7 +125,7 @@ class AuthErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: GoogleFonts.inter(fontSize: 12, color: AppColors.redText, height: 1.4),
+              style: GoogleFonts.publicSans(fontSize: 13.5, color: AppColors.redText, height: 1.4),
             ),
           ),
         ],
