@@ -127,7 +127,7 @@ class _StudentPickerSheetState extends State<_StudentPickerSheet> {
                             backgroundColor: AppColors.accentLight,
                             child: Text(
                               _initials(s),
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.publicSans(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                                 color: AppColors.accentDark,

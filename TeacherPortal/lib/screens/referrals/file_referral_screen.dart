@@ -10,6 +10,7 @@ import '../../models/referral.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/common/surfaces.dart';
 import '../../widgets/premium/success_check.dart';
 import '../../widgets/common/duplicate_referral_dialog.dart';
 import '../../widgets/common/student_picker_sheet.dart';
@@ -22,7 +23,10 @@ import '../messaging/compose_message_screen.dart';
 /// Priority is NOT asked for — the backend's ML engine derives it from the
 /// student's risk level.
 class FileReferralScreen extends StatefulWidget {
-  const FileReferralScreen({super.key});
+  /// Opens with this student already chosen (from a student's own page).
+  final int? initialStudentId;
+
+  const FileReferralScreen({super.key, this.initialStudentId});
 
   @override
   State<FileReferralScreen> createState() => _FileReferralScreenState();
@@ -36,6 +40,20 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
   final _reasonController = TextEditingController();
 
   String? _formError;
+  final _scroll = ScrollController();
+
+  /// Shows a form error and scrolls it into view (it sits under the fields).
+  void _showError(String message) {
+    setState(() => _formError = message);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
 
   @override
   void initState() {
@@ -51,6 +69,7 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
 
   @override
   void dispose() {
+    _scroll.dispose();
     _otherController.dispose();
     _reasonController.dispose();
     super.dispose();
@@ -64,21 +83,21 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
 
   Future<void> _submit() async {
     if (_student == null) {
-      setState(() => _formError = 'Please select a student.');
+      _showError('Please select a student.');
       return;
     }
     if (_referralType == null) {
-      setState(() => _formError = 'Please choose a referral type.');
+      _showError('Please choose a referral type.');
       return;
     }
     // Mirrors the backend's `required_if:referral_type,Other` rule so the
     // teacher gets the error instantly instead of after a round-trip.
     if (_referralType == 'Other' && _otherController.text.trim().isEmpty) {
-      setState(() => _formError = 'Please specify the referral reason.');
+      _showError('Please specify the referral reason.');
       return;
     }
     if (_reasonController.text.trim().isEmpty) {
-      setState(() => _formError = 'Please describe the reason for referral.');
+      _showError('Please describe the reason for referral.');
       return;
     }
     setState(() => _formError = null);
@@ -128,10 +147,10 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
         }
         return;
       }
-      setState(() => _formError = e.message);
+      _showError(e.message);
     } catch (_) {
       if (mounted) {
-        setState(() => _formError = 'Unable to submit. Check your connection.');
+        _showError('Unable to submit. Check your connection.');
       }
     }
   }
@@ -139,17 +158,54 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TeacherProvider>();
+    _prefill(provider);
+    final ready = provider.students.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        title: Text(
-          'File a Referral',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
+        backgroundColor: AppColors.surface,
+        leading: IconButton(
+          tooltip: 'Close',
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
+        title: const Text('File a referral'),
+        shape: const Border(bottom: BorderSide(color: AppColors.divider)),
       ),
       body: _buildBody(provider),
+      bottomNavigationBar: !ready
+          ? null
+          : SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(top: BorderSide(color: AppColors.divider)),
+                ),
+                child: PrimaryButton(
+                  label: 'Submit Referral',
+                  loading: provider.submitting,
+                  onPressed: _submit,
+                ),
+              ),
+            ),
     );
+  }
+
+  bool _prefilled = false;
+
+  /// Picks [FileReferralScreen.initialStudentId] once the student list is in.
+  void _prefill(TeacherProvider provider) {
+    if (_prefilled || widget.initialStudentId == null || provider.students.isEmpty) return;
+    _prefilled = true;
+    for (final s in provider.students) {
+      if (s.id == widget.initialStudentId) {
+        _student = s;
+        break;
+      }
+    }
   }
 
   Widget _buildBody(TeacherProvider provider) {
@@ -179,7 +235,8 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      controller: _scroll,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
       children: [
         const FieldLabel('Student'),
         const SizedBox(height: 6),
@@ -190,9 +247,10 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
               ? null
               : '${_student!.schoolId} · ${_student!.yearSection}',
           isPlaceholder: _student == null,
+          actionLabel: 'Change',
           onTap: _pickStudent,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
 
         const FieldLabel('Reason for referral'),
         const SizedBox(height: 8),
@@ -206,13 +264,13 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
 
         // Only required — and only shown — when "Other" is selected.
         if (_referralType == 'Other') ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
           InputField(
             controller: _otherController,
             hint: 'Please specify',
           ),
         ],
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
 
         const FieldLabel('Details'),
         const SizedBox(height: 6),
@@ -222,34 +280,16 @@ class _FileReferralScreenState extends State<FileReferralScreen> {
           maxLines: 4,
         ),
 
-        const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.auto_awesome_rounded,
-                size: 14, color: AppColors.text3),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                'Priority is assessed automatically from the student\'s risk '
-                'level. The parent will be notified by SMS.',
-                style: AppTextStyles.meta,
-              ),
-            ),
-          ],
+        const SizedBox(height: 16),
+        const InfoNote(
+          text: "Priority is assessed automatically from the student's risk "
+              'level. The parent will be notified by SMS.',
         ),
 
         if (_formError != null) ...[
           const SizedBox(height: 14),
           ErrorBanner(_formError!),
         ],
-
-        const SizedBox(height: 22),
-        PrimaryButton(
-          label: 'Submit Referral',
-          loading: provider.submitting,
-          onPressed: _submit,
-        ),
       ],
     );
   }
@@ -272,39 +312,49 @@ class _RadioRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.accentLight : AppColors.surface,
-            border: Border.all(
-              color: selected ? AppColors.accent : AppColors.border,
-            ),
+      child: Semantics(
+        inMutuallyExclusiveGroup: true,
+        checked: selected,
+        child: Material(
+          color: selected ? AppColors.accentLight : AppColors.surface,
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
+            side: BorderSide(
+              color: selected ? AppColors.accent : AppColors.borderStrong,
+              width: selected ? 1.5 : 1,
+            ),
           ),
-          child: Row(
-            children: [
-              Icon(
-                selected
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                size: 18,
-                color: selected ? AppColors.accent : AppColors.text3,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-                    color: selected ? AppColors.accentDark : AppColors.text1,
-                  ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      selected
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 20,
+                      color: selected ? AppColors.accent : AppColors.text3,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: GoogleFonts.publicSans(
+                          fontSize: 14.5,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                          color: selected ? AppColors.accentDark : AppColors.text1,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -336,7 +386,7 @@ Future<void> showReferralResultSheet(BuildContext context, Referral referral) {
             Row(
               children: [
                 const SuccessCheck(size: 34),
-                  const SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Text('Referral submitted', style: AppTextStyles.pageTitle),
               ],
             ),
@@ -371,7 +421,7 @@ Future<void> showReferralResultSheet(BuildContext context, Referral referral) {
                     child: Text(
                       'Guidance has been notified and the parent has received '
                       'an SMS about this referral.',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.publicSans(
                         fontSize: 12,
                         color: AppColors.accentDark,
                         height: 1.4,

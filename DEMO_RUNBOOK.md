@@ -16,11 +16,11 @@ Automated Student Referral and Predictive Intervention Analytics with SMS-based 
 | **MySQL** (XAMPP) | The database (`student_referral_db`) | 3306 |
 | **Laravel web app** | Admin / Counselor / Teacher **web** portals + the mobile **API** | 8000 |
 | **ML engine** (Python FastAPI) | Predicts student risk level from history + referral text | 8001 |
-| **Teacher Portal** (Flutter) | The mobile app teachers use to log incidents & referrals | (Chrome) |
+| **Teacher Portal** (Flutter) | The mobile app teachers use to report concerns & file referrals | (Chrome) |
 | **Student Portal** (Flutter) | The mobile app students use to view referrals & seminars | (Chrome) |
 
 The data flow you are demonstrating:
-**Teacher logs an incident → ML grades its severity → serious ones auto-escalate to a Guidance referral → the parent is notified by SMS.**
+**Teacher reports a concern → ML grades its severity → serious ones auto-escalate to a Guidance referral → the parent is notified by SMS.**
 
 ---
 
@@ -124,7 +124,7 @@ All **web** portal and **Teacher Portal** accounts use the password **`password`
 
 > The Student Portal logs in with the **Student ID number**, not an email.
 > `2023-042` is **Sherylle Saramosing — the same student the teacher demo files
-> an incident on**, so the teacher and student sides tell one coherent story.
+> a concern on**, so the teacher and student sides tell one coherent story.
 > (Other student accounts use the password each student set at activation; ask me
 > to reset another to a known value if you need it.)
 
@@ -138,7 +138,7 @@ This is the "money shot" — it shows the whole pipeline end to end in under a m
 
 1. **Log in** as `teacher@school.com` / `password`.
 2. You land on the **Home** dashboard (student count, referrals filed, pending).
-3. Tap the **"Log Incident"** button (bottom-right).
+3. Tap the **"Report a concern"** button (bottom-right).
 4. **Select student** → choose **"Saramosing, Sherylle Dawn"** — the one student this teacher advises.
 5. **What happened?** → tap **"Academic Failure"**.
    *(Academic Failure always escalates — guaranteed, regardless of what the AI scores. This makes the demo deterministic.)*
@@ -146,7 +146,7 @@ This is the "money shot" — it shows the whole pipeline end to end in under a m
 7. Tap **Submit Report**. Wait ~2 seconds (the AI is scoring it).
 8. **The result sheet appears** and this is what you narrate:
    - **AI-assessed severity** badge (High) — *"the ML engine graded this, the teacher never picks severity."*
-   - **"Escalated to Guidance"** notice — *"serious incidents auto-escalate to a referral."*
+   - **"Escalated to Guidance"** notice — *"serious concerns auto-escalate to a referral."*
    - **"the parent has been notified by SMS"** — *"and the parent gets an automatic text."*
 9. Tap **Done**.
 10. Go to the **Referrals** tab → the new referral is at the top with an **"Auto"** badge and **High** priority.
@@ -159,7 +159,7 @@ This is the "money shot" — it shows the whole pipeline end to end in under a m
 > parent SMS — the full "predictive intervention + SMS communication" loop.
 
 ### The AI is real — a talking point if they probe it
-If a panelist asks *"is the AI actually doing anything?"*, log a second incident on the **same student** with type **"Disciplinary Incident"** and a mild description — it will grade **lower** and may **not** escalate. Same student, different input, different outcome = the model is genuinely reading the situation, not hard-coded.
+If a panelist asks *"is the AI actually doing anything?"*, report a second concern on the **same student** with type **"Disciplinary Incident"** and a mild description — it will grade **lower** and may **not** escalate. Same student, different input, different outcome = the model is genuinely reading the situation, not hard-coded.
 
 > 💬 **No real texts are sent.** The SMS runs in **simulated mode** (no API key
 > configured), so parent notifications are logged, not delivered. Safe to demo
@@ -174,7 +174,7 @@ If a panelist asks *"is the AI actually doing anything?"*, log a second incident
 | **Flutter app is a blank white screen** | Missing the CDN flag | Stop it, re-run with `--no-web-resources-cdn` |
 | **`[Errno 10048] ... bind on 8001`** | The ML engine is **already running** | Not an error — just use the running one. Check with `curl http://127.0.0.1:8001/`. Only start a new one if that fails. |
 | **App says "Unable to connect"** | Laravel (`:8000`) isn't running | Start Step 3 |
-| **Incident submits but severity is "Pending AI" / "Unassessed"** | ML engine (`:8001`) is down | Start Step 2; then it self-corrects, or run `php artisan reports:reassess` |
+| **Report submits but severity is "Pending AI" / "Unassessed"** | ML engine (`:8001`) is down | Start Step 2; then it self-corrects, or run `php artisan reports:reassess` |
 | **Login fails with correct password** | Typo / caps-lock (`Password` ≠ `password`) | It's all-lowercase `password` |
 | **`Failed to bind ... :8000` (Laravel)** | A stale `php artisan serve` is still holding the port | Close old terminals, or in PowerShell: `Get-NetTCPConnection -LocalPort 8000 -State Listen \| ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }` |
 | **Flutter port 5055/random stuck after closing** | The `dart` process outlives the terminal | `Get-NetTCPConnection -LocalPort <port> -State Listen \| ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }` |

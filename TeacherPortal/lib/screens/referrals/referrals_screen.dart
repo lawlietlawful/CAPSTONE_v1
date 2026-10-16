@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_decor.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/referral.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/list_filter_sheet.dart';
-import '../../widgets/common/navy_header.dart';
 import '../../widgets/common/notification_bell.dart';
+import '../../widgets/common/page_header.dart';
 import '../../widgets/common/search_filter_bar.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/common/surfaces.dart';
 import '../../widgets/premium/motion.dart';
 import '../../widgets/premium/skeleton.dart';
 import 'referral_detail_screen.dart';
 
-/// Read-only history of the referrals this teacher has filed, plus a shortcut
-/// to file a new one. Mirrors resources/views/teacher/referrals/index.blade.php.
+/// Read-only history of the referrals this teacher has filed, grouped by
+/// month, plus a shortcut to file a new one. Mirrors
+/// resources/views/teacher/referrals/index.blade.php.
 class ReferralsScreen extends StatefulWidget {
   final VoidCallback onFileReferral;
 
@@ -59,10 +59,6 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (_) => ListFilterSheet(
         typeLabel: 'Referral Type',
         typeOptions: provider.referralTypes,
@@ -97,31 +93,30 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
 
     return Column(
       children: [
-        NavyHeader(
+        PageHeader(
           title: 'My Referrals',
           subtitle: count == 0
-              ? 'Students you have referred to guidance'
+              ? 'Students you sent to Guidance'
               : '$count filed · $pending pending',
-          showAvatar: false,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               const HeaderActions(),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: widget.onFileReferral,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.navy2,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.navyBorder, width: 2),
-                  ),
-                  child: const Icon(
-                    Icons.add_rounded,
-                    size: 20,
-                    color: AppColors.navyText,
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'File a referral',
+                child: Material(
+                  color: AppColors.navy,
+                  borderRadius: BorderRadius.circular(10),
+                  child: InkWell(
+                    key: const Key('new-referral'),
+                    onTap: widget.onFileReferral,
+                    borderRadius: BorderRadius.circular(10),
+                    child: const SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Icon(Icons.add_rounded, size: 24, color: Colors.white),
+                    ),
                   ),
                 ),
               ),
@@ -162,12 +157,7 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
                 provider.referralDateFrom != null ||
                 provider.referralDateTo != null,
           ),
-        Expanded(
-          child: Container(
-            color: AppColors.background,
-            child: _buildBody(provider),
-          ),
-        ),
+        Expanded(child: _buildBody(provider)),
       ],
     );
   }
@@ -195,14 +185,14 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
           // Needs a scrollable child so pull-to-refresh works when empty.
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            const SizedBox(height: 140),
+            const SizedBox(height: 120),
             CenteredMessage(
               icon: filtered ? Icons.search_off_rounded : Icons.outbox_outlined,
               title: filtered ? 'No matching referrals' : 'No referrals filed',
               message: filtered
                   ? 'Try a different name or status filter.'
-                  : 'Students you refer to guidance will appear here. Tap + to '
-                        'file one.',
+                  : 'Students you refer to Guidance will appear here. Tap + '
+                        'to file one.',
               actionLabel: filtered ? 'Clear filters' : null,
               onAction: filtered
                   ? () => provider.applyReferralFilter(search: '', status: null)
@@ -213,55 +203,90 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
       );
     }
 
+    final groups = _groupByMonth(provider.referrals);
+
     return RefreshIndicator(
       onRefresh: () => provider.loadReferrals(),
-      child: ListView.separated(
+      child: ListView(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         // Extra bottom padding so the last card can scroll clear of the FAB.
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 92),
-        // One extra slot for the trailing "loading more" spinner.
-        itemCount: provider.referrals.length + 1,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) {
-          if (i >= provider.referrals.length) {
-            return ListLoadMoreFooter(visible: provider.loadingMoreReferrals);
-          }
-          final referral = provider.referrals[i];
-          return FadeSlideIn(
-            key: ValueKey(referral.id),
-            index: i % 20,
-            child: _ReferralCard(
-            referral: referral,
-            onTap: () async {
-              final prov = context.read<TeacherProvider>();
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ReferralDetailScreen(referralId: referral.id),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
+        children: [
+          for (var g = 0; g < groups.length; g++)
+            FadeSlideIn(
+              key: ValueKey(groups[g].label),
+              index: g,
+              child: Padding(
+                padding: EdgeInsets.only(top: g == 0 ? 0 : 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    GroupLabel(groups[g].label),
+                    CardGroup(
+                      children: [
+                        for (final r in groups[g].items)
+                          _ReferralRow(
+                            key: ValueKey(r.id),
+                            referral: r,
+                            onTap: () async {
+                              final prov = context.read<TeacherProvider>();
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ReferralDetailScreen(referralId: r.id),
+                                ),
+                              );
+                              // A counselor may have advanced the status while it was open.
+                              prov.loadReferrals();
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
-              );
-              // A counselor may have advanced the status while it was open.
-              prov.loadReferrals();
-            },
-          ));
-        },
+              ),
+            ),
+          ListLoadMoreFooter(visible: provider.loadingMoreReferrals),
+        ],
       ),
     );
   }
+
+  /// Newest-first referrals in consecutive "October" / "September 2025"
+  /// buckets (the year only when it isn't this year).
+  static List<_MonthGroup> _groupByMonth(List<Referral> referrals) {
+    final groups = <_MonthGroup>[];
+    final thisYear = DateTime.now().year;
+    for (final r in referrals) {
+      final date = DateTime.tryParse(r.createdAt ?? '')?.toLocal();
+      final label = date == null
+          ? 'Earlier'
+          : DateFormat(date.year == thisYear ? 'MMMM' : 'MMMM yyyy').format(date);
+      if (groups.isEmpty || groups.last.label != label) groups.add(_MonthGroup(label));
+      groups.last.items.add(r);
+    }
+    return groups;
+  }
+}
+
+class _MonthGroup {
+  final String label;
+  final List<Referral> items = [];
+  _MonthGroup(this.label);
 }
 
 // ─────────────────────────────────────────────────────────
 
-class _ReferralCard extends StatelessWidget {
+class _ReferralRow extends StatelessWidget {
   final Referral referral;
   final VoidCallback onTap;
-  const _ReferralCard({required this.referral, required this.onTap});
+  const _ReferralRow({super.key, required this.referral, required this.onTap});
 
   String get _dateLabel {
     final raw = referral.createdAt;
     if (raw == null || raw.isEmpty) return '—';
     try {
-      return DateFormat('MMM d, yyyy').format(DateTime.parse(raw).toLocal());
+      return DateFormat('MMM d').format(DateTime.parse(raw).toLocal());
     } catch (_) {
       return raw;
     }
@@ -269,91 +294,56 @@ class _ReferralCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Pressable(
+    final priority = referral.priority.toLowerCase();
+    final meta = [
+      referral.referralTypeLabel,
+      _dateLabel,
+      if (priority == 'high') 'High priority',
+    ].join(' · ');
+
+    return InkWell(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: AppDecor.card(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        child: Row(
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        referral.studentName ?? 'Unknown student',
-                        style: AppTextStyles.sectionTitle,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        referral.referralTypeLabel,
-                        style: AppTextStyles.meta,
-                      ),
-                    ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    referral.studentName ?? 'Unknown student',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.sectionTitle,
                   ),
-                ),
-                AppBadge.priority(referral.priority),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              referral.reason,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppColors.text2,
-                height: 1.45,
+                  const SizedBox(height: 1),
+                  Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.meta),
+                  if (referral.counselorName != null || referral.isAutoEscalated) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (referral.isAutoEscalated) ...[
+                          AppBadge.auto(),
+                          const SizedBox(width: 8),
+                        ],
+                        if (referral.counselorName != null)
+                          Flexible(
+                            child: Text(
+                              referral.counselorName!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.meta.copyWith(color: AppColors.text2),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(
-                  Icons.event_rounded,
-                  size: 13,
-                  color: AppColors.text3,
-                ),
-                const SizedBox(width: 4),
-                Text(_dateLabel, style: AppTextStyles.meta),
-                if (referral.counselorName != null) ...[
-                  const SizedBox(width: 10),
-                  const Icon(
-                    Icons.support_agent_rounded,
-                    size: 13,
-                    color: AppColors.text3,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      referral.counselorName!,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.meta,
-                    ),
-                  ),
-                ] else
-                  const Spacer(),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: AppColors.text3,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                AppBadge.status(referral.status),
-                if (referral.isAutoEscalated) AppBadge.auto(),
-              ],
-            ),
+            const SizedBox(width: 10),
+            AppBadge.status(referral.status),
           ],
         ),
       ),

@@ -109,26 +109,26 @@ class _FollowUpCardState extends State<FollowUpCard> {
                 children: [
                   Icon(choice.$3, size: 15, color: choice.$4),
                   const SizedBox(width: 5),
-                  Text(f.label, style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: choice.$4)),
+                  Text(f.label, style: GoogleFonts.publicSans(fontSize: 12.5, fontWeight: FontWeight.w600, color: choice.$4)),
                 ],
               ),
             ),
             const Spacer(),
             TextButton(
               onPressed: () => setState(() => _editing = true),
-              child: Text('Update', style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.accent)),
+              child: Text('Update', style: GoogleFonts.publicSans(fontSize: 12.5, color: AppColors.accent)),
             ),
           ],
         ),
         if (f.note != null && f.note!.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Text(f.note!, style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2, height: 1.45)),
+          Text(f.note!, style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text2, height: 1.45)),
         ],
         if (at != null) ...[
           const SizedBox(height: 6),
           Text(
             'Sent to Guidance ${DateFormat('MMM d, yyyy').format(at.toLocal())}',
-            style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.text3),
+            style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text3),
           ),
         ],
       ],
@@ -143,7 +143,7 @@ class _FollowUpCardState extends State<FollowUpCard> {
       children: [
         Text(
           'Guidance resolved this referral. How is $name doing in your class now?',
-          style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2, height: 1.45),
+          style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text2, height: 1.45),
         ),
         const SizedBox(height: 12),
         Row(
@@ -171,7 +171,7 @@ class _FollowUpCardState extends State<FollowUpCard> {
                       children: [
                         Icon(c.$3, size: 18, color: c.$4),
                         const SizedBox(height: 3),
-                        Text(c.$2, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: c.$4)),
+                        Text(c.$2, style: GoogleFonts.publicSans(fontSize: 12, fontWeight: FontWeight.w600, color: c.$4)),
                       ],
                     ),
                   ),
@@ -186,10 +186,10 @@ class _FollowUpCardState extends State<FollowUpCard> {
           controller: _note,
           maxLines: 3,
           maxLength: 2000,
-          style: GoogleFonts.inter(fontSize: 13, color: AppColors.text1),
+          style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text1),
           decoration: InputDecoration(
             hintText: 'What have you noticed? (optional)',
-            hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.text3),
+            hintStyle: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text3),
             counterText: '',
             filled: true,
             fillColor: AppColors.background,
@@ -210,7 +210,7 @@ class _FollowUpCardState extends State<FollowUpCard> {
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: AppColors.redText)),
+          Text(_error!, style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.redText)),
         ],
         const SizedBox(height: 12),
         Row(
@@ -218,7 +218,7 @@ class _FollowUpCardState extends State<FollowUpCard> {
             if (widget.followUp != null)
               TextButton(
                 onPressed: _saving ? null : () => setState(() => _editing = false),
-                child: Text('Cancel', style: GoogleFonts.inter(color: AppColors.text2)),
+                child: Text('Cancel', style: GoogleFonts.publicSans(color: AppColors.text2)),
               ),
             const Spacer(),
             FilledButton(
@@ -230,7 +230,7 @@ class _FollowUpCardState extends State<FollowUpCard> {
               ),
               child: _saving
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text('Send to Guidance', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                  : Text('Send to Guidance', style: GoogleFonts.publicSans(fontWeight: FontWeight.w600)),
             ),
           ],
         ),

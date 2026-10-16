@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_colors.dart';
+import 'surfaces.dart';
 
 /// A status option for the filter row. `value == null` means "All".
 typedef StatusOption = ({String label, String? value});
 
-/// Search field + status filter chips shared by the Reports and Referrals
-/// lists. Search input is debounced so we don't hit the API on every keystroke.
+/// Search field + status filter shared by the Reports and Referrals lists.
+/// The statuses sit in one segmented control, so the choice is always
+/// visible. Search input is debounced so we don't hit the API on every
+/// keystroke.
 class SearchFilterBar extends StatefulWidget {
   final String hint;
   final List<StatusOption> statuses;
@@ -76,7 +79,7 @@ class _SearchFilterBarState extends State<SearchFilterBar> {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.background,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: Column(
         children: [
           // Search field (+ optional "more filters" button)
@@ -87,45 +90,21 @@ class _SearchFilterBarState extends State<SearchFilterBar> {
                   controller: _controller,
                   onChanged: _onChanged,
                   textInputAction: TextInputAction.search,
-                  style: GoogleFonts.inter(
-                    fontSize: 13.5,
-                    color: AppColors.text1,
-                  ),
+                  style: GoogleFonts.publicSans(fontSize: 15, color: AppColors.text1),
                   decoration: InputDecoration(
-                    isDense: true,
                     hintText: widget.hint,
-                    hintStyle: GoogleFonts.inter(
-                      fontSize: 13.5,
-                      color: AppColors.text3,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      size: 19,
-                      color: AppColors.text3,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
                     suffixIcon: ValueListenableBuilder<TextEditingValue>(
                       valueListenable: _controller,
                       builder: (_, value, _) => value.text.isEmpty
                           ? const SizedBox.shrink()
                           : IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                size: 17,
-                                color: AppColors.text3,
-                              ),
+                              tooltip: 'Clear search',
+                              icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.text3),
                               onPressed: _clear,
-                              splashRadius: 18,
                             ),
                     ),
-                    filled: true,
-                    fillColor: AppColors.surface,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 11,
-                    ),
-                    border: _border(AppColors.border),
-                    enabledBorder: _border(AppColors.border),
-                    focusedBorder: _border(AppColors.accent),
                   ),
                 ),
               ),
@@ -138,34 +117,16 @@ class _SearchFilterBarState extends State<SearchFilterBar> {
               ],
             ],
           ),
-          const SizedBox(height: 10),
-          // Status filter chips
-          SizedBox(
-            height: 32,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: widget.statuses.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (_, i) {
-                final opt = widget.statuses[i];
-                final selected = widget.selectedStatus == opt.value;
-                return _FilterChip(
-                  label: opt.label,
-                  selected: selected,
-                  onTap: () => widget.onStatusChanged(opt.value),
-                );
-              },
-            ),
+          const SizedBox(height: 12),
+          SegmentedTabs<String?>(
+            options: [for (final o in widget.statuses) (label: o.label, value: o.value)],
+            selected: widget.selectedStatus,
+            onChanged: widget.onStatusChanged,
           ),
         ],
       ),
     );
   }
-
-  OutlineInputBorder _border(Color color) => OutlineInputBorder(
-    borderRadius: BorderRadius.circular(10),
-    borderSide: BorderSide(color: color),
-  );
 }
 
 /// The "more filters" trigger next to the search field. Shows a small accent
@@ -178,78 +139,37 @@ class _FilterIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
+    return Tooltip(
+      message: 'More filters',
+      child: Material(
+        color: active ? AppColors.accentLight : AppColors.surface,
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: active ? AppColors.accent : AppColors.border,
-          ),
+          side: BorderSide(color: active ? AppColors.accent : AppColors.borderStrong),
         ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            Icon(
-              Icons.tune_rounded,
-              size: 19,
-              color: active ? AppColors.accent : AppColors.text3,
-            ),
-            if (active)
-              Positioned(
-                top: 8,
-                right: 9,
-                child: Container(
-                  width: 7,
-                  height: 7,
-                  decoration: const BoxDecoration(
-                    color: AppColors.accent,
-                    shape: BoxShape.circle,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Icon(Icons.tune_rounded, size: 20, color: active ? AppColors.accent : AppColors.text2),
+                if (active)
+                  Positioned(
+                    top: 10,
+                    right: 11,
+                    child: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+                    ),
                   ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.accent : AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppColors.accent : AppColors.border,
-          ),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12.5,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            color: selected ? Colors.white : AppColors.text2,
+              ],
+            ),
           ),
         ),
       ),

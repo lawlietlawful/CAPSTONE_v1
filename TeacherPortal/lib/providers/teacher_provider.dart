@@ -47,6 +47,11 @@ class TeacherProvider extends ChangeNotifier {
   bool _loadingRoster = false;
   String? _rosterError;
 
+  /// The My Students risk filter: null = everyone, 'at_risk' = high or
+  /// moderate, otherwise one risk level. Held here so Home's "may need your
+  /// attention" line can open the tab already filtered.
+  String? _rosterRiskFilter;
+
   // Notifications / activity feed.
   List<AppNotification> _notifications = [];
   int _unreadNotifications = 0;
@@ -118,6 +123,13 @@ class TeacherProvider extends ChangeNotifier {
   String? get rosterError => _rosterError;
   int get atRiskCount =>
       (_riskSummary['high'] ?? 0) + (_riskSummary['moderate'] ?? 0);
+  String? get rosterRiskFilter => _rosterRiskFilter;
+
+  void applyRosterRiskFilter(String? risk) {
+    if (_rosterRiskFilter == risk) return;
+    _rosterRiskFilter = risk;
+    notifyListeners();
+  }
   List<AppNotification> get notifications => _notifications;
   int get unreadNotifications => _unreadNotifications;
   bool get loadingNotifications => _loadingNotifications;
@@ -219,6 +231,7 @@ class TeacherProvider extends ChangeNotifier {
     _riskSummary = const {};
     _loadingRoster = false;
     _rosterError = null;
+    _rosterRiskFilter = null;
     _notifications = [];
     _unreadNotifications = 0;
     _loadingNotifications = false;

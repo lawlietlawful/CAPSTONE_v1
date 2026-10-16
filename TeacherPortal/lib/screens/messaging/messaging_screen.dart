@@ -4,18 +4,18 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_decor.dart';
 import '../../widgets/premium/skeleton.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/message.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
+import '../../widgets/common/surfaces.dart';
 import 'compose_message_screen.dart';
 import 'message_thread_screen.dart';
 
 /// Threads with a counselor: notices sent to the teacher, and any reply the
 /// teacher has sent back. Pushed from the Messages floating action button,
-/// not a bottom-nav tab, so — like Log Incident / File Referral — it uses a
+/// not a bottom-nav tab, so — like Report a concern / File a referral — it uses a
 /// plain AppBar rather than the navy tab header.
 class MessagingScreen extends StatefulWidget {
   const MessagingScreen({super.key});
@@ -59,10 +59,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Messages',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        title: const Text('Messages'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_comment_outlined),
@@ -111,18 +108,17 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
     return RefreshIndicator(
       onRefresh: () => provider.loadMessages(),
-      child: ListView.separated(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-        itemCount: provider.messages.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) {
-          final message = provider.messages[i];
-          return _MessageCard(
-            message: message,
-            onTap: () => _openThread(message),
-          );
-        },
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        children: [
+          CardGroup(
+            children: [
+              for (final message in provider.messages)
+                _MessageCard(message: message, onTap: () => _openThread(message)),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -143,99 +139,86 @@ class _MessageCard extends StatelessWidget {
     return DateFormat('MMM d, yyyy').format(dt);
   }
 
-  static String _initial(String name) => name.isNotEmpty ? name[0].toUpperCase() : '?';
-
   @override
   Widget build(BuildContext context) {
     final unread = !message.isRead;
+    final hasSubject = message.subject != null && message.subject!.isNotEmpty;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          // Unread gets a faint tint + accent border, same treatment as
-          // NotificationsScreen's unread card.
-          color: unread ? AppColors.accentLight : AppColors.surface,
-          border: Border.all(
-            color: unread ? AppColors.accent.withValues(alpha: 0.4) : AppColors.border,
-          ),
-          borderRadius: BorderRadius.circular(AppDecor.radius),
-          boxShadow: AppDecor.shadow,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: unread ? AppColors.accent : AppColors.background,
-              child: Text(
-                _initial(message.senderName),
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: unread ? Colors.white : AppColors.text2,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          message.senderName,
-                          style: GoogleFonts.inter(
-                            fontSize: 13.5,
-                            fontWeight: unread ? FontWeight.w700 : FontWeight.w600,
-                            color: AppColors.text1,
+    return Semantics(
+      label: unread ? 'Unread' : null,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InitialsAvatar(initials: InitialsAvatar.of(message.senderName), size: 40, dark: true),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            message.senderName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.publicSans(
+                              fontSize: 14,
+                              fontWeight: unread ? FontWeight.w700 : FontWeight.w600,
+                              color: AppColors.text1,
+                            ),
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(_timeLabel, style: AppTextStyles.meta.copyWith(fontSize: 12)),
+                      ],
+                    ),
+                    if (hasSubject) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        message.subject!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.publicSans(
+                          fontSize: 13.5,
+                          fontWeight: unread ? FontWeight.w600 : FontWeight.w500,
+                          color: const Color(0xFF2B3648),
                         ),
                       ),
-                      if (unread)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          margin: const EdgeInsets.only(left: 6, top: 3),
-                          decoration: const BoxDecoration(
-                            color: AppColors.accent,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
                     ],
-                  ),
-                  if (message.subject != null && message.subject!.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      message.subject!,
-                      maxLines: 1,
+                      message.content,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.meta,
+                      style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text2, height: 19 / 13),
                     ),
                   ],
-                  const SizedBox(height: 4),
-                  Text(
-                    message.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 12.5,
-                      color: AppColors.text2,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(_timeLabel, style: AppTextStyles.meta),
-                ],
+                ),
               ),
-            ),
-            const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.text3),
-          ],
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 20,
+                child: Column(
+                  children: [
+                    if (unread)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        margin: const EdgeInsets.only(top: 6, bottom: 8),
+                        decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+                      ),
+                    const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.iconMuted),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

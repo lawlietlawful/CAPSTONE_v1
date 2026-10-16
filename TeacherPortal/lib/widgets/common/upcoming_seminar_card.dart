@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_decor.dart';
+import '../../core/constants/app_text_styles.dart';
 import '../../models/upcoming_seminar.dart';
+import 'surfaces.dart';
 
 /// One seminar some of the teacher's advisees are enrolled in: when and
 /// where, and which advisees will be out of class for it.
@@ -23,13 +25,11 @@ class UpcomingSeminarCard extends StatelessWidget {
             ? 'Today'
             : day == today.add(const Duration(days: 1))
                 ? 'Tomorrow'
-                : DateFormat('EEE, MMM d').format(day);
+                : DateFormat('EEE').format(day);
     final time = (start != null && seminar.time != null && seminar.time!.isNotEmpty)
         ? DateFormat('h:mm a').format(start)
         : null;
     final names = seminar.students;
-    final shown = names.take(3).map(_firstLast).join(', ');
-    final more = names.length > 3 ? ' +${names.length - 3} more' : '';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -37,52 +37,36 @@ class UpcomingSeminarCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 46,
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.accentLight,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  day == null ? '—' : DateFormat('MMM').format(day).toUpperCase(),
-                  style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: AppColors.accentDark),
-                ),
-                Text(
-                  day == null ? '' : '${day.day}',
-                  style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.accentDark, height: 1.2),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
+          DateTile(date: day),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Text(
                         seminar.title,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.text1),
+                        style: GoogleFonts.publicSans(fontSize: 14.5, height: 1.35, fontWeight: FontWeight.w600, color: AppColors.text1),
                       ),
                     ),
                     if (seminar.isRequired)
                       Container(
-                        margin: const EdgeInsets.only(left: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        margin: const EdgeInsets.only(left: 8),
+                        height: 22,
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(horizontal: 7),
                         decoration: BoxDecoration(
-                          color: AppColors.amberBg,
+                          color: AppColors.accentLight,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           'Required',
-                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.amberText),
+                          style: GoogleFonts.publicSans(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.accentDark),
                         ),
                       ),
                   ],
@@ -90,31 +74,57 @@ class UpcomingSeminarCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   [?when, ?time, if (seminar.venue != null && seminar.venue!.isNotEmpty) seminar.venue!].join(' · '),
-                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3),
+                  style: AppTextStyles.meta.copyWith(color: AppColors.text2),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(top: 1),
-                      child: Icon(Icons.groups_outlined, size: 14, color: AppColors.text3),
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        '$shown$more',
-                        style: GoogleFonts.inter(fontSize: 12, color: AppColors.text2, height: 1.35),
+                if (names.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 24 + 18.0 * (names.take(3).length - 1),
+                        height: 24,
+                        child: Stack(
+                          children: [
+                            for (var i = 0; i < names.take(3).length; i++)
+                              Positioned(
+                                left: 18.0 * i,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: AppColors.surface, width: 2),
+                                  ),
+                                  child: InitialsAvatar(initials: InitialsAvatar.of(names[i]), size: 22),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _who(names),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.meta.copyWith(color: AppColors.text2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// "Ana Cruz", "Ana Cruz and Ben Reyes", "Ana Cruz, Ben Reyes +2 more".
+  static String _who(List<String> names) {
+    final shown = names.take(2).map(_firstLast).toList();
+    if (names.length == 1) return shown.first;
+    if (names.length == 2) return '${shown[0]} and ${shown[1]}';
+    return '${shown.join(', ')} +${names.length - 2} more';
   }
 
   /// "Cruz, Ana" → "Ana Cruz".

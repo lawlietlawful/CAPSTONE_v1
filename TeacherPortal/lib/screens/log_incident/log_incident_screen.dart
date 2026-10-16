@@ -12,6 +12,7 @@ import '../../models/report_draft.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/common/surfaces.dart';
 import '../../widgets/premium/success_check.dart';
 import '../../widgets/common/student_picker_sheet.dart';
 
@@ -22,7 +23,10 @@ import '../../widgets/common/student_picker_sheet.dart';
 /// Pushed as a route from the floating action button, not a bottom-nav tab:
 /// it's an action you complete and leave, not a destination you dwell in.
 class LogIncidentScreen extends StatefulWidget {
-  const LogIncidentScreen({super.key});
+  /// Opens with this student already chosen (from a student's own page).
+  final int? initialStudentId;
+
+  const LogIncidentScreen({super.key, this.initialStudentId});
 
   @override
   State<LogIncidentScreen> createState() => _LogIncidentScreenState();
@@ -37,6 +41,20 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
   final _descriptionController = TextEditingController();
 
   String? _formError;
+  final _scroll = ScrollController();
+
+  /// Shows a form error and scrolls it into view (it sits under the fields).
+  void _showError(String message) {
+    setState(() => _formError = message);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
 
   @override
   void initState() {
@@ -53,6 +71,7 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
 
   @override
   void dispose() {
+    _scroll.dispose();
     _locationController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -82,15 +101,15 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
     final provider = context.read<TeacherProvider>();
 
     if (_student == null) {
-      setState(() => _formError = 'Please select a student.');
+      _showError('Please select a student.');
       return;
     }
     if (_incidentType == null) {
-      setState(() => _formError = 'Please choose an incident type.');
+      _showError('Please choose what happened.');
       return;
     }
     if (_descriptionController.text.trim().isEmpty) {
-      setState(() => _formError = 'Please describe what happened.');
+      _showError('Please describe what happened.');
       return;
     }
     setState(() => _formError = null);
@@ -119,11 +138,11 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
       if (e.isNetworkError) {
         await _offerDraft(e.message);
       } else {
-        setState(() => _formError = e.message);
+        _showError(e.message);
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _formError = 'Unable to submit. Check your connection.');
+        _showError('Unable to submit. Check your connection.');
       }
     }
   }
@@ -137,23 +156,23 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Text(
           "Couldn't send the report",
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
+          style: GoogleFonts.publicSans(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         content: Text(
           '$reason\n\nSave it as a draft? It stays on this phone and is sent '
           'as soon as you have a connection.',
-          style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2, height: 1.45),
+          style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text2, height: 1.45),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Keep editing', style: GoogleFonts.inter(color: AppColors.text2)),
+            child: Text('Keep editing', style: GoogleFonts.publicSans(color: AppColors.text2)),
           ),
           FilledButton(
             key: const Key('save-draft'),
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
-            child: Text('Save draft', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            child: Text('Save draft', style: GoogleFonts.publicSans(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -234,7 +253,7 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
                         child: Text(
                           'Your report was saved, but the AI could not assess it '
                           'right now. Guidance will review and grade it shortly.',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.publicSans(
                             fontSize: 12,
                             color: AppColors.amberText,
                             height: 1.4,
@@ -261,9 +280,9 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'This incident was serious enough to be escalated to '
+                          'This concern was serious enough to be escalated to '
                           'a Guidance referral. The parent has been notified.',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.publicSans(
                             fontSize: 12,
                             color: AppColors.purpleText,
                             height: 1.4,
@@ -289,17 +308,54 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TeacherProvider>();
+    _prefill(provider);
+    final ready = provider.students.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        title: Text(
-          'Log Incident',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
+        backgroundColor: AppColors.surface,
+        leading: IconButton(
+          tooltip: 'Close',
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
+        title: const Text('Report a concern'),
+        shape: const Border(bottom: BorderSide(color: AppColors.divider)),
       ),
       body: _buildBody(provider),
+      bottomNavigationBar: !ready
+          ? null
+          : SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(top: BorderSide(color: AppColors.divider)),
+                ),
+                child: PrimaryButton(
+                  label: 'Submit Report',
+                  loading: provider.submitting,
+                  onPressed: _submit,
+                ),
+              ),
+            ),
     );
+  }
+
+  bool _prefilled = false;
+
+  /// Picks [LogIncidentScreen.initialStudentId] once the student list is in.
+  void _prefill(TeacherProvider provider) {
+    if (_prefilled || widget.initialStudentId == null || provider.students.isEmpty) return;
+    _prefilled = true;
+    for (final s in provider.students) {
+      if (s.id == widget.initialStudentId) {
+        _student = s;
+        break;
+      }
+    }
   }
 
   Widget _buildBody(TeacherProvider provider) {
@@ -329,7 +385,8 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      controller: _scroll,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
       children: [
         const FieldLabel('Student'),
         const SizedBox(height: 6),
@@ -340,49 +397,44 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
               ? null
               : '${_student!.schoolId} · ${_student!.yearSection}',
           isPlaceholder: _student == null,
+          actionLabel: 'Change',
           onTap: _pickStudent,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
 
         const FieldLabel('What happened?'),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: provider.incidentTypes.map((type) {
-            final selected = _incidentType == type;
-            return ChoiceChip(
-              label: Text(type),
-              selected: selected,
-              onSelected: (_) => setState(() => _incidentType = type),
-              labelStyle: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-                color: selected ? AppColors.accentDark : AppColors.text2,
-              ),
-              selectedColor: AppColors.accentLight,
-              backgroundColor: AppColors.surface,
-              side: BorderSide(
-                color: selected ? AppColors.accent : AppColors.border,
-              ),
-              showCheckmark: false,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = (constraints.maxWidth - 8) / 2;
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final type in provider.incidentTypes)
+                  SizedBox(
+                    width: width,
+                    child: ChoiceChipButton(
+                      label: type,
+                      selected: _incidentType == type,
+                      onTap: () => setState(() => _incidentType = type),
+                    ),
+                  ),
+              ],
             );
-          }).toList(),
+          },
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
 
-        const FieldLabel('Date of incident'),
+        const FieldLabel('Date it happened'),
         const SizedBox(height: 6),
         SelectorField(
           icon: Icons.calendar_today_rounded,
-          text: _dateLabel,
+          text: _isToday ? 'Today, $_dateLabel' : _dateLabel,
           isPlaceholder: false,
           onTap: _pickDate,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
 
         const FieldLabel('Location (optional)'),
         const SizedBox(height: 6),
@@ -390,7 +442,7 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
           controller: _locationController,
           hint: 'e.g. Room 101',
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
 
         const FieldLabel('Description'),
         const SizedBox(height: 6),
@@ -402,35 +454,20 @@ class _LogIncidentScreenState extends State<LogIncidentScreen> {
 
         // The backend's ML engine grades severity — make that explicit so the
         // teacher isn't looking for a severity picker.
-        const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.auto_awesome_rounded,
-                size: 14, color: AppColors.text3),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                'Severity is assessed automatically. Serious incidents are '
-                'escalated to Guidance and the parent is notified.',
-                style: AppTextStyles.meta,
-              ),
-            ),
-          ],
+        const SizedBox(height: 16),
+        const InfoNote(
+          text: 'Severity is assessed automatically. Serious concerns are '
+              'escalated to Guidance and the parent is notified. No signal? '
+              "You can save the report on this phone and it's sent later.",
         ),
 
         if (_formError != null) ...[
           const SizedBox(height: 14),
           ErrorBanner(_formError!),
         ],
-
-        const SizedBox(height: 22),
-        PrimaryButton(
-          label: 'Submit Report',
-          loading: provider.submitting,
-          onPressed: _submit,
-        ),
       ],
     );
   }
+
+  bool get _isToday => DateUtils.isSameDay(_date, DateTime.now());
 }

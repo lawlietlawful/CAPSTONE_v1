@@ -102,45 +102,41 @@ class _ActivateAccountScreenState extends State<ActivateAccountScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const AuthFieldLabel('Employee ID'),
-        const SizedBox(height: 6),
         AuthTextField(
           controller: _schoolIdController,
           icon: Icons.badge_outlined,
+          label: 'Enter your Employee ID',
           textInputAction: TextInputAction.next,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
 
-        const AuthFieldLabel('Activation Code'),
-        const SizedBox(height: 6),
         AuthTextField(
           controller: _codeController,
           icon: Icons.vpn_key_outlined,
+          label: 'Enter your activation code',
           textCapitalization: TextCapitalization.characters,
           textInputAction: TextInputAction.next,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
 
-        const AuthFieldLabel('New Password'),
-        const SizedBox(height: 6),
         AuthTextField(
           controller: _passwordController,
           icon: Icons.lock_outline_rounded,
+          label: 'Create a new password',
           obscureText: true,
           textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: 6),
         Text(
           PasswordRules.summary,
-          style: GoogleFonts.inter(fontSize: 11, color: AppColors.text3),
+          style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text3),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
 
-        const AuthFieldLabel('Confirm New Password'),
-        const SizedBox(height: 6),
         AuthTextField(
           controller: _confirmController,
           icon: Icons.lock_outline_rounded,
+          label: 'Re-enter your new password',
           obscureText: true,
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => _handleActivate(),

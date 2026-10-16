@@ -4,12 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_decor.dart';
 import '../../widgets/premium/skeleton.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../models/app_notification.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
+import '../../widgets/common/page_header.dart';
+import '../../widgets/common/surfaces.dart';
 import '../referrals/referral_detail_screen.dart';
 
 /// The teacher's activity feed: reports escalating, and counselors acting on
@@ -37,18 +38,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Notifications',
-            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
+        title: const Text('Notifications'),
         actions: [
           if (provider.unreadNotifications > 0)
             TextButton(
               onPressed: () => provider.markAllNotificationsRead(),
-              child: Text('Mark all read',
-                  style: GoogleFonts.inter(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.accent)),
+              child: const Text('Mark all read'),
             ),
+          const SizedBox(width: 6),
         ],
       ),
       body: _buildBody(provider),
@@ -89,43 +86,63 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       );
     }
 
+    final groups = <({String label, List<AppNotification> items})>[];
+    for (final n in provider.notifications) {
+      final label = _dayLabel(n.createdAt);
+      if (groups.isEmpty || groups.last.label != label) {
+        groups.add((label: label, items: <AppNotification>[]));
+      }
+      groups.last.items.add(n);
+    }
+
     return RefreshIndicator(
       onRefresh: () => provider.loadNotifications(),
-      child: ListView.separated(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-        itemCount: provider.notifications.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _NotificationCard(item: provider.notifications[i]),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        children: [
+          for (var g = 0; g < groups.length; g++)
+            Padding(
+              padding: EdgeInsets.only(top: g == 0 ? 0 : 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  GroupLabel(groups[g].label),
+                  CardGroup(
+                    children: [for (final n in groups[g].items) _NotificationRow(item: n)],
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
+
+  /// "Today" / "Yesterday" / "Sep 23".
+  static String _dayLabel(String? raw) {
+    final dt = DateTime.tryParse(raw ?? '')?.toLocal();
+    if (dt == null) return 'Earlier';
+    final today = DateUtils.dateOnly(DateTime.now());
+    final days = today.difference(DateUtils.dateOnly(dt)).inDays;
+    if (days == 0) return 'Today';
+    if (days == 1) return 'Yesterday';
+    return DateFormat(dt.year == today.year ? 'MMM d' : 'MMM d, yyyy').format(dt);
+  }
 }
 
-class _NotificationCard extends StatelessWidget {
+class _NotificationRow extends StatelessWidget {
   final AppNotification item;
-  const _NotificationCard({required this.item});
+  const _NotificationRow({required this.item});
 
   ({IconData icon, Color bg, Color fg}) get _visual {
     switch (item.type) {
       case 'report_escalated':
-        return (
-          icon: Icons.trending_up_rounded,
-          bg: AppColors.purpleBg,
-          fg: AppColors.purpleText
-        );
+        return (icon: Icons.trending_up_rounded, bg: AppColors.purpleBg, fg: AppColors.purpleText);
       case 'referral_status':
-        return (
-          icon: Icons.support_agent_rounded,
-          bg: AppColors.accentLight,
-          fg: AppColors.accentDark
-        );
+        return (icon: Icons.outbox_rounded, bg: AppColors.accentLight, fg: AppColors.accent);
       default:
-        return (
-          icon: Icons.notifications_rounded,
-          bg: AppColors.background,
-          fg: AppColors.text3
-        );
+        return (icon: Icons.notifications_none_rounded, bg: AppColors.background, fg: AppColors.text2);
     }
   }
 
@@ -138,8 +155,7 @@ class _NotificationCard extends StatelessWidget {
       if (diff.inMinutes < 1) return 'Just now';
       if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
       if (diff.inHours < 24) return '${diff.inHours}h ago';
-      if (diff.inDays < 7) return '${diff.inDays}d ago';
-      return DateFormat('MMM d').format(dt);
+      return DateFormat('h:mm a').format(dt);
     } catch (_) {
       return '';
     }
@@ -148,78 +164,83 @@ class _NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = _visual;
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: !item.isLinkable
-          ? null
-          : () async {
-              final provider = context.read<TeacherProvider>();
-              provider.markNotificationRead(item.id);
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ReferralDetailScreen(referralId: item.referenceId!),
-                ),
-              );
-            },
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          // Unread gets a faint tint + accent border so it stands out.
-          color: item.isRead ? AppColors.surface : AppColors.accentLight,
-          border: Border.all(
-              color: item.isRead ? AppColors.border : AppColors.accent.withValues(alpha: 0.4)),
-          borderRadius: BorderRadius.circular(AppDecor.radius),
-          boxShadow: AppDecor.shadow,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(color: v.bg, shape: BoxShape.circle),
-              child: Icon(v.icon, size: 17, color: v.fg),
+    final unread = !item.isRead;
+    return Semantics(
+      label: unread ? 'Unread' : null,
+      child: InkWell(
+        onTap: () async {
+          final provider = context.read<TeacherProvider>();
+          if (unread) provider.markNotificationRead(item.id);
+          if (!item.isLinkable) return;
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ReferralDetailScreen(referralId: item.referenceId!),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(item.title,
-                            style: AppTextStyles.sectionTitle),
-                      ),
-                      if (!item.isRead)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          margin: const EdgeInsets.only(left: 6, top: 4),
-                          decoration: const BoxDecoration(
-                              color: AppColors.accent, shape: BoxShape.circle),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(color: v.bg, borderRadius: BorderRadius.circular(10)),
+                child: Icon(v.icon, size: 18, color: v.fg),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: AppTextStyles.sectionTitle.copyWith(
+                              fontWeight: unread ? FontWeight.w600 : FontWeight.w500,
+                            ),
+                          ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(item.message,
-                      style: GoogleFonts.inter(
-                          fontSize: 12.5, color: AppColors.text2, height: 1.4)),
-                  if (_timeLabel.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(_timeLabel, style: AppTextStyles.meta),
+                        if (_timeLabel.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Text(_timeLabel, style: AppTextStyles.meta.copyWith(fontSize: 12)),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.message,
+                      style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text2, height: 19 / 13),
+                    ),
                   ],
-                ],
+                ),
               ),
-            ),
-            if (item.isLinkable)
-              const Padding(
-                padding: EdgeInsets.only(left: 4, top: 2),
-                child: Icon(Icons.chevron_right_rounded,
-                    size: 18, color: AppColors.text3),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 20,
+                child: Column(
+                  children: [
+                    if (unread)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        margin: const EdgeInsets.only(top: 6),
+                        decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+                      ),
+                    if (item.isLinkable)
+                      Padding(
+                        padding: EdgeInsets.only(top: unread ? 8 : 0),
+                        child: const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.iconMuted),
+                      ),
+                  ],
+                ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );

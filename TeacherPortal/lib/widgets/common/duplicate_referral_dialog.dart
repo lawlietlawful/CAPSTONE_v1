@@ -27,17 +27,14 @@ Future<DuplicateChoice?> showDuplicateReferralDialog(
     builder: (ctx) => AlertDialog(
       key: const Key('duplicate-referral-dialog'),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      title: Text(
-        'Already referred',
-        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.text1),
-      ),
+      title: const Text('Already referred'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '$studentName already has an open referral with Guidance.',
-            style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2, height: 1.45),
+            style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text2, height: 1.45),
           ),
           const SizedBox(height: 14),
           Container(
@@ -56,7 +53,7 @@ Future<DuplicateChoice?> showDuplicateReferralDialog(
                     Expanded(
                       child: Text(
                         type,
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text1),
+                        style: GoogleFonts.publicSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text1),
                       ),
                     ),
                     AppBadge.status(status),
@@ -68,12 +65,12 @@ Future<DuplicateChoice?> showDuplicateReferralDialog(
                     mine ? 'Filed by you' : 'Filed by another staff member',
                     if (filedLabel.isNotEmpty) filedLabel,
                   ].join(' · '),
-                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3),
+                  style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text3),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   counselor == null ? 'Not yet assigned to a counselor' : 'Handled by $counselor',
-                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3),
+                  style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text3),
                 ),
               ],
             ),
@@ -81,7 +78,7 @@ Future<DuplicateChoice?> showDuplicateReferralDialog(
           const SizedBox(height: 14),
           Text(
             'Adding to it is often better than a second referral.',
-            style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3, height: 1.4),
+            style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text3, height: 1.4),
           ),
         ],
       ),
@@ -99,7 +96,7 @@ Future<DuplicateChoice?> showDuplicateReferralDialog(
               ),
               child: Text(
                 counselor == null ? 'Message Guidance' : 'Message $counselor',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                style: GoogleFonts.publicSans(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 4),
@@ -108,11 +105,11 @@ Future<DuplicateChoice?> showDuplicateReferralDialog(
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, DuplicateChoice.cancel),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: AppColors.text2)),
+                  child: Text('Cancel', style: GoogleFonts.publicSans(color: AppColors.text2)),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, DuplicateChoice.fileAnyway),
-                  child: Text('File anyway', style: GoogleFonts.inter(color: AppColors.text2)),
+                  child: Text('File anyway', style: GoogleFonts.publicSans(color: AppColors.text2)),
                 ),
               ],
             ),

@@ -76,10 +76,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Message',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        title: const Text('Message'),
       ),
       body: FutureBuilder<Message>(
         future: _future,
@@ -172,8 +169,8 @@ class _Bubble extends StatelessWidget {
             children: [
               Text(
                 isMe ? 'You' : message.senderName,
-                style: GoogleFonts.inter(
-                  fontSize: 11.5,
+                style: GoogleFonts.publicSans(
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: isMe ? Colors.white70 : AppColors.text3,
                 ),
@@ -181,7 +178,7 @@ class _Bubble extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 message.content,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.publicSans(
                   fontSize: 13.5,
                   height: 1.45,
                   color: isMe ? Colors.white : AppColors.text1,
@@ -190,8 +187,8 @@ class _Bubble extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 _timeLabel,
-                style: GoogleFonts.inter(
-                  fontSize: 10.5,
+                style: GoogleFonts.publicSans(
+                  fontSize: 12,
                   color: isMe ? Colors.white70 : AppColors.text3,
                 ),
               ),
@@ -242,10 +239,10 @@ class _ReplyBar extends StatelessWidget {
                     minLines: 1,
                     maxLines: 4,
                     textInputAction: TextInputAction.newline,
-                    style: GoogleFonts.inter(fontSize: 13.5, color: AppColors.text1),
+                    style: GoogleFonts.publicSans(fontSize: 13.5, color: AppColors.text1),
                     decoration: InputDecoration(
                       hintText: 'Write a reply...',
-                      hintStyle: GoogleFonts.inter(fontSize: 13.5, color: AppColors.text3),
+                      hintStyle: GoogleFonts.publicSans(fontSize: 13.5, color: AppColors.text3),
                       isDense: true,
                       filled: true,
                       fillColor: AppColors.background,

@@ -8,9 +8,10 @@ import '../../core/constants/app_text_styles.dart';
 import '../../models/roster_student.dart';
 import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
-import '../../widgets/common/navy_header.dart';
 import '../../widgets/common/notification_bell.dart';
+import '../../widgets/common/page_header.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/common/surfaces.dart';
 import '../../widgets/premium/motion.dart';
 import '../../widgets/premium/skeleton.dart';
 import 'student_detail_screen.dart';
@@ -28,9 +29,6 @@ class MyStudentsScreen extends StatefulWidget {
 class _MyStudentsScreenState extends State<MyStudentsScreen> {
   final _searchController = TextEditingController();
   String _search = '';
-
-  /// null = everyone; 'at_risk' = high or moderate; otherwise a risk level.
-  String? _risk;
 
   @override
   void dispose() {
@@ -68,8 +66,8 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
 
   /// Every word of the search must match the name or student ID ("cruz ana",
   /// "2026-0"), and the student must fit the risk filter.
-  bool _matches(RosterStudent s) {
-    final riskOk = switch (_risk) {
+  bool _matches(RosterStudent s, String? risk) {
+    final riskOk = switch (risk) {
       null => true,
       'at_risk' => s.isAtRisk,
       final level => s.riskLevel == level,
@@ -87,30 +85,38 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<TeacherProvider>();
     final total = provider.roster.length;
+    final advisory = provider.dashboard.advisory;
+
+    final String subtitle;
+    if (total == 0) {
+      subtitle = 'Students in your advisory';
+    } else {
+      final count = '$total student${total == 1 ? '' : 's'}';
+      subtitle = advisory.isEmpty ? '$count in your advisory' : '$count in ${_joinClasses(advisory)}';
+    }
 
     return Column(
       children: [
-        NavyHeader(
+        PageHeader(
           title: 'My Students',
-          subtitle: total == 0
-              ? 'Students in your advisory'
-              : '$total student${total == 1 ? '' : 's'} in your advisory',
-          showAvatar: false,
+          subtitle: subtitle,
           trailing: const HeaderActions(),
         ),
-        Expanded(
-          child: Container(
-            color: AppColors.background,
-            child: _buildBody(provider),
-          ),
-        ),
+        Expanded(child: _buildBody(provider)),
       ],
     );
   }
 
+  /// "BSIT 2-A", "BSIT 2-A and BSIT 2-B", "BSIT 2-A, 2-B and 2-C".
+  static String _joinClasses(List<String> classes) {
+    if (classes.length == 1) return classes.first;
+    if (classes.length > 3) return '${classes.length} classes';
+    return '${classes.sublist(0, classes.length - 1).join(', ')} and ${classes.last}';
+  }
+
   Widget _buildBody(TeacherProvider provider) {
     if (provider.loadingRoster && provider.roster.isEmpty) {
-      return const SkeletonList(leading: true, padding: EdgeInsets.fromLTRB(16, 16, 16, 16));
+      return const SkeletonList(leading: true, padding: EdgeInsets.fromLTRB(16, 4, 16, 16));
     }
 
     if (provider.rosterError != null && provider.roster.isEmpty) {
@@ -129,7 +135,7 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: const [
-            SizedBox(height: 140),
+            SizedBox(height: 120),
             CenteredMessage(
               icon: Icons.groups_outlined,
               title: 'No students yet',
@@ -141,57 +147,68 @@ class _MyStudentsScreenState extends State<MyStudentsScreen> {
       );
     }
 
-    final students = _sorted(provider.roster).where(_matches).toList();
-    final filtering = _search.isNotEmpty || _risk != null;
+    final risk = provider.rosterRiskFilter;
+    final students = _sorted(provider.roster).where((s) => _matches(s, risk)).toList();
+    final filtering = _search.isNotEmpty || risk != null;
 
     return RefreshIndicator(
       onRefresh: () => provider.loadRoster(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 92),
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 96),
         children: [
-          FadeSlideIn(child: _RiskMix(summary: provider.riskSummary, total: provider.roster.length)),
-          const SizedBox(height: 14),
-          _RosterFilters(
+          _SearchField(
             controller: _searchController,
-            roster: provider.roster,
-            selected: _risk,
-            onSearch: (v) => setState(() => _search = v.trim()),
-            onRisk: (v) => setState(() => _risk = v),
+            onChanged: (v) => setState(() => _search = v.trim()),
           ),
           const SizedBox(height: 12),
+          FadeSlideIn(child: _RiskMix(summary: provider.riskSummary, total: provider.roster.length)),
+          const SizedBox(height: 14),
+          _RiskChips(
+            roster: provider.roster,
+            selected: risk,
+            onRisk: provider.applyRosterRiskFilter,
+          ),
+          const SizedBox(height: 14),
           if (students.isEmpty && filtering)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 40),
+              padding: const EdgeInsets.symmetric(vertical: 36),
               child: CenteredMessage(
                 icon: Icons.search_off_rounded,
                 title: 'No students match',
                 message: 'Try another name or ID, or a different filter.',
                 actionLabel: 'Clear filters',
-                onAction: () => setState(() {
+                onAction: () {
                   _searchController.clear();
-                  _search = '';
-                  _risk = null;
-                }),
+                  setState(() => _search = '');
+                  provider.applyRosterRiskFilter(null);
+                },
               ),
-            ),
-          for (var i = 0; i < students.length; i++)
+            )
+          else ...[
+            if (provider.atRiskCount > 0 && risk == null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                child: Text('Students who need attention are listed first', style: AppTextStyles.meta),
+              ),
             FadeSlideIn(
-              key: ValueKey(students[i].id),
-              index: i + 2,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _StudentCard(student: students[i], onTap: () => _openDetail(students[i])),
+              index: 2,
+              child: CardGroup(
+                children: [
+                  for (final s in students)
+                    _StudentRow(key: ValueKey(s.id), student: s, onTap: () => _openDetail(s)),
+                ],
               ),
             ),
+          ],
         ],
       ),
     );
   }
 }
 
-/// Risk overview: one bar split by level (it grows into place), the counts
-/// underneath, and a line saying who is shown first.
+/// Risk overview: one bar split by level (it grows into place) and the
+/// counts underneath.
 class _RiskMix extends StatelessWidget {
   final Map<String, int> summary;
   final int total;
@@ -201,12 +218,17 @@ class _RiskMix extends StatelessWidget {
     ('high', 'High', AppColors.red),
     ('moderate', 'Moderate', AppColors.amber),
     ('low', 'Low', AppColors.green),
-    ('not_assessed', 'Not assessed', Color(0xFFCBD5E1)),
+    ('not_assessed', 'Not assessed', AppColors.neutralDot),
   ];
 
   @override
   Widget build(BuildContext context) {
     final atRisk = (summary['high'] ?? 0) + (summary['moderate'] ?? 0);
+    final described = [
+      for (final (key, label, _) in _levels)
+        if ((summary[key] ?? 0) > 0) '${summary[key]} $label',
+    ].join(', ');
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: AppDecor.card(),
@@ -217,164 +239,126 @@ class _RiskMix extends StatelessWidget {
             children: [
               Text('Risk overview', style: AppTextStyles.sectionTitle),
               const Spacer(),
-              Icon(
-                atRisk == 0 ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-                size: 15,
-                color: atRisk == 0 ? AppColors.green : AppColors.amberText,
-              ),
-              const SizedBox(width: 5),
               Text(
                 atRisk == 0 ? 'No one flagged' : '$atRisk need attention',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
+                style: GoogleFonts.publicSans(
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: atRisk == 0 ? AppColors.greenText : AppColors.amberText,
+                  color: atRisk == 0 ? AppColors.greenText : AppColors.redText,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: Motion.reduced(context) ? 1 : 0, end: 1),
-            duration: Motion.slow,
-            curve: Motion.enter,
-            builder: (context, t, _) => ClipRRect(
-              borderRadius: BorderRadius.circular(5),
-              child: SizedBox(
-                height: 10,
-                child: Row(
-                  children: [
-                    for (final (key, _, color) in _levels)
-                      if ((summary[key] ?? 0) > 0)
-                        Expanded(
-                          flex: ((summary[key] ?? 0) * 1000 * t).round().clamp(1, 1 << 30),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 2),
-                            color: color,
+          Semantics(
+            label: 'Risk mix: $described',
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: Motion.reduced(context) ? 1 : 0, end: 1),
+              duration: Motion.slow,
+              curve: Motion.enter,
+              builder: (context, t, _) => ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: SizedBox(
+                  height: 8,
+                  child: Row(
+                    children: [
+                      for (final (key, _, color) in _levels)
+                        if ((summary[key] ?? 0) > 0)
+                          Expanded(
+                            flex: ((summary[key] ?? 0) * 1000 * t).round().clamp(1, 1 << 30),
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 2),
+                              color: color,
+                            ),
                           ),
-                        ),
-                    Expanded(
-                      flex: (total * 1000 * (1 - t)).round().clamp(0, 1 << 30),
-                      child: const SizedBox(),
-                    ),
-                  ],
+                      Expanded(
+                        flex: (total * 1000 * (1 - t)).round().clamp(0, 1 << 30),
+                        child: const SizedBox(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 14,
-            runSpacing: 6,
-            children: [
-              for (final (key, label, color) in _levels)
-                if ((summary[key] ?? 0) > 0)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                      const SizedBox(width: 5),
-                      Text('$label ${summary[key]}', style: AppTextStyles.meta),
-                    ],
-                  ),
-            ],
+          ExcludeSemantics(
+            child: Wrap(
+              spacing: 14,
+              runSpacing: 6,
+              children: [
+                for (final (key, label, color) in _levels)
+                  if ((summary[key] ?? 0) > 0)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+                        ),
+                        const SizedBox(width: 5),
+                        Text('$label ${summary[key]}', style: AppTextStyles.meta.copyWith(color: AppColors.text2)),
+                      ],
+                    ),
+              ],
+            ),
           ),
-          if (atRisk > 0) ...[
-            const SizedBox(height: 8),
-            Text('Students who need attention are shown first.', style: AppTextStyles.meta),
-          ],
         ],
       ),
     );
   }
 }
 
-class _StudentCard extends StatelessWidget {
+class _StudentRow extends StatelessWidget {
   final RosterStudent student;
   final VoidCallback onTap;
 
-  const _StudentCard({required this.student, required this.onTap});
+  const _StudentRow({super.key, required this.student, required this.onTap});
 
-  /// "Cruz, Ana" → "AC".
-  String get _initials {
-    final parts = student.name.split(', ');
-    final s = parts.length == 2
-        ? '${parts[1].isNotEmpty ? parts[1][0] : ''}${parts[0].isNotEmpty ? parts[0][0] : ''}'
-        : (student.name.isNotEmpty ? student.name[0] : '?');
-    return s.toUpperCase();
+  /// "2 reports · 1 open referral", or "No reports or referrals".
+  String get _cases {
+    final parts = <String>[
+      if (student.reportsCount > 0) '${student.reportsCount} report${student.reportsCount == 1 ? '' : 's'}',
+      if (student.openReferrals > 0)
+        '${student.openReferrals} open referral${student.openReferrals == 1 ? '' : 's'}',
+    ];
+    return parts.isEmpty ? 'No reports or referrals' : parts.join(' · ');
   }
-
-  (Color, Color) get _tone => switch (student.riskLevel) {
-        'high' => (AppColors.redBg, AppColors.redText),
-        'moderate' => (AppColors.amberBg, AppColors.amberText),
-        'low' => (AppColors.greenBg, AppColors.greenText),
-        _ => (AppColors.background, AppColors.text2),
-      };
 
   @override
   Widget build(BuildContext context) {
-    final (bg, fg) = _tone;
-    return Pressable(
+    return InkWell(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: AppDecor.card(),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
         child: Row(
           children: [
             Hero(
               tag: 'student-avatar-${student.id}',
-              child: Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(13)),
-                child: Text(
-                  _initials,
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: fg),
-                ),
-              ),
+              child: InitialsAvatar(initials: InitialsAvatar.of(student.name), size: 40),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          student.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.sectionTitle,
-                        ),
-                      ),
-                      AppBadge.risk(student.riskLevel),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
                   Text(
-                    [student.schoolId, student.yearSection].where((s) => s.isNotEmpty).join(' · '),
+                    student.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.meta,
+                    style: AppTextStyles.sectionTitle,
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _Stat(
-                        icon: Icons.receipt_long_rounded,
-                        label: '${student.reportsCount} report${student.reportsCount == 1 ? '' : 's'}',
-                      ),
-                      const SizedBox(width: 14),
-                      _Stat(icon: Icons.outbox_rounded, label: '${student.openReferrals} open'),
-                    ],
-                  ),
+                  const SizedBox(height: 1),
+                  if (student.schoolId.isNotEmpty)
+                    Text(student.schoolId, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.meta),
+                  Text(_cases, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.meta),
                 ],
               ),
             ),
-            const SizedBox(width: 4),
-            const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.text3),
+            const SizedBox(width: 8),
+            AppBadge.risk(student.riskLevel),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.iconMuted),
           ],
         ),
       ),
@@ -382,39 +366,49 @@ class _StudentCard extends StatelessWidget {
   }
 }
 
-class _Stat extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _Stat({required this.icon, required this.label});
+class _SearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  const _SearchField({required this.controller, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 13, color: AppColors.text3),
-        const SizedBox(width: 4),
-        Text(label, style: AppTextStyles.meta),
-      ],
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) => TextField(
+        key: const Key('roster-search'),
+        controller: controller,
+        onChanged: onChanged,
+        textInputAction: TextInputAction.search,
+        style: GoogleFonts.publicSans(fontSize: 15, color: AppColors.text1),
+        decoration: InputDecoration(
+          hintText: 'Search by name or student ID',
+          contentPadding: const EdgeInsets.symmetric(vertical: 13),
+          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
+          suffixIcon: value.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.text3),
+                  onPressed: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                ),
+        ),
+      ),
     );
   }
 }
 
-/// Search box plus risk chips (with counts) above the roster.
-class _RosterFilters extends StatelessWidget {
-  final TextEditingController controller;
+/// Risk filter chips, each with its count.
+class _RiskChips extends StatelessWidget {
   final List<RosterStudent> roster;
   final String? selected;
-  final ValueChanged<String> onSearch;
   final ValueChanged<String?> onRisk;
 
-  const _RosterFilters({
-    required this.controller,
-    required this.roster,
-    required this.selected,
-    required this.onSearch,
-    required this.onRisk,
-  });
+  const _RiskChips({required this.roster, required this.selected, required this.onRisk});
 
   @override
   Widget build(BuildContext context) {
@@ -432,77 +426,24 @@ class _RosterFilters extends StatelessWidget {
       ('not_assessed', 'Not assessed'),
     ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          key: const Key('roster-search'),
-          controller: controller,
-          onChanged: onSearch,
-          textInputAction: TextInputAction.search,
-          style: GoogleFonts.inter(fontSize: 13.5, color: AppColors.text1),
-          decoration: InputDecoration(
-            hintText: 'Search by name or student ID',
-            hintStyle: GoogleFonts.inter(fontSize: 13.5, color: AppColors.text3),
-            prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.text3),
-            suffixIcon: controller.text.isEmpty
-                ? null
-                : IconButton(
-                    tooltip: 'Clear search',
-                    icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.text3),
-                    onPressed: () {
-                      controller.clear();
-                      onSearch('');
-                    },
-                  ),
-            filled: true,
-            fillColor: AppColors.surface,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final (key, label) in chips)
-                if (key == null || count(key) > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: ChoiceChip(
-                      key: Key('risk-chip-${key ?? 'all'}'),
-                      label: Text('$label ${count(key)}'),
-                      selected: selected == key,
-                      onSelected: (_) => onRisk(key),
-                      showCheckmark: false,
-                      labelStyle: GoogleFonts.inter(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                        color: selected == key ? Colors.white : AppColors.text2,
-                      ),
-                      selectedColor: AppColors.accent,
-                      backgroundColor: AppColors.surface,
-                      side: BorderSide(color: selected == key ? AppColors.accent : AppColors.border),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    ),
-                  ),
-            ],
-          ),
-        ),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          for (final (key, label) in chips)
+            if (key == null || count(key) > 0 || selected == key)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChipButton(
+                  key: Key('risk-chip-${key ?? 'all'}'),
+                  label: '$label ${count(key)}',
+                  selected: selected == key,
+                  onTap: () => onRisk(key),
+                ),
+              ),
+        ],
+      ),
     );
   }
 }

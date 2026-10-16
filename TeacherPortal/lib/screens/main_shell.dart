@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../core/constants/app_colors.dart';
@@ -198,13 +199,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ];
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // Light (white) status bar icons work on all navy headers.
-      value: SystemUiOverlayStyle.light,
+      // Dark status bar icons on the light page headers.
+      value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        // Navy bleeds into the status bar so NavyHeader looks seamless.
-        backgroundColor: AppColors.navy,
+        backgroundColor: AppColors.background,
         body: IndexedStack(index: _currentIndex, children: screens),
-        // One action that matters from any tab: logging an incident. Messages
+        // One action that matters from any tab: reporting a concern. Messages
         // and notifications live in each header (HeaderActions).
         floatingActionButton: _currentIndex == 4
             ? null
@@ -213,9 +213,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 onPressed: _openLogIncident,
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
-                elevation: 2,
+                elevation: 3,
+                highlightElevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 icon: const Icon(Icons.edit_note_rounded, size: 22),
-                label: const Text('Log incident'),
+                label: Text(
+                  'Report a concern',
+                  style: GoogleFonts.publicSans(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
               ),
         bottomNavigationBar: AppNavBar(
           currentIndex: _currentIndex,

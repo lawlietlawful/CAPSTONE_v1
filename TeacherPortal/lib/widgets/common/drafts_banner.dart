@@ -28,16 +28,12 @@ class DraftsBanner extends StatelessWidget {
           key: const Key('drafts-banner'),
           borderRadius: BorderRadius.circular(12),
           onTap: () => _showDrafts(context),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x33F59E0B)),
-            ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
             child: Row(
               children: [
-                const Icon(Icons.cloud_off_rounded, size: 18, color: AppColors.amberText),
-                const SizedBox(width: 10),
+                const Icon(Icons.cloud_off_rounded, size: 20, color: AppColors.amberText),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -45,31 +41,36 @@ class DraftsBanner extends StatelessWidget {
                     children: [
                       Text(
                         '$count unsent report${count == 1 ? '' : 's'}',
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.amberText),
+                        style: GoogleFonts.publicSans(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF6E3F05)),
                       ),
+                      const SizedBox(height: 1),
                       Text(
                         'Saved on this phone. Tap to review.',
-                        style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.amberText),
+                        style: GoogleFonts.publicSans(fontSize: 12.5, color: AppColors.amberText),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 provider.sendingDrafts
                     ? const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 14),
+                        padding: EdgeInsets.symmetric(horizontal: 22),
                         child: SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.amberText),
                         ),
                       )
-                    : TextButton(
+                    : OutlinedButton(
                         key: const Key('send-drafts'),
                         onPressed: () => _send(context),
-                        child: Text(
-                          'Send now',
-                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.amberText),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF6E3F05),
+                          side: const BorderSide(color: Color(0xFFEBC98C)),
+                          minimumSize: const Size(44, 40),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
+                        child: const Text('Send now'),
                       ),
               ],
             ),
@@ -130,19 +131,19 @@ class _DraftsSheet extends StatelessWidget {
             children: [
               Text(
                 'Unsent reports',
-                style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.text1),
+                style: GoogleFonts.publicSans(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.text1),
               ),
               const SizedBox(height: 4),
               Text(
                 'These are sent in order when you have a connection. Signing out deletes them.',
-                style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3, height: 1.4),
+                style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text3, height: 1.4),
               ),
               const SizedBox(height: 14),
               if (drafts.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Center(
-                    child: Text('All sent.', style: GoogleFonts.inter(color: AppColors.text3)),
+                    child: Text('All sent.', style: GoogleFonts.publicSans(color: AppColors.text3)),
                   ),
                 )
               else
@@ -171,7 +172,7 @@ class _DraftsSheet extends StatelessWidget {
                     icon: const Icon(Icons.send_rounded, size: 16),
                     label: Text(
                       provider.sendingDrafts ? 'Sending…' : 'Send all now',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      style: GoogleFonts.publicSans(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -207,25 +208,25 @@ class _DraftTile extends StatelessWidget {
               children: [
                 Text(
                   draft.studentName,
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text1),
+                  style: GoogleFonts.publicSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text1),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   [draft.incidentType, if (date != null) DateFormat('MMM d, yyyy').format(date)].join(' · '),
-                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3),
+                  style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text3),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   draft.description,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.text2, height: 1.4),
+                  style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text2, height: 1.4),
                 ),
                 if (error != null) ...[
                   const SizedBox(height: 6),
                   Text(
                     error!,
-                    style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.redText),
+                    style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.redText),
                   ),
                 ],
               ],
@@ -238,16 +239,16 @@ class _DraftTile extends StatelessWidget {
               final ok = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: Text('Discard this draft?', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600)),
+                  title: const Text('Discard this draft?'),
                   content: Text(
                     'The report on ${draft.studentName} will be deleted from this phone.',
-                    style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2),
+                    style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text2),
                   ),
                   actions: [
                     TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep')),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, true),
-                      child: Text('Discard', style: GoogleFonts.inter(color: AppColors.red)),
+                      child: Text('Discard', style: GoogleFonts.publicSans(color: AppColors.red)),
                     ),
                   ],
                 ),

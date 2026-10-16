@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -11,7 +10,7 @@ import '../../providers/teacher_provider.dart';
 import '../../widgets/common/form_widgets.dart';
 import '../../widgets/common/list_filter_sheet.dart';
 import '../../widgets/common/drafts_banner.dart';
-import '../../widgets/common/navy_header.dart';
+import '../../widgets/common/page_header.dart';
 import '../../widgets/common/notification_bell.dart';
 import '../../widgets/common/search_filter_bar.dart';
 import '../../widgets/common/status_badges.dart';
@@ -72,7 +71,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => ListFilterSheet(
-        typeLabel: 'Incident Type',
+        typeLabel: 'Concern type',
         typeOptions: provider.incidentTypes,
         selectedType: provider.reportIncidentType,
         secondaryLabel: 'Severity',
@@ -103,15 +102,14 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
 
     return Column(
       children: [
-        NavyHeader(
+        PageHeader(
           title: 'My Reports',
           subtitle: provider.totalReports == 0
-              ? 'Incidents you have filed'
-              : '${provider.totalReports} incident${provider.totalReports == 1 ? '' : 's'} filed',
-          showAvatar: false,
+              ? 'Concerns you have reported'
+              : '${provider.totalReports} report${provider.totalReports == 1 ? '' : 's'} filed',
           trailing: const HeaderActions(),
         ),
-        const ColoredBox(color: AppColors.background, child: DraftsBanner()),
+        const DraftsBanner(padding: EdgeInsets.fromLTRB(16, 0, 16, 12)),
         if (provider.reports.isNotEmpty || provider.reportFilterActive)
           SearchFilterBar(
             hint: 'Search by student name',
@@ -146,12 +144,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                 provider.reportDateFrom != null ||
                 provider.reportDateTo != null,
           ),
-        Expanded(
-          child: Container(
-            color: AppColors.background,
-            child: _buildBody(provider),
-          ),
-        ),
+        Expanded(child: _buildBody(provider)),
       ],
     );
   }
@@ -179,13 +172,13 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
           // Needs a scrollable child so pull-to-refresh works when empty.
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            const SizedBox(height: 140),
+            const SizedBox(height: 120),
             CenteredMessage(
               icon: filtered ? Icons.search_off_rounded : Icons.inbox_outlined,
               title: filtered ? 'No matching reports' : 'No reports yet',
               message: filtered
                   ? 'Try a different name or status filter.'
-                  : 'Incidents you log will appear here. Pull down to refresh.',
+                  : 'Concerns you report will appear here. Pull down to refresh.',
               actionLabel: filtered ? 'Clear filters' : null,
               onAction: filtered
                   ? () => provider.applyReportFilter(search: '', status: null)
@@ -202,7 +195,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         // Extra bottom padding so the last card can scroll clear of the FAB.
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 92),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
         // One extra slot for the trailing "loading more" spinner.
         itemCount: provider.reports.length + 1,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -244,88 +237,61 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final meta = [
+      report.incidentType,
+      _dateLabel,
+      if (report.location != null && report.location!.isNotEmpty) report.location!,
+    ].join(' · ');
+
     return Pressable(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
         decoration: AppDecor.card(),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        report.studentName ?? 'Unknown student',
-                        style: AppTextStyles.sectionTitle,
+                      Expanded(
+                        child: Text(
+                          report.studentName ?? 'Unknown student',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.sectionTitle,
+                        ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(report.incidentType, style: AppTextStyles.meta),
+                      const SizedBox(width: 8),
+                      AppBadge.severity(report.severity),
                     ],
                   ),
-                ),
-                AppBadge.severity(report.severity),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              report.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppColors.text2,
-                height: 1.45,
+                  const SizedBox(height: 1),
+                  Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.meta),
+                  const SizedBox(height: 8),
+                  Text(
+                    report.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodySecondary.copyWith(fontSize: 13),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      AppBadge.status(report.status),
+                      if (report.escalated) AppBadge.escalated(),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(
-                  Icons.event_rounded,
-                  size: 13,
-                  color: AppColors.text3,
-                ),
-                const SizedBox(width: 4),
-                Text(_dateLabel, style: AppTextStyles.meta),
-                if (report.location != null && report.location!.isNotEmpty) ...[
-                  const SizedBox(width: 10),
-                  const Icon(
-                    Icons.place_outlined,
-                    size: 13,
-                    color: AppColors.text3,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      report.location!,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.meta,
-                    ),
-                  ),
-                ] else
-                  const Spacer(),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: AppColors.text3,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                AppBadge.status(report.status),
-                if (report.escalated) AppBadge.escalated(),
-              ],
-            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.iconMuted),
           ],
         ),
       ),

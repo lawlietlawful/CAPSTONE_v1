@@ -47,10 +47,7 @@ class _MatchingSeminarsScreenState extends State<MatchingSeminarsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Matching Seminars',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        title: const Text('Matching Seminars'),
       ),
       body: FutureBuilder<List<SeminarItem>>(
         future: _future,
@@ -75,7 +72,7 @@ class _MatchingSeminarsScreenState extends State<MatchingSeminarsScreen> {
                 padding: const EdgeInsets.only(bottom: 14),
                 child: Text(
                   'Sessions tagged "${widget.tagLabel}"',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.publicSans(
                     fontSize: 12.5,
                     color: AppColors.text3,
                   ),

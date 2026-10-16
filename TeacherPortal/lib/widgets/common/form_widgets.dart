@@ -4,14 +4,25 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
 
-/// Field label above an input. Shared by every form in the app.
+/// Field label above an input. Shared by every form in the app. Text in
+/// parentheses ("Location (optional)") is shown lighter.
 class FieldLabel extends StatelessWidget {
   final String text;
   const FieldLabel(this.text, {super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      Text(text, style: AppTextStyles.sectionTitle);
+  Widget build(BuildContext context) {
+    final style = GoogleFonts.publicSans(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.text1);
+    final open = text.indexOf(' (');
+    if (open < 0) return Text(text, style: style);
+    return Text.rich(TextSpan(children: [
+      TextSpan(text: text.substring(0, open), style: style),
+      TextSpan(
+        text: text.substring(open),
+        style: style.copyWith(fontWeight: FontWeight.w400, color: AppColors.text3),
+      ),
+    ]));
+  }
 }
 
 /// A tappable, input-looking row that opens a picker (student, date, ...).
@@ -22,6 +33,10 @@ class SelectorField extends StatelessWidget {
   final bool isPlaceholder;
   final VoidCallback onTap;
 
+  /// Shown on the right instead of the chevron once a value is picked
+  /// (e.g. "Change").
+  final String? actionLabel;
+
   const SelectorField({
     super.key,
     required this.icon,
@@ -29,53 +44,62 @@ class SelectorField extends StatelessWidget {
     this.subtext,
     required this.isPlaceholder,
     required this.onTap,
+    this.actionLabel,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: AppColors.text3),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    text,
-                    style: GoogleFonts.inter(
-                      fontSize: 12.5,
-                      color: isPlaceholder ? AppColors.text3 : AppColors.text1,
-                    ),
+    return Material(
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: AppColors.borderStrong),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 50),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                Icon(icon, size: 19, color: AppColors.text2),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        text,
+                        style: GoogleFonts.publicSans(
+                          fontSize: 15,
+                          fontWeight: isPlaceholder || subtext == null ? FontWeight.w400 : FontWeight.w600,
+                          color: isPlaceholder ? AppColors.text3 : AppColors.text1,
+                        ),
+                      ),
+                      if (subtext != null) ...[
+                        const SizedBox(height: 1),
+                        Text(subtext!, style: AppTextStyles.meta),
+                      ],
+                    ],
                   ),
-                  if (subtext != null) ...[
-                    const SizedBox(height: 2),
-                    Text(subtext!, style: AppTextStyles.meta),
-                  ],
-                ],
-              ),
+                ),
+                if (actionLabel != null && !isPlaceholder)
+                  Text(actionLabel!, style: AppTextStyles.link)
+                else
+                  const Icon(Icons.expand_more_rounded, size: 20, color: AppColors.text3),
+              ],
             ),
-            const Icon(Icons.expand_more_rounded,
-                size: 18, color: AppColors.text3),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Standard bordered text input.
+/// Standard bordered text input (its look comes from the app theme).
 class InputField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
@@ -90,27 +114,14 @@ class InputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    OutlineInputBorder border(Color c) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: c),
-        );
-
     return TextField(
       controller: controller,
       maxLines: maxLines,
+      minLines: maxLines > 1 ? maxLines : null,
       cursorColor: AppColors.accent,
-      style: AppTextStyles.body,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: AppTextStyles.meta,
-        filled: true,
-        fillColor: AppColors.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        border: border(AppColors.border),
-        enabledBorder: border(AppColors.border),
-        focusedBorder: border(AppColors.accent),
-      ),
+      textCapitalization: TextCapitalization.sentences,
+      style: GoogleFonts.publicSans(fontSize: 15, height: 22 / 15, color: AppColors.text1),
+      decoration: InputDecoration(hintText: hint),
     );
   }
 }
@@ -122,31 +133,28 @@ class ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.redBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0x33EF4444)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.error_outline_rounded,
-              color: AppColors.redText, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppColors.redText,
-                height: 1.4,
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.redBg,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: AppColors.redText, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.publicSans(fontSize: 13.5, color: AppColors.redText, height: 1.4),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -173,31 +181,31 @@ class CenteredMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 40, color: AppColors.text3),
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Icon(icon, size: 26, color: AppColors.text3),
+            ),
             const SizedBox(height: 14),
-            Text(title, style: AppTextStyles.sectionTitle),
-            const SizedBox(height: 6),
+            Text(title, textAlign: TextAlign.center, style: AppTextStyles.sectionHeading),
+            const SizedBox(height: 4),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: AppTextStyles.meta,
+              style: AppTextStyles.meta.copyWith(fontSize: 13.5, height: 1.45),
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: onAction,
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(actionLabel!, style: AppTextStyles.body),
-              ),
+              OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],
         ),
@@ -223,30 +231,24 @@ class PrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton(
+      height: 50,
+      child: FilledButton(
         onPressed: loading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
+        style: FilledButton.styleFrom(
           backgroundColor: AppColors.accent,
-          disabledBackgroundColor: const Color(0xFF93B9F5),
+          disabledBackgroundColor: const Color(0xFF8EA7E8),
           foregroundColor: Colors.white,
           disabledForegroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
         ),
         child: loading
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
               )
             : Text(
                 label,
-                style:
-                    GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
+                style: GoogleFonts.publicSans(fontSize: 15.5, fontWeight: FontWeight.w600),
               ),
       ),
     );

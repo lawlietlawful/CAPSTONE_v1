@@ -111,10 +111,7 @@ class SeminarDetailScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Seminar',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        title: const Text('Seminar'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -153,7 +150,7 @@ class SeminarDetailScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   seminar.title,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.publicSans(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text1,
@@ -185,8 +182,8 @@ class SeminarDetailScreen extends StatelessWidget {
                           child: Text(
                             'This session has already passed but attendance '
                             "hasn't been recorded yet.",
-                            style: GoogleFonts.inter(
-                              fontSize: 11.5,
+                            style: GoogleFonts.publicSans(
+                              fontSize: 12,
                               color: AppColors.amberText,
                               height: 1.4,
                             ),
@@ -238,7 +235,7 @@ class SeminarDetailScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     seminar.description!,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.publicSans(
                       fontSize: 13,
                       color: AppColors.text2,
                       height: 1.6,
@@ -274,14 +271,14 @@ class _DetailRow extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             label,
-            style: GoogleFonts.inter(fontSize: 12, color: AppColors.text3),
+            style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text3),
           ),
           const Spacer(),
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.publicSans(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w500,
                 color: AppColors.text1,
@@ -310,8 +307,8 @@ class _Chip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.inter(
-          fontSize: 10.5,
+        style: GoogleFonts.publicSans(
+          fontSize: 12,
           fontWeight: FontWeight.w500,
           color: fg,
         ),

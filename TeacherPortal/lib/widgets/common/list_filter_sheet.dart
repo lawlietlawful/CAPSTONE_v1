@@ -125,7 +125,7 @@ class _ListFilterSheetState extends State<ListFilterSheet> {
                   onTap: _clearAll,
                   child: Text(
                     'Clear all',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.publicSans(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w500,
                       color: AppColors.accent,
@@ -220,7 +220,7 @@ class _ListFilterSheetState extends State<ListFilterSheet> {
                 ),
                 child: Text(
                   'Apply Filters',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.publicSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -260,7 +260,7 @@ class _Chip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.publicSans(
             fontSize: 12.5,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
             color: selected ? Colors.white : AppColors.text2,
@@ -305,7 +305,7 @@ class _DateField extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.publicSans(
                   fontSize: 12.5,
                   color: isPlaceholder ? AppColors.text3 : AppColors.text1,
                 ),

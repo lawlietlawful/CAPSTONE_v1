@@ -73,10 +73,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Report Details',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        title: const Text('Report Details'),
       ),
       body: _buildBody(),
     );
@@ -142,7 +139,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
           _Card(
             children: [
-              Text('Incident', style: AppTextStyles.pageTitle),
+              Text('Concern', style: AppTextStyles.pageTitle),
               const SizedBox(height: 12),
               _DetailRow(
                 icon: Icons.event_rounded,
@@ -166,7 +163,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               const SizedBox(height: 5),
               Text(
                 report.description,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.publicSans(
                   fontSize: 12.5,
                   color: AppColors.text1,
                   height: 1.5,
@@ -230,7 +227,7 @@ class _EscalatedReferralCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Escalated to Guidance',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.publicSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: AppColors.purpleText,
@@ -242,9 +239,9 @@ class _EscalatedReferralCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'This incident was serious enough to be referred to the guidance '
+            'This concern was serious enough to be referred to the guidance '
             'office automatically. The parent was notified by SMS.',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.publicSans(
               fontSize: 12,
               color: AppColors.purpleText,
               height: 1.45,

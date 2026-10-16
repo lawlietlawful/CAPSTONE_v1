@@ -110,10 +110,7 @@ class _ComposeMessageScreenState extends State<ComposeMessageScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'New Message',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        title: const Text('New Message'),
       ),
       body: _buildBody(),
     );
@@ -201,7 +198,7 @@ class _CounselorField extends StatelessWidget {
           value: selectedId,
           isExpanded: true,
           icon: const Icon(Icons.expand_more_rounded, color: AppColors.text3, size: 18),
-          style: GoogleFonts.inter(fontSize: 13, color: AppColors.text1),
+          style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text1),
           items: counselors
               .map(
                 (c) => DropdownMenuItem<int>(

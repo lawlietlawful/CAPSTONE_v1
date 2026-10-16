@@ -11,7 +11,9 @@ import '../../providers/teacher_provider.dart';
 import '../messaging/compose_message_screen.dart';
 import '../../widgets/common/follow_up_card.dart';
 import '../../widgets/common/form_widgets.dart';
+import '../../widgets/common/page_header.dart';
 import '../../widgets/common/status_badges.dart';
+import '../../widgets/common/surfaces.dart';
 import '../../widgets/premium/motion.dart';
 import '../../widgets/premium/skeleton.dart';
 
@@ -44,10 +46,7 @@ class _ReferralDetailScreenState extends State<ReferralDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Referral',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        title: const Text('Referral'),
       ),
       body: FutureBuilder<ReferralDetail>(
         future: _future,
@@ -72,94 +71,152 @@ class _ReferralDetailScreenState extends State<ReferralDetailScreen> {
 
   Widget _buildDetail(ReferralDetail detail) {
     final r = detail.referral;
+    final filed = _formatDate(r.createdAt);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
       children: [
         // ── Header ──
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: AppDecor.card(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                r.studentName ?? 'Unknown student',
-                style: AppTextStyles.pageTitle,
-              ),
-              const SizedBox(height: 4),
-              Text(r.referralTypeLabel, style: AppTextStyles.meta),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppBadge.status(r.status),
-                  AppBadge.priority(r.priority),
-                  if (r.isAutoEscalated) AppBadge.auto(),
+                  Expanded(
+                    child: Text(
+                      r.studentName ?? 'Unknown student',
+                      style: AppTextStyles.pageTitle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: AppBadge.status(r.status),
+                  ),
                 ],
               ),
+              const SizedBox(height: 2),
+              Text(
+                [r.referralTypeLabel, if (filed.isNotEmpty) 'Filed $filed'].join(' · '),
+                style: AppTextStyles.meta.copyWith(fontSize: 13, color: AppColors.text2),
+              ),
+              if (r.isAutoEscalated) ...[
+                const SizedBox(height: 10),
+                AppBadge.auto(),
+              ],
             ],
           ),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 16),
 
         // ── Status journey ──
-        Text('Status', style: AppTextStyles.sectionTitle),
+        _Panel(title: 'Status', child: _Journey(steps: detail.journey)),
         const SizedBox(height: 12),
-        _Journey(steps: detail.journey),
-        const SizedBox(height: 22),
 
         // ── Who has it at Guidance ──
-        Text('Handled by', style: AppTextStyles.sectionTitle),
-        const SizedBox(height: 10),
-        _HandledByCard(
-          counselorId: r.counselorId,
-          counselorName: r.counselorName,
-          referralLabel: r.referralTypeLabel,
-          studentName: r.studentName,
+        _Panel(
+          title: 'Handled by',
+          child: _HandledByCard(
+            counselorId: r.counselorId,
+            counselorName: r.counselorName,
+            referralLabel: r.referralTypeLabel,
+            studentName: r.studentName,
+          ),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 12),
 
         // ── Teacher's follow-up, once Guidance has resolved it ──
         if (r.isResolved) ...[
-          Text('Your follow-up', style: AppTextStyles.sectionTitle),
-          const SizedBox(height: 10),
+          const SectionHeading(title: 'Your follow-up'),
           FollowUpCard(
             referralId: r.id,
             studentName: r.studentName,
             followUp: r.followUp,
             onSaved: () => setState(() => _future = _load()),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 12),
         ],
 
         // ── Reason (what the teacher wrote) ──
-        Text('Reason', style: AppTextStyles.sectionTitle),
-        const SizedBox(height: 10),
-        if (r.isAutoEscalated && r.escalatedFromReportId != null) ...[
-          Text(
-            'Auto-escalated from Behavioral Report #${r.escalatedFromReportId}',
-            style: GoogleFonts.inter(
-              fontSize: 11.5,
-              color: AppColors.purpleText,
-            ),
+        _Panel(
+          title: r.isAutoEscalated ? 'Reason' : 'Your reason',
+          trailing: Text.rich(
+            TextSpan(children: [
+              const TextSpan(text: 'Priority '),
+              TextSpan(
+                text: _cap(r.priority.isEmpty ? 'low' : r.priority),
+                style: TextStyle(fontWeight: FontWeight.w600, color: _priorityColor(r.priority)),
+              ),
+            ]),
+            style: AppTextStyles.meta,
           ),
-          const SizedBox(height: 8),
-        ],
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: AppDecor.card(),
-          child: Text(
-            r.reason,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: AppColors.text2,
-              height: 1.5,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (r.isAutoEscalated && r.escalatedFromReportId != null) ...[
+                Text(
+                  'Auto-escalated from Behavioral Report #${r.escalatedFromReportId}',
+                  style: GoogleFonts.publicSans(fontSize: 12.5, color: AppColors.purpleText),
+                ),
+                const SizedBox(height: 6),
+              ],
+              Text(r.reason, style: AppTextStyles.body.copyWith(color: const Color(0xFF2B3648))),
+              const SizedBox(height: 8),
+              Text('Priority is set by the system from the student\'s risk level.', style: AppTextStyles.meta),
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  static String _cap(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+
+  static Color _priorityColor(String p) => switch (p.toLowerCase()) {
+        'high' => AppColors.redText,
+        'moderate' || 'medium' => AppColors.amberText,
+        _ => AppColors.greenText,
+      };
+
+  static String _formatDate(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    try {
+      return DateFormat('MMM d, yyyy').format(DateTime.parse(raw).toLocal());
+    } catch (_) {
+      return raw;
+    }
+  }
+}
+
+/// A white card with a small title on top.
+class _Panel extends StatelessWidget {
+  final String title;
+  final Widget? trailing;
+  final Widget child;
+
+  const _Panel({required this.title, required this.child, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      decoration: AppDecor.card(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(title, style: AppTextStyles.sectionTitle)),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -171,8 +228,7 @@ class _Journey extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      decoration: AppDecor.card(),
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
           for (var i = 0; i < steps.length; i++)
@@ -223,14 +279,12 @@ class _JourneyRow extends StatelessWidget {
           Column(
             children: [
               Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: _Halo(
-                  active: step.isCurrent && !cancelled,
-                  child: Container(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
                     width: 22,
                     height: 22,
                     decoration: BoxDecoration(
-                      color: reached || cancelled
+                      color: step.isDone || cancelled
                           ? markColor
                           : AppColors.surface,
                       shape: BoxShape.circle,
@@ -251,16 +305,15 @@ class _JourneyRow extends StatelessWidget {
                         : step.isCurrent
                         ? Center(
                             child: Container(
-                              width: 7,
-                              height: 7,
+                              width: 8,
+                              height: 8,
                               decoration: const BoxDecoration(
-                                color: Colors.white,
+                                color: AppColors.accent,
                                 shape: BoxShape.circle,
                               ),
                             ),
                           )
                         : null,
-                  ),
                 ),
               ),
               if (!isLast)
@@ -292,18 +345,18 @@ class _JourneyRow extends StatelessWidget {
           // Label + date
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(top: 12, bottom: isLast ? 12 : 18),
+              padding: EdgeInsets.only(top: 10, bottom: isLast ? 2 : 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     step.label,
-                    style: GoogleFonts.inter(
-                      fontSize: 13.5,
+                    style: GoogleFonts.publicSans(
+                      fontSize: 14,
                       fontWeight: step.isCurrent
                           ? FontWeight.w600
                           : FontWeight.w500,
-                      color: textColor,
+                      color: step.isCurrent && !cancelled ? AppColors.accentDark : textColor,
                     ),
                   ),
                   if (_dateLabel.isNotEmpty) ...[
@@ -341,86 +394,39 @@ class _HandledByCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final assigned = counselorId != null;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: AppDecor.card(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: assigned
-                      ? AppColors.accentLight
-                      : AppColors.background,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Icon(
-                  assigned
-                      ? Icons.support_agent_rounded
-                      : Icons.hourglass_empty_rounded,
-                  size: 17,
-                  color: assigned ? AppColors.accent : AppColors.text3,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      assigned
-                          ? (counselorName ?? 'Guidance counselor')
-                          : 'Waiting for a counselor',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text1,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      assigned
-                          ? 'Guidance counselor'
-                          : 'The Guidance Office will assign one soon.',
-                      style: AppTextStyles.meta,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(
-                Icons.lock_outline_rounded,
-                size: 13,
-                color: AppColors.text3,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Counseling notes stay confidential with the Guidance Office.',
-                  style: GoogleFonts.inter(
-                    fontSize: 11.5,
-                    color: AppColors.text3,
-                    height: 1.4,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            assigned
+                ? InitialsAvatar(initials: InitialsAvatar.of(counselorName), size: 40, dark: true)
+                : Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(color: AppColors.background, shape: BoxShape.circle),
+                    child: const Icon(Icons.hourglass_empty_rounded, size: 18, color: AppColors.text3),
                   ),
-                ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    assigned ? (counselorName ?? 'Guidance counselor') : 'Waiting for a counselor',
+                    style: AppTextStyles.sectionTitle,
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    assigned ? 'Guidance counselor' : 'The Guidance Office will assign one soon.',
+                    style: AppTextStyles.meta,
+                  ),
+                ],
               ),
-            ],
-          ),
-          if (assigned) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
+            ),
+            if (assigned) ...[
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
                 key: const Key('message-counselor'),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
@@ -431,83 +437,33 @@ class _HandledByCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12)),
                 icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
                 label: Text(
-                  'Message ${counselorName ?? 'counselor'}',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  side: const BorderSide(color: AppColors.border),
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  'Message',
+                  semanticsLabel: 'Message ${counselorName ?? 'counselor'}',
                 ),
               ),
-            ),
+            ],
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// A soft ring that breathes around the current step's marker.
-class _Halo extends StatefulWidget {
-  final bool active;
-  final Widget child;
-  const _Halo({required this.active, required this.child});
-
-  @override
-  State<_Halo> createState() => _HaloState();
-}
-
-class _HaloState extends State<_Halo> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1400),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (widget.active && !Motion.reduced(context)) {
-      _controller.repeat(reverse: true);
-    } else {
-      _controller.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!widget.active) return widget.child;
-    return AnimatedBuilder(
-      animation: _controller,
-      child: widget.child,
-      builder: (_, child) => DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.accent.withValues(
-                alpha: 0.28 * (1 - _controller.value),
+        ),
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.lock_outline_rounded, size: 15, color: AppColors.text2),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Counseling notes stay confidential with the Guidance Office.',
+                style: GoogleFonts.publicSans(fontSize: 12.5, color: AppColors.text2, height: 1.4),
               ),
-              spreadRadius: 2 + 5 * _controller.value,
             ),
           ],
         ),
-        child: child,
-      ),
+      ],
     );
   }
 }

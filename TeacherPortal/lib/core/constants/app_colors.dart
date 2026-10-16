@@ -2,53 +2,75 @@ import 'package:flutter/material.dart';
 
 /// Shared visual language with the Student Portal so both apps read as one
 /// system. Keep in sync with StudentPortal/lib/core/constants/app_colors.dart.
+///
+/// Every text color here passes 4.5:1 on white (and on its own tint, for the
+/// semantic pairs), so labels stay readable in sunlight on a phone.
 class AppColors {
-  // Primary navy
+  // Brand navy — the summary cards, sign-in band and avatars.
   static const navy = Color(0xFF0F1B2D);
-  static const navy2 = Color(0xFF1A2F4A);
+  static const navy2 = Color(0xFF1B2B44);
   static const navy3 = Color(0xFF243D5C);
 
-  // Accent blue
-  static const accent = Color(0xFF3B82F6);
-  static const accentLight = Color(0xFFEFF6FF);
-  static const accentDark = Color(0xFF1D4ED8);
+  // Primary blue — buttons, links, the active tab.
+  static const accent = Color(0xFF1F4FD1);
+  static const accentLight = Color(0xFFEEF3FE);
+  static const accentDark = Color(0xFF1A44B8);
 
   // Surfaces
   static const surface = Color(0xFFFFFFFF);
-  static const background = Color(0xFFF8FAFC);
-  static const border = Color(0xFFE2E8F0);
+  static const background = Color(0xFFF4F6F9);
+  static const border = Color(0xFFE2E7EE);
+
+  /// Input and button outlines: a step darker than a card's edge.
+  static const borderStrong = Color(0xFFD3DAE4);
+
+  /// Hairline between rows inside one card.
+  static const divider = Color(0xFFEDF0F4);
+
+  /// The track behind a segmented control.
+  static const segmentTrack = Color(0xFFE8ECF2);
 
   // Text
-  static const text1 = Color(0xFF0F172A);
-  static const text2 = Color(0xFF475569);
-  static const text3 = Color(0xFF94A3B8);
+  static const text1 = Color(0xFF0E1726);
+  static const text2 = Color(0xFF46546A);
+  static const text3 = Color(0xFF6B778A);
+
+  /// Chevrons and other quiet glyphs that carry no meaning on their own.
+  static const iconMuted = Color(0xFF9AA5B5);
 
   // Semantic – red
-  static const red = Color(0xFFEF4444);
-  static const redBg = Color(0xFFFEF2F2);
-  static const redText = Color(0xFF991B1B);
+  static const red = Color(0xFFC8321F);
+  static const redBg = Color(0xFFFEF0EE);
+  static const redText = Color(0xFFA3200F);
 
   // Semantic – amber
-  static const amber = Color(0xFFF59E0B);
-  static const amberBg = Color(0xFFFFFBEB);
-  static const amberText = Color(0xFF92400E);
+  static const amber = Color(0xFFE8930C);
+  static const amberBg = Color(0xFFFEF6E7);
+  static const amberText = Color(0xFF8A4E06);
 
   // Semantic – green
-  static const green = Color(0xFF10B981);
-  static const greenBg = Color(0xFFECFDF5);
-  static const greenText = Color(0xFF065F46);
+  static const green = Color(0xFF1D9A6C);
+  static const greenBg = Color(0xFFEAF6F0);
+  static const greenText = Color(0xFF0B6B4B);
 
   // Semantic – purple
-  static const purple = Color(0xFF8B5CF6);
-  static const purpleBg = Color(0xFFF5F3FF);
-  static const purpleText = Color(0xFF6D28D9);
+  static const purple = Color(0xFF6E4FD0);
+  static const purpleBg = Color(0xFFF3F0FC);
+  static const purpleText = Color(0xFF5235B0);
+
+  // Neutral tag (not assessed, reviewed, cancelled)
+  static const neutralBg = Color(0xFFEEF1F5);
+  static const neutralDot = Color(0xFFC3CAD5);
 
   // Navy text helpers (for use on dark navy backgrounds)
   static const navyText = Color(0xFFFFFFFF);
-  static const navySubText = Color(0x7AFFFFFF); // 48% opacity
+  static const navySubText = Color(0xFFAEB9CB);
   static const navyMuted = Color(0x40FFFFFF); // 25% opacity
   static const navyBorder = Color(0x1FFFFFFF); // 12% opacity
-  static const navyCard = Color(0xFF1A2F4A);
-  static const navyAccent = Color(0xFF60A5FA);
-  static const navyInitial = Color(0xFF7BB3F0);
+  static const navyCard = Color(0xFF1B2B44);
+  static const navyAccent = Color(0xFF9DB8F5);
+  static const navyInitial = Color(0xFFFFFFFF);
+
+  /// The warning glyph on the navy summary card.
+  static const navyWarning = Color(0xFFF5B54A);
 }

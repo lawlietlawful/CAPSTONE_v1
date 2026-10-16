@@ -47,7 +47,7 @@ class RiskGauge extends StatelessWidget {
               top: size * 0.25,
               child: Text(
                 '${(t * 100).round()}',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.publicSans(
                   fontSize: 32,
                   fontWeight: FontWeight.w700,
                   color: AppColors.text1,
@@ -60,7 +60,7 @@ class RiskGauge extends StatelessWidget {
               bottom: 0,
               child: Text(
                 '$label · out of 100',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.publicSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: color,

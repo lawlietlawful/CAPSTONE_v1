@@ -7,7 +7,7 @@ import '../../providers/teacher_provider.dart';
 import '../../screens/messaging/messaging_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
 
-/// Messages and notifications, side by side in every tab's navy header —
+/// Messages and notifications, side by side in every tab's header —
 /// each with a live unread badge, so neither needs a floating button.
 class HeaderActions extends StatelessWidget {
   const HeaderActions({super.key});
@@ -16,7 +16,7 @@ class HeaderActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Row(
       mainAxisSize: MainAxisSize.min,
-      children: [MessagesButton(), SizedBox(width: 10), NotificationBell()],
+      children: [MessagesButton(), SizedBox(width: 8), NotificationBell()],
     );
   }
 }
@@ -68,7 +68,7 @@ class MessagesButton extends StatelessWidget {
   }
 }
 
-/// A round navy-header button with an optional red unread badge.
+/// A square header button with an optional red unread badge.
 class HeaderIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
@@ -90,42 +90,46 @@ class HeaderIconButton extends StatelessWidget {
       child: Semantics(
         button: true,
         label: badge > 0 ? '$tooltip, $badge unread' : tooltip,
-        child: GestureDetector(
-          onTap: onTap,
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.navy2,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0x26FFFFFF), width: 2),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(icon, size: 20, color: AppColors.navyText),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Material(
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: AppColors.border),
                 ),
-                if (badge > 0)
-                  Positioned(
-                    right: -2,
-                    top: -2,
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Icon(icon, size: 21, color: const Color(0xFF2B3648)),
+                  ),
+                ),
+              ),
+              if (badge > 0)
+                Positioned(
+                  right: -5,
+                  top: -5,
+                  child: IgnorePointer(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
                       decoration: BoxDecoration(
                         color: AppColors.red,
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(color: AppColors.navy, width: 1.5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.background, width: 2),
                       ),
                       alignment: Alignment.center,
                       child: Text(
                         badge > 9 ? '9+' : '$badge',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
+                        style: GoogleFonts.publicSans(
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                           height: 1,
@@ -133,8 +137,8 @@ class HeaderIconButton extends StatelessWidget {
                       ),
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),

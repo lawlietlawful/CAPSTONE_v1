@@ -85,27 +85,28 @@ class _AuthScaffoldState extends State<AuthScaffold> with SingleTickerProviderSt
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: AppColors.accent,
+                            color: AppColors.navy2,
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.navyBorder),
                           ),
                           child: Icon(widget.portalIcon, color: Colors.white, size: 22),
                         ),
                         const SizedBox(width: 12),
                         Text(
                           'Misamis University',
-                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.navyText),
+                          style: GoogleFonts.publicSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.navyText),
                         ),
                       ],
                     ),
                     const SizedBox(height: 22),
                     Text(
                       widget.portalName,
-                      style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.navyText),
+                      style: GoogleFonts.publicSans(fontSize: 26, fontWeight: FontWeight.w700, color: AppColors.navyText),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Guidance and Counseling Office',
-                      style: GoogleFonts.inter(fontSize: 13.5, color: AppColors.navySubText),
+                      style: GoogleFonts.publicSans(fontSize: 13.5, color: AppColors.navySubText),
                     ),
                   ],
                 ),
@@ -124,7 +125,7 @@ class _AuthScaffoldState extends State<AuthScaffold> with SingleTickerProviderSt
                   width: double.infinity,
                   decoration: const BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                   ),
                   child: SafeArea(
                     top: false,
@@ -141,7 +142,7 @@ class _AuthScaffoldState extends State<AuthScaffold> with SingleTickerProviderSt
                               Center(
                                 child: Text(
                                   'Student Referral System v1.0 · MU',
-                                  style: GoogleFonts.inter(fontSize: 11, color: AppColors.text3),
+                                  style: GoogleFonts.publicSans(fontSize: 12, color: AppColors.text3),
                                 ),
                               ),
                             ],
@@ -171,9 +172,9 @@ class AuthHeading extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: GoogleFonts.inter(fontSize: 21, fontWeight: FontWeight.w700, color: AppColors.text1)),
+        Text(title, style: GoogleFonts.publicSans(fontSize: 21, fontWeight: FontWeight.w700, color: AppColors.text1)),
         const SizedBox(height: 4),
-        Text(subtitle, style: GoogleFonts.inter(fontSize: 13, color: AppColors.text3, height: 1.4)),
+        Text(subtitle, style: GoogleFonts.publicSans(fontSize: 14, color: AppColors.text2, height: 1.45)),
       ],
     );
   }
@@ -249,28 +250,27 @@ class AuthPrimaryButton extends StatelessWidget {
           disabledBackgroundColor: locked ? const Color(0xFF9DB9EA) : AppColors.accent,
           foregroundColor: Colors.white,
           disabledForegroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           elevation: 0,
         ),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          child: loading
-              ? const SizedBox(
-                  key: ValueKey('loading'),
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
-                )
-              : Text(
-                  locked ? 'Try again in $clock' : label,
-                  key: ValueKey(locked ? 'locked' : 'ready'),
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+        // A plain swap, not an AnimatedSwitcher: when the server can't be
+        // reached the request fails instantly, and flipping ready -> loading
+        // -> ready inside the fade left two "ready" children with the same
+        // key ("Duplicate keys found", then a red error screen).
+        child: loading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+              )
+            : Text(
+                locked ? 'Try again in $clock' : label,
+                style: GoogleFonts.publicSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
-        ),
+              ),
       ),
     );
   }
@@ -282,20 +282,17 @@ void showForgotPasswordNotice(BuildContext context) {
     context: context,
     builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text(
-        'Forgot your password?',
-        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
+      title: const Text('Forgot your password?'),
       content: Text(
         'Passwords are reset in person. Visit the Guidance Office with your '
         'school ID for a new activation code, then activate your account '
         'again here and choose a new password.',
-        style: GoogleFonts.inter(fontSize: 13, color: AppColors.text2, height: 1.45),
+        style: GoogleFonts.publicSans(fontSize: 13, color: AppColors.text2, height: 1.45),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx),
-          child: Text('Got it', style: GoogleFonts.inter(color: AppColors.accent, fontWeight: FontWeight.w600)),
+          child: Text('Got it', style: GoogleFonts.publicSans(color: AppColors.accent, fontWeight: FontWeight.w600)),
         ),
       ],
     ),
