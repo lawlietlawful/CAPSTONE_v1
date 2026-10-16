@@ -17,3 +17,7 @@ Capstone workspace for the Automated Student Referral and Predictive Interventio
 ## Local Setup
 
 Use `student-referral-system/.env.example` as the template for local Laravel configuration. The real `.env` file is intentionally ignored because it contains local secrets.
+
+## Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for putting the system on a server (stage 1: demo data only). Run `php artisan deploy:check` on the server before going live.

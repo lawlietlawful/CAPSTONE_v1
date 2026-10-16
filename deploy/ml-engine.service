@@ -1,0 +1,24 @@
+# systemd unit for the Python risk-assessment engine.
+# Install:  sudo cp deploy/ml-engine.service /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now ml-engine
+# Logs:     sudo journalctl -u ml-engine -f
+#
+# /etc/referral/ml-engine.env holds one line, the same key as Laravel's .env:
+#   ML_ENGINE_KEY=<the same long random key>
+# Keep port 8001 closed in the firewall; only Laravel on this machine calls it.
+
+[Unit]
+Description=Student Referral ML engine (FastAPI)
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/referral/student-referral-system/ml_engine
+EnvironmentFile=/etc/referral/ml-engine.env
+ExecStart=/var/www/referral/student-referral-system/ml_engine/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8001
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -43,3 +43,6 @@ Thumbs.db
 
 .capstone_files_to_stage.txt
 .nested_git_backups/
+
+# Built portals from deploy/build-portals.ps1
+deploy/out/
